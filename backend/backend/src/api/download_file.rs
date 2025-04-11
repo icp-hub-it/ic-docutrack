@@ -1,6 +1,6 @@
-pub use crate::ceil_division;
+use candid::Principal;
+
 use crate::{FileContent, FileData, FileDownloadResponse, State};
-use ic_cdk::export::candid::Principal;
 
 fn get_file_data(s: &State, file_id: u64, chunk_id: u64) -> FileDownloadResponse {
     // unwrap is safe because we already know the file exists
@@ -86,13 +86,11 @@ fn is_file_shared_with_me(s: &State, file_id: u64, caller: Principal) -> bool {
 
 #[cfg(test)]
 mod test {
+    use candid::Principal;
+
     use super::*;
-    use crate::{
-        api::{request_file, share_file},
-        api::{set_user_info, upload_file},
-        User,
-    };
-    use ic_cdk::export::Principal;
+    use crate::User;
+    use crate::api::{request_file, set_user_info, share_file, upload_file};
 
     #[test]
     fn test_user_not_allowed() {

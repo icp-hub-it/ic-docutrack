@@ -1,9 +1,10 @@
-use crate::{get_time, File, FileContent, FileMetadata, State};
-use ic_cdk::export::{candid::CandidType, Principal};
-use serde::{Deserialize, Serialize};
 use std::collections::BTreeMap;
 
+use candid::{CandidType, Principal};
+use serde::{Deserialize, Serialize};
+
 use super::user_info::get_user_key;
+use crate::{File, FileContent, FileMetadata, State, get_time};
 
 #[derive(CandidType, Serialize, Deserialize, Clone, Debug, PartialEq, Eq)]
 pub struct UploadFileAtomicRequest {
@@ -64,20 +65,18 @@ pub fn upload_file_atomic(
     }
 
     // Add the caller as the owner of this file.
-    state
-        .file_owners
-        .entry(caller)
-        .or_insert_with(Vec::new)
-        .push(file_id);
+    state.file_owners.entry(caller).or_default().push(file_id);
 
     file_id
 }
 
 #[cfg(test)]
 mod test {
-    use super::*;
-    use crate::{api::set_user_info, File, FileMetadata, User};
     use maplit::btreemap;
+
+    use super::*;
+    use crate::api::set_user_info;
+    use crate::{File, FileMetadata, User};
 
     #[test]
     fn stores_file_in_state() {

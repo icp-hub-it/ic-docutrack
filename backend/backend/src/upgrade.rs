@@ -1,5 +1,7 @@
-use crate::{memory, STATE};
-use ic_stable_structures::{writer::Writer, Memory as _};
+use ic_stable_structures::Memory as _;
+use ic_stable_structures::writer::Writer;
+
+use crate::{STATE, memory};
 
 pub fn pre_upgrade() {
     // Serialize the state.

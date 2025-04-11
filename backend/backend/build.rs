@@ -1,7 +1,6 @@
-use std::env;
-use std::fs;
 use std::io::{self, BufRead, BufReader, BufWriter, Write};
 use std::path::Path;
+use std::{env, fs};
 
 fn generate(src_path: impl AsRef<Path>, dst_path: impl AsRef<Path>) -> io::Result<()> {
     let src = BufReader::new(fs::File::open(src_path.as_ref())?);

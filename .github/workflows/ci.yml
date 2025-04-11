@@ -1,20 +1,20 @@
-name: CI Checks
+name: build_and_test
 
 env:
-  RUST_VERSION: 1.67.0
+  RUST_VERSION: 1.86.0
 
 on:
   push:
     branches:
       - main
   pull_request:
+    branches:
+      - main
+      - dev
 
 jobs:
-  cargo-build:
-    runs-on: ${{ matrix.os }}
-    strategy:
-      matrix:
-        os: [ubuntu-22.04]
+  build:
+    runs-on: ubuntu-latest
 
     steps:
       - uses: actions/checkout@v3
@@ -25,129 +25,36 @@ jobs:
             ~/.cargo/git
             target
           key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}-1
+
+      - name: Install Just command runner
+        uses: extractions/setup-just@v1
+
+      - name: install ic-wasm
+        run: |
+          wget https://github.com/dfinity/ic-wasm/releases/download/0.8.1/ic-wasm-linux64 -O /usr/local/bin/ic-wasm
+          chmod +x /usr/local/bin/ic-wasm
+
+      - name: install candid-extractor
+        run: |
+          wget https://github.com/dfinity/cdk-rs/releases/download/candid-extractor-v0.1.4/candid-extractor-x86_64-unknown-linux-gnu.tar.gz -O /tmp/candid-extractor-x86_64-unknown-linux-gnu.tar.gz
+          tar -xvf /tmp/candid-extractor-x86_64-unknown-linux-gnu.tar.gz -C /usr/local/bin
+          chmod +x /usr/local/bin/candid-extractor
 
       - name: Install Rust
-        run: |
-          rustup update $RUST_VERSION --no-self-update
-          rustup default $RUST_VERSION
-          rustup target add wasm32-unknown-unknown
-
-      - name: Build
-        shell: bash
-        run: |
-          cargo build --release --all-targets
-        env:
-          RUST_BACKTRACE: 1
-
-  cargo-tests:
-    runs-on: ${{ matrix.os }}
-    needs: cargo-build
-    strategy:
-      matrix:
-        os: [ubuntu-22.04]
-
-    steps:
-      - uses: actions/checkout@v3
-      - uses: actions/cache@v3
+        uses: dtolnay/rust-toolchain@stable
         with:
-          path: |
-            ~/.cargo/registry
-            ~/.cargo/git
-            target
-          key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}-1
+          toolchain: $RUST_VERSION
+          components: rustfmt, clippy
+          target: wasm32-unknown-unknown
 
-      - name: Install Rust
+      - name: check rust code style
         run: |
-          rustup update $RUST_VERSION --no-self-update
-          rustup default $RUST_VERSION
-          rustup target add wasm32-unknown-unknown
+          just check_code
 
-      - name: Run Tests
-        shell: bash
+      - name: build canisters
         run: |
-          cargo test --release --all-targets
-        env:
-          RUST_BACKTRACE: 1
+          just build_all_canisters
 
-  cargo-clippy:
-    runs-on: ubuntu-22.04
-    steps:
-      - uses: actions/checkout@v3
-      - uses: actions/cache@v3
-        with:
-          path: |
-            ~/.cargo/registry
-            ~/.cargo/git
-            target
-          key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}-1
-
-      - name: Install Rust + Clippy
+      - name: test
         run: |
-          rustup update $RUST_VERSION --no-self-update
-          rustup default $RUST_VERSION
-          rustup target add wasm32-unknown-unknown
-          rustup component add clippy
-
-      - uses: actions-rs/clippy-check@v1
-        with:
-          token: ${{ secrets.GITHUB_TOKEN }}
-          args: --all-targets -- -D warnings
-
-  rustfmt:
-    runs-on: ubuntu-22.04
-    steps:
-      - uses: actions/checkout@v3
-      - name: Install Rust + Clippy
-        run: |
-          rustup update $RUST_VERSION --no-self-update
-          rustup default $RUST_VERSION
-
-      - name: Install Rust + Rustfmt
-        run: |
-          rustup update $RUST_VERSION --no-self-update
-          rustup default $RUST_VERSION
-          rustup component add rustfmt
-
-      - uses: actions-rs/cargo@v1
-        with:
-          command: fmt
-          args: --all -- --check
-
-  shell-checks:
-    name: ShellCheck
-    runs-on: ubuntu-22.04
-    steps:
-      - uses: actions/checkout@v3
-      - name: Run ShellCheck
-        uses: ludeeus/action-shellcheck@master
-        env:
-          SHELLCHECK_OPTS: -e SC1090 -e SC2119 -e SC1091
-
-  frontent-build:
-    runs-on: ubuntu-22.04
-
-    strategy:
-      matrix:
-        node-version: [19.x]
-
-    steps:
-      - uses: actions/checkout@v3
-
-      - name: Install dfx
-        uses: dfinity/setup-dfx@main
-        with: 
-          dfx-version: "0.17.0"
-
-      - name: Use Node.js ${{ matrix.node-version }}
-        uses: actions/setup-node@v3
-        with:
-          node-version: ${{ matrix.node-version }}
-      - name: Build frontend
-        run: |
-          dfx start --background
-          dfx canister create --all
-          dfx deps pull
-          dfx deps deploy
-          npm install -g pnpm
-          pnpm install
-          pnpm recursive run build
+          just test_all

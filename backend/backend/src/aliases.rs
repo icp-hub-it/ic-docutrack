@@ -1,6 +1,8 @@
-use rand::{seq::SliceRandom, SeedableRng};
-use rand_chacha::ChaCha20Rng;
 use std::convert::{TryFrom, TryInto};
+
+use rand::SeedableRng;
+use rand::seq::IndexedRandom;
+use rand_chacha::ChaCha20Rng;
 
 // List of English adjective words
 const ADJECTIVES: &[&str] = &include!(concat!(env!("OUT_DIR"), "/adjectives.rs"));

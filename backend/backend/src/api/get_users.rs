@@ -1,5 +1,6 @@
+use candid::Principal;
+
 use crate::{GetUsersResponse, PublicUser, State};
-use ic_cdk::export::candid::Principal;
 
 pub fn get_users(state: &State, caller: Principal) -> GetUsersResponse {
     const ANON_USER: Principal = Principal::anonymous();
@@ -21,11 +22,10 @@ pub fn get_users(state: &State, caller: Principal) -> GetUsersResponse {
 
 #[cfg(test)]
 mod test {
-    use crate::{
-        api::{get_users, set_user_info},
-        GetUsersResponse, State, User,
-    };
     use candid::Principal;
+
+    use crate::api::{get_users, set_user_info};
+    use crate::{GetUsersResponse, State, User};
 
     #[test]
     fn test_get_users() {

@@ -26,15 +26,50 @@ The best solution for the first three bullet points is to apply [vetKeys](https:
 
 ## Development
 
+### Prerequisites
+
+- [Rust (1.85 or later)](https://rustup.rs/): to build the canisters
+- [Node.js](https://nodejs.org/en/) (v22.0.0 or later)
+- [DFX](https://internetcomputer.org/docs/building-apps/getting-started/install) (v0.23 or later)
+- [Just](https://just.systems/) to run scripts
+- [ic-wasm](https://github.com/dfinity/ic-wasm/releases): to bundle the canisters
+- [candid-extractor](https://github.com/dfinity/cdk-rs/releases/): to extract the candid interface of the canisters
+
+### Build canisters
+
+Just run the following command to build all canisters:
+
+```sh
+just build_all
+```
+
+### Test canisters
+
+To run the tests, run the following command:
+
+```sh
+just test [test_name]
+just integration_test [test_name]
+```
+
+### Lint and format
+
+```sh
+just clippy
+just fmt_nightly
+```
+
+### Run canisters locally
+
 To run the dapp locally, run the following in one terminal window:
 
-```
+```sh
 dfx start --clean
 ```
 
 And in another terminal"
 
-```
+```sh
 # Install needed frontend dependencies.
 npm install -g pnpm
 pnpm install
@@ -55,12 +90,12 @@ After deploying locally both Internet Identity and the backend canister, you can
 
 ### Frontend project of the dapp
 
-```
+```sh
 pnpm --filter frontend run dev
 ```
 
 ### Home page
 
-```
+```sh
 pnpm --filter landing-page run dev
 ```

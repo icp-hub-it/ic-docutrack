@@ -1,5 +1,6 @@
-use crate::{get_time, FileContent, State, UploadFileError};
 use std::collections::BTreeMap;
+
+use crate::{FileContent, State, UploadFileError, get_time};
 
 pub fn upload_file(
     file_id: u64,
@@ -45,7 +46,7 @@ pub fn upload_file(
             alias
         }
         FileContent::Uploaded { .. } | FileContent::PartiallyUploaded { .. } => {
-            return Err(UploadFileError::AlreadyUploaded)
+            return Err(UploadFileError::AlreadyUploaded);
         }
     };
 
@@ -60,13 +61,13 @@ pub fn upload_file(
 
 #[cfg(test)]
 mod test {
-    use super::*;
-    use crate::{
-        api::{request_file, set_user_info, user_info::get_user_key},
-        File, FileMetadata, User,
-    };
-    use ic_cdk::export::Principal;
+    use candid::Principal;
     use maplit::btreemap;
+
+    use super::*;
+    use crate::api::user_info::get_user_key;
+    use crate::api::{request_file, set_user_info};
+    use crate::{File, FileMetadata, User};
 
     #[test]
     fn stored_file_in_state() {

@@ -1,7 +1,7 @@
-use crate::{FileContent, FileSharingResponse, PublicFileMetadata, State};
-use ic_cdk::export::candid::Principal;
+use candid::Principal;
 
 use super::get_requests::{get_allowed_users, get_file_status};
+use crate::{FileContent, FileSharingResponse, PublicFileMetadata, State};
 
 pub fn share_file(
     state: &mut State,
@@ -19,10 +19,7 @@ pub fn share_file(
                 FileSharingResponse::PendingError
             }
             FileContent::Uploaded { shared_keys, .. } => {
-                let file_shares = state
-                    .file_shares
-                    .entry(sharing_with)
-                    .or_insert_with(Vec::new);
+                let file_shares = state.file_shares.entry(sharing_with).or_default();
 
                 if !file_shares.contains(&file_id) {
                     file_shares.push(file_id);
@@ -94,12 +91,11 @@ pub fn get_shared_files(state: &State, caller: Principal) -> Vec<PublicFileMetad
 
 #[cfg(test)]
 mod test {
+    use candid::Principal;
+
     use super::*;
-    use crate::{
-        api::{request_file, set_user_info, upload_file},
-        get_time, FileStatus, PublicFileMetadata, PublicUser, User,
-    };
-    use ic_cdk::export::Principal;
+    use crate::api::{request_file, set_user_info, upload_file};
+    use crate::{FileStatus, PublicFileMetadata, PublicUser, User, get_time};
 
     #[test]
     fn share_files_test() {
