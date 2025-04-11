@@ -1,4 +1,4 @@
-name: CI Checks
+name: build_and_test
 
 env:
   RUST_VERSION: 1.86.0
@@ -10,11 +10,8 @@ on:
   pull_request:
 
 jobs:
-  cargo-build:
-    runs-on: ${{ matrix.os }}
-    strategy:
-      matrix:
-        os: [ubuntu-22.04]
+  build:
+    runs-on: ubuntu-latest
 
     steps:
       - uses: actions/checkout@v3
