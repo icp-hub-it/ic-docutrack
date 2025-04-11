@@ -1,7 +1,7 @@
 use std::convert::{TryFrom, TryInto};
 
 use rand::SeedableRng;
-use rand::seq::IndexedRandom;
+use rand::seq::SliceRandom;
 use rand_chacha::ChaCha20Rng;
 
 // List of English adjective words

@@ -2,17 +2,20 @@ mod aliases;
 pub mod api;
 mod memory;
 mod upgrade;
+
 use std::cell::RefCell;
 use std::collections::BTreeMap;
 use std::ops::Bound::{Excluded, Included};
 
 use candid::{CandidType, Principal};
+use ic_cdk::api::caller;
+use ic_cdk_macros::{post_upgrade, pre_upgrade, query, update};
 use ic_stable_structures::StableBTreeMap;
 use memory::Memory;
 use serde::{Deserialize, Serialize};
-pub use upgrade::{post_upgrade, pre_upgrade};
 
 use crate::aliases::{AliasGenerator, Randomness};
+use crate::api::UploadFileAtomicRequest;
 
 thread_local! {
     /// Initialize the state randomness with the current time.
@@ -302,3 +305,141 @@ pub fn ceil_division(dividend: usize, divisor: usize) -> usize {
 fn init_file_contents() -> StableBTreeMap<(FileId, ChunkId), Vec<u8>, Memory> {
     StableBTreeMap::init(crate::memory::get_file_contents_memory())
 }
+
+#[update]
+fn set_user(username: String, public_key: Vec<u8>) -> SetUserResponse {
+    if with_state(|s| crate::api::username_exists(s, username.clone())) {
+        SetUserResponse::UsernameExists
+    } else {
+        let user = User {
+            username,
+            public_key,
+        };
+        with_state_mut(|s| crate::api::set_user_info(s, caller(), user));
+        SetUserResponse::Ok
+    }
+}
+
+#[query]
+fn username_exists(username: String) -> bool {
+    with_state(|s| crate::api::username_exists(s, username))
+}
+
+#[query]
+fn who_am_i() -> WhoamiResponse {
+    with_state(|s| match s.users.get(&ic_cdk::api::caller()) {
+        None => WhoamiResponse::UnknownUser,
+        Some(user) => WhoamiResponse::KnownUser(PublicUser {
+            username: user.username.clone(),
+            public_key: user.public_key.clone(),
+            ic_principal: ic_cdk::api::caller(),
+        }),
+    })
+}
+
+#[query]
+fn get_requests() -> Vec<PublicFileMetadata> {
+    with_state(|s| crate::api::get_requests(s, caller()))
+}
+
+#[query]
+fn get_shared_files() -> Vec<PublicFileMetadata> {
+    with_state(|s| crate::api::get_shared_files(s, caller()))
+}
+
+#[query]
+fn get_alias_info(alias: String) -> Result<AliasInfo, GetAliasInfoError> {
+    with_state(|s| crate::api::get_alias_info(s, alias))
+}
+
+#[update]
+fn upload_file(request: UploadFileRequest) -> Result<(), UploadFileError> {
+    with_state_mut(|s| {
+        crate::api::upload_file(
+            request.file_id,
+            request.file_content,
+            request.file_type,
+            request.owner_key,
+            request.num_chunks,
+            s,
+        )
+    })
+}
+
+#[update]
+fn upload_file_atomic(request: UploadFileAtomicRequest) -> u64 {
+    with_state_mut(|s| crate::api::upload_file_atomic(caller(), request, s))
+}
+
+#[update]
+fn upload_file_continue(request: UploadFileContinueRequest) {
+    with_state_mut(|s| crate::api::upload_file_continue(request, s))
+}
+
+#[update]
+fn request_file(request_name: String) -> String {
+    with_state_mut(|s| crate::api::request_file(caller(), request_name, s))
+}
+
+#[query]
+fn download_file(file_id: u64, chunk_id: u64) -> FileDownloadResponse {
+    with_state(|s| crate::api::download_file(s, file_id, chunk_id, caller()))
+}
+
+#[update]
+fn share_file(
+    user_id: Principal,
+    file_id: u64,
+    file_key_encrypted_for_user: Vec<u8>,
+) -> FileSharingResponse {
+    with_state_mut(|s| {
+        crate::api::share_file(s, caller(), user_id, file_id, file_key_encrypted_for_user)
+    })
+}
+
+#[update]
+fn share_file_with_users(
+    user_id: Vec<Principal>,
+    file_id: u64,
+    file_key_encrypted_for_user: Vec<Vec<u8>>,
+) {
+    with_state_mut(|s| {
+        for (id, key) in user_id.iter().zip(file_key_encrypted_for_user.iter()) {
+            crate::api::share_file(s, caller(), *id, file_id, key.clone());
+        }
+    });
+}
+
+#[update]
+fn revoke_share(user_id: Principal, file_id: u64) -> FileSharingResponse {
+    with_state_mut(|s| crate::api::revoke_share(s, caller(), user_id, file_id))
+}
+
+#[query]
+fn get_users() -> GetUsersResponse {
+    with_state(|s| crate::api::get_users(s, caller()))
+}
+
+#[pre_upgrade]
+fn pre_upgrade() {
+    crate::upgrade::pre_upgrade();
+}
+
+#[post_upgrade]
+fn post_upgrade() {
+    crate::upgrade::post_upgrade();
+}
+
+/// GetRandom fixup to allow getrandom compilation.
+/// A getrandom implementation that always fails
+///
+/// This is a workaround for the fact that the `getrandom` crate does not compile
+/// for the `wasm32-unknown-ic` target. This is a dummy implementation that always
+/// fails with `Error::UNSUPPORTED`.
+pub fn getrandom_always_fail(_buf: &mut [u8]) -> Result<(), getrandom::Error> {
+    Err(getrandom::Error::UNSUPPORTED)
+}
+
+getrandom::register_custom_getrandom!(getrandom_always_fail);
+
+ic_cdk::export_candid!();

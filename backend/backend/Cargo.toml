@@ -16,6 +16,7 @@ ic-cdk-macros = { workspace = true }
 ic-stable-structures = { workspace = true }
 candid = { workspace = true }
 ciborium = { workspace = true }
+getrandom = { workspace = true }
 rand = { workspace = true }
 rand_chacha = { workspace = true }
 serde = { workspace = true }
