@@ -1,0 +1,14 @@
+TEST_LOGFILE:="./target/integration_tests.log"
+
+# Run all unit tests and integration tests
+[group('test')]
+test_all: test integration_test
+
+[group('test')]
+test test_name="":
+  cargo test {{test_name}}
+
+[group('test')]
+integration_test test_name="":
+  echo "Running integration tests..."
+#cargo test --test {{test_name}} -p integration-tests 2> "{{TEST_LOGFILE}}"
