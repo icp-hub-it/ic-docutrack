@@ -11,4 +11,4 @@ test test_name="":
 [group('test')]
 integration_test test_name="":
   echo "Running integration tests..."
-#cargo test --test {{test_name}} -p integration-tests 2> "{{TEST_LOGFILE}}"
+  cargo test {{test_name}} -p integration-tests --features "pocket-ic" 2> "{{TEST_LOGFILE}}"
