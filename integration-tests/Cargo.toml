@@ -1,0 +1,24 @@
+[package]
+name = "integration-tests"
+version = { workspace = true }
+edition = { workspace = true }
+license = { workspace = true }
+
+[dependencies]
+anyhow = "1"
+candid = { workspace = true }
+ic-agent = "0.39"
+ic-exports = { git = "https://github.com/bitfinity-network/canister-sdk", package = "ic-exports", tag = "v0.24.x" }
+ic-test-utils = { git = "https://github.com/bitfinity-network/canister-sdk", package = "ic-test-utils", tag = "v0.24.x" }
+ic-utils = "0.39"
+pocket-ic = "7"
+serde = { workspace = true }
+tokio = { version = "1", features = ["full"] }
+
+[dev-dependencies]
+pretty_assertions = "1"
+
+[features]
+default = []
+dfx = []
+pocket-ic = ["ic-exports/pocket-ic-tests"]
