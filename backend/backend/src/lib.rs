@@ -436,10 +436,14 @@ fn post_upgrade() {
 /// This is a workaround for the fact that the `getrandom` crate does not compile
 /// for the `wasm32-unknown-ic` target. This is a dummy implementation that always
 /// fails with `Error::UNSUPPORTED`.
-pub fn getrandom_always_fail(_buf: &mut [u8]) -> Result<(), getrandom::Error> {
+#[unsafe(no_mangle)]
+unsafe extern "Rust" fn __getrandom_v03_custom(
+    _dest: *mut u8,
+    _len: usize,
+) -> Result<(), getrandom::Error> {
     Err(getrandom::Error::UNSUPPORTED)
 }
 
-getrandom::register_custom_getrandom!(getrandom_always_fail);
+// getrandom::register_custom_getrandom!(getrandom_always_fail);
 
 ic_cdk::export_candid!();

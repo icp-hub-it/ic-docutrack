@@ -13,11 +13,9 @@ ic-cdk = "0.17"
 ic-cdk-macros = "0.17"
 ic-stable-structures = "0.6.8"
 candid = { version = "0.10", features = ["value"] }
-# NOTE: A specific commit of ciborium is used that includes efficient serializion/deserialization of
-#       blobs. At the time of this writing, a new version including this commit hasn't yet been released.
 ciborium = "0.2"
-getrandom = { version = "0.2", features = ["custom"] }
-rand = { version = "0.8", features = ["std_rng", "small_rng"] }
-rand_chacha = "0.3"
+getrandom = { version = "0.3", default-features = false }
+rand = { version = "0.9", features = ["std_rng", "small_rng"] }
+rand_chacha = "0.9"
 serde = "1"
 serde_bytes = "0.11"
