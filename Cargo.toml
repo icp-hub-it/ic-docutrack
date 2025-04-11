@@ -16,7 +16,7 @@ candid = { version = "0.10", features = ["value"] }
 # NOTE: A specific commit of ciborium is used that includes efficient serializion/deserialization of
 #       blobs. At the time of this writing, a new version including this commit hasn't yet been released.
 ciborium = "0.2"
-rand = "0.7.3"
-rand_chacha = "0.2.2"
+rand = "0.9"
+rand_chacha = "0.9"
 serde = "1"
 serde_bytes = "0.11"
