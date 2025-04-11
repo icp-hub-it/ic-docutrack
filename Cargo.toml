@@ -1,5 +1,22 @@
 [workspace]
+members = ["backend/backend"]
+resolver = "2"
 
-members = [
-    "backend",
-]
+[workspace.package]
+version = "0.1.0"
+edition = "2024"
+license = "Apache-2.0"
+rust-version = "1.85"
+
+[workspace.dependencies]
+ic-cdk = "0.17"
+ic-cdk-macros = "0.17"
+ic-stable-structures = "0.6.8"
+candid = { version = "0.10", features = ["value"] }
+# NOTE: A specific commit of ciborium is used that includes efficient serializion/deserialization of
+#       blobs. At the time of this writing, a new version including this commit hasn't yet been released.
+ciborium = "0.2"
+rand = "0.7.3"
+rand_chacha = "0.2.2"
+serde = "1"
+serde_bytes = "0.11"

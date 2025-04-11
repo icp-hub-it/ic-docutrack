@@ -1,7 +1,7 @@
-use crate::{get_time, File, FileContent, FileMetadata, State};
-use ic_cdk::export::Principal;
+use candid::Principal;
 
 use super::user_info::get_user_key;
+use crate::{File, FileContent, FileMetadata, State, get_time};
 
 /// Requests a file,
 pub fn request_file<S: Into<String>>(
@@ -32,21 +32,18 @@ pub fn request_file<S: Into<String>>(
     state.file_alias_index.insert(alias.clone(), file_id);
 
     // The caller is the owner of this file.
-    state
-        .file_owners
-        .entry(caller)
-        .or_insert_with(Vec::new)
-        .push(file_id);
+    state.file_owners.entry(caller).or_default().push(file_id);
 
     alias
 }
 
 #[cfg(test)]
 mod test {
-    use crate::{api::set_user_info, User};
+    use maplit::btreemap;
 
     use super::*;
-    use maplit::btreemap;
+    use crate::User;
+    use crate::api::set_user_info;
 
     #[test]
     fn requesting_a_file_updates_file_data_and_owners() {

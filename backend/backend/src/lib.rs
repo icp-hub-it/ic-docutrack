@@ -2,15 +2,17 @@ mod aliases;
 pub mod api;
 mod memory;
 mod upgrade;
-use crate::aliases::{AliasGenerator, Randomness};
-use ic_cdk::export::{candid::CandidType, Principal};
-use ic_stable_structures::StableBTreeMap;
-use memory::Memory;
-use serde::{Deserialize, Serialize};
 use std::cell::RefCell;
 use std::collections::BTreeMap;
 use std::ops::Bound::{Excluded, Included};
+
+use candid::{CandidType, Principal};
+use ic_stable_structures::StableBTreeMap;
+use memory::Memory;
+use serde::{Deserialize, Serialize};
 pub use upgrade::{post_upgrade, pre_upgrade};
+
+use crate::aliases::{AliasGenerator, Randomness};
 
 thread_local! {
     /// Initialize the state randomness with the current time.

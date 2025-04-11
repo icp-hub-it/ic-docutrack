@@ -8,7 +8,6 @@ mod upload_file;
 mod upload_file_atomic;
 mod user_info;
 
-use crate::{FileContent, State, UploadFileContinueRequest};
 pub use download_file::download_file;
 pub use get_alias_info::get_alias_info;
 pub use get_requests::get_requests;
@@ -16,9 +15,10 @@ pub use get_users::get_users;
 pub use request_file::request_file;
 pub use share_file::{get_shared_files, revoke_share, share_file};
 pub use upload_file::upload_file;
-pub use upload_file_atomic::{upload_file_atomic, UploadFileAtomicRequest};
-pub use user_info::set_user_info;
-pub use user_info::username_exists;
+pub use upload_file_atomic::{UploadFileAtomicRequest, upload_file_atomic};
+pub use user_info::{set_user_info, username_exists};
+
+use crate::{FileContent, State, UploadFileContinueRequest};
 
 pub fn upload_file_continue(request: UploadFileContinueRequest, state: &mut State) {
     // Update the file's contents.
@@ -78,12 +78,15 @@ pub fn upload_file_continue(request: UploadFileContinueRequest, state: &mut Stat
 
 #[cfg(test)]
 mod test {
-    use super::*;
-    use crate::api::user_info::get_user_key;
-    use crate::{api::set_user_info, get_time, File, FileMetadata, User};
+    use std::collections::BTreeMap;
+
     use candid::Principal;
     use maplit::btreemap;
-    use std::collections::BTreeMap;
+
+    use super::*;
+    use crate::api::set_user_info;
+    use crate::api::user_info::get_user_key;
+    use crate::{File, FileMetadata, User, get_time};
 
     #[test]
     fn chunked_upload() {
