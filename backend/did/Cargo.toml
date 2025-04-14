@@ -1,0 +1,18 @@
+[package]
+name = "did"
+version = { workspace = true }
+edition = { workspace = true }
+license = { workspace = true }
+rust-version = { workspace = true }
+build = "build.rs"
+
+[dependencies]
+candid = { workspace = true }
+ic-cdk = { workspace = true }
+serde = { workspace = true }
+serde_bytes = { workspace = true }
+
+[build-dependencies]
+candid_parser = { workspace = true }
+cargo_metadata = { workspace = true }
+station-api = { workspace = true }

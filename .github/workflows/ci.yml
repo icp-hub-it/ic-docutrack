@@ -47,6 +47,12 @@ jobs:
           components: rustfmt, clippy
           target: wasm32-unknown-unknown
 
+      - name: Install Rust (nightly)
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          toolchain: nightly
+          components: rustfmt
+
       - name: check rust code style
         run: |
           just check_code

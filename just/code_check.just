@@ -6,8 +6,8 @@ fmt args="":
 
 # Formats the code using the nightly version of rustfmt
 [group('code_check')]
-fmt_nightly:
-  cargo +nightly fmt --all
+fmt_nightly args="":
+  cargo +nightly fmt --all {{args}}
 
 
 # Runs clippy on the code
@@ -20,5 +20,5 @@ clippy args="":
 # Runs fmt and clippy on the code. It fails if any of the checks fail
 [group('code_check')]
 check_code:
-  just fmt "--check"
+  just fmt_nightly "--check"
   just clippy "-- -D warnings"
