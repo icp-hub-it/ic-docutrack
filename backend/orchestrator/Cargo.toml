@@ -1,19 +1,19 @@
 [package]
-name = "did"
+name = "orchestrator"
 version = { workspace = true }
 edition = { workspace = true }
 license = { workspace = true }
 rust-version = { workspace = true }
-build = "build.rs"
+
+[lib]
+crate-type = ["cdylib", "rlib"]
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-candid = { workspace = true }
 ic-cdk = { workspace = true }
+ic-cdk-macros = { workspace = true }
 ic-stable-structures = { workspace = true }
+candid = { workspace = true }
+did = { path = "../did" }
 serde = { workspace = true }
-serde_bytes = { workspace = true }
-
-[build-dependencies]
-candid_parser = { workspace = true }
-cargo_metadata = { workspace = true }
-station-api = { workspace = true }

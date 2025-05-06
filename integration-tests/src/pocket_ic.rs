@@ -8,6 +8,7 @@ use did::orbit_station::{
     AdminInitInput, HealthStatus, ListUsersInput, ListUsersResult, SystemInit, SystemInstall,
     SystemUpgraderInput,
 };
+use did::orchestrator::OrchestratorInitArgs;
 use pocket_ic::nonblocking::PocketIc;
 use serde::de::DeserializeOwned;
 
@@ -21,8 +22,9 @@ const NNS_ROOT_CANISTER_ID: Principal = Principal::from_slice(&[0, 0, 0, 0, 0, 0
 /// Test environment
 pub struct PocketIcTestEnv {
     pub pic: PocketIc,
-    pub backend: Principal,
-    pub orbit_station: Principal,
+    backend: Principal,
+    orbit_station: Principal,
+    orchestrator: Principal,
     /// Uuid of the station admin
     station_admin: String,
 }
@@ -38,6 +40,10 @@ impl TestEnv for PocketIcTestEnv {
 
     fn orbit_station(&self) -> Principal {
         self.orbit_station
+    }
+
+    fn orchestrator(&self) -> Principal {
+        self.orchestrator
     }
 
     fn station_admin(&self) -> String {
@@ -132,10 +138,16 @@ impl PocketIcTestEnv {
         let station_admin = Self::get_station_admin(&pic, orbit_station).await;
         println!("Station admin: {station_admin}",);
 
+        // install orchestrator
+        let orchestrator = pic.create_canister_with_settings(Some(admin()), None).await;
+        println!("Orchestrator: {orchestrator}",);
+        Self::install_orchestrator(&pic, orchestrator, orbit_station).await;
+
         Self {
             backend,
             pic,
             orbit_station,
+            orchestrator,
             station_admin,
         }
     }
@@ -152,6 +164,23 @@ impl PocketIcTestEnv {
 
         //let init_arg = todo!();
         let init_arg = vec![]; // Encode!(&init_arg).unwrap();
+
+        pic.install_canister(canister_id, wasm_bytes, init_arg, Some(admin()))
+            .await;
+    }
+
+    /// Install [`Canister::Orchestrator`] canister
+    async fn install_orchestrator(
+        pic: &PocketIc,
+        canister_id: Principal,
+        orbit_station: Principal,
+    ) {
+        pic.add_cycles(canister_id, DEFAULT_CYCLES).await;
+
+        let wasm_bytes = Self::load_wasm(Canister::Orchestrator);
+
+        let init_arg =
+            Encode!(&OrchestratorInitArgs { orbit_station }).expect("Failed to encode init arg");
 
         pic.install_canister(canister_id, wasm_bytes, init_arg, Some(admin()))
             .await;

@@ -39,6 +39,9 @@ pub trait TestEnv {
     /// Orbit station canister id
     fn orbit_station(&self) -> Principal;
 
+    /// Orchestrator canister id
+    fn orchestrator(&self) -> Principal;
+
     /// Uuid of the station admin
     fn station_admin(&self) -> String;
 }
