@@ -671,6 +671,7 @@ dependencies = [
  "candid_parser",
  "cargo_metadata",
  "ic-cdk 0.18.0",
+ "ic-stable-structures",
  "serde",
  "serde_bytes",
  "station-api",
@@ -2248,6 +2249,18 @@ dependencies = [
  "proc-macro2",
  "quote",
  "syn 2.0.101",
+]
+
+[[package]]
+name = "orchestrator"
+version = "0.1.0"
+dependencies = [
+ "candid",
+ "did",
+ "ic-cdk 0.18.0",
+ "ic-cdk-macros 0.18.0",
+ "ic-stable-structures",
+ "serde",
 ]
 
 [[package]]

@@ -4,7 +4,7 @@
     "backend": {
       "type": "rust",
       "package": "backend",
-      "candid": "./backend/service.did",
+      "candid": "./.artifact/backend.did",
       "declarations": {
         "node_compatibility": true
       }
@@ -28,6 +28,11 @@
         "landing-page/dist/"
       ],
       "type": "assets"
+    },
+    "orchestrator": {
+      "type": "rust",
+      "package": "orchestrator",
+      "candid": "./.artifact/orchestrator.did"
     },
     "internet_identity": {
       "type": "pull",

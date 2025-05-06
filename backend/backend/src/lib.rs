@@ -441,6 +441,4 @@ unsafe extern "Rust" fn __getrandom_v03_custom(
     Err(getrandom::Error::UNSUPPORTED)
 }
 
-// getrandom::register_custom_getrandom!(getrandom_always_fail);
-
 ic_cdk::export_candid!();

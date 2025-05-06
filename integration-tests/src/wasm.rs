@@ -7,6 +7,7 @@ pub enum Canister {
     IcpLedger,
     OrbitStation,
     OrbitUpgrader,
+    Orchestrator,
 }
 
 impl Canister {
@@ -18,6 +19,7 @@ impl Canister {
             Canister::IcpLedger => Path::new("../.artifact/icp-ledger.wasm.gz"),
             Canister::OrbitStation => Path::new("../.artifact/orbit-station.wasm.gz"),
             Canister::OrbitUpgrader => Path::new("../.artifact/orbit-upgrader.wasm.gz"),
+            Canister::Orchestrator => Path::new("../.artifact/orchestrator.wasm.gz"),
         }
     }
 }

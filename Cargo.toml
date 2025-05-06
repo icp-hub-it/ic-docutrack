@@ -1,6 +1,11 @@
 [workspace]
-members = ["backend/backend", "backend/did", "integration-tests"]
-resolver = "2"
+members = [
+  "backend/backend",
+  "backend/did",
+  "backend/orchestrator",
+  "integration-tests",
+]
+resolver = "3"
 
 [workspace.package]
 version = "0.1.0"
