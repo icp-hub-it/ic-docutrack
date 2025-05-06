@@ -8,10 +8,12 @@ use std::collections::BTreeMap;
 use std::ops::Bound::{Excluded, Included};
 
 use candid::{CandidType, Principal};
+
 use ic_cdk_macros::{post_upgrade, pre_upgrade, query, update};
-use ic_stable_structures::StableBTreeMap;
+use ic_stable_structures::{StableBTreeMap};
 use memory::Memory;
 use serde::{Deserialize, Serialize};
+use did::StorableFileIdVec;
 
 use crate::aliases::{AliasGenerator, Randomness};
 use crate::api::UploadFileAtomicRequest;
@@ -21,9 +23,9 @@ thread_local! {
     static STATE: RefCell<State> = RefCell::new(State::new(&get_randomness_seed()[..]));
 }
 
-type FileId = u64;
+// type FileId = u64;
 type ChunkId = u64;
-
+type FileId = u64;
 #[derive(CandidType, Serialize, Deserialize, Clone, Debug, PartialEq, Eq)]
 pub struct User {
     pub username: String,
@@ -159,7 +161,7 @@ pub struct State {
     // Keeps track of how many files have been requested so far
     // and is used to assign IDs to newly requested files.
     file_count: u64,
-
+ 
     /// Keeps track of usernames vs. their principals.
     pub users: BTreeMap<Principal, User>,
 
@@ -168,12 +170,13 @@ pub struct State {
 
     /// Mapping between file aliases (randomly generated links) and file ID.
     pub file_alias_index: BTreeMap<String, u64>,
-
+    
     /// Mapping between a user's principal and the list of files that are owned by the user.
     pub file_owners: BTreeMap<Principal, Vec<u64>>,
-
+    
     /// Mapping between a user's principal and the list of files that are shared with them.
-    pub file_shares: BTreeMap<Principal, Vec<u64>>,
+    #[serde(skip, default = "init_file_shares")]
+    pub file_shares: StableBTreeMap<Principal, StorableFileIdVec, Memory>,
 
     /// The contents of the file (stored in stable memory).
     #[serde(skip, default = "init_file_contents")]
@@ -200,7 +203,7 @@ impl State {
             file_data: BTreeMap::new(),
             file_alias_index: BTreeMap::new(),
             file_owners: BTreeMap::new(),
-            file_shares: BTreeMap::new(),
+            file_shares: init_file_shares(),
             alias_generator: AliasGenerator::new(Randomness::try_from(rand_seed).unwrap()),
             file_contents: init_file_contents(),
         }
@@ -295,6 +298,10 @@ fn init_alias_generator() -> AliasGenerator {
 
 fn init_file_contents() -> StableBTreeMap<(FileId, ChunkId), Vec<u8>, Memory> {
     StableBTreeMap::init(crate::memory::get_file_contents_memory())
+}
+
+fn init_file_shares() -> StableBTreeMap<Principal, StorableFileIdVec, Memory> {
+    StableBTreeMap::init(crate::memory::get_file_shares_memory())
 }
 
 #[update]

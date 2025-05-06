@@ -1,4 +1,5 @@
 use candid::Principal;
+use did::StorableFileIdVec;
 
 use super::get_requests::{get_allowed_users, get_file_status};
 use crate::{FileContent, FileSharingResponse, PublicFileMetadata, State};
@@ -19,10 +20,13 @@ pub fn share_file(
                 FileSharingResponse::PendingError
             }
             FileContent::Uploaded { shared_keys, .. } => {
-                let file_shares = state.file_shares.entry(sharing_with).or_default();
+                let mut file_shares = state.file_shares.get(&sharing_with).unwrap_or_else(|  |   {
+                    state.file_shares.insert(sharing_with, StorableFileIdVec::new());
+                    state.file_shares.get(&sharing_with).unwrap()
+                });
 
                 if !file_shares.contains(&file_id) {
-                    file_shares.push(file_id);
+                    file_shares.add(file_id);
                     shared_keys.insert(sharing_with, file_key_encrypted_for_user);
                 }
 
@@ -48,9 +52,9 @@ pub fn revoke_share(
     if !can_share(state, caller, file_id) {
         FileSharingResponse::PermissionError
     } else {
-        match state.file_shares.get_mut(&sharing_with) {
+        match state.file_shares.get(&sharing_with) {
             None => FileSharingResponse::PermissionError,
-            Some(arr) => {
+            Some(mut arr) => {
                 arr.retain(|&val| val != file_id);
                 let file = state.file_data.get_mut(&file_id).unwrap();
                 match &mut file.content {

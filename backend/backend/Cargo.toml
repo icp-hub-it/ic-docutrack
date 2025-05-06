@@ -14,6 +14,7 @@ crate-type = ["cdylib", "rlib"]
 ic-cdk = { workspace = true }
 ic-cdk-macros = { workspace = true }
 ic-stable-structures = { workspace = true }
+did = { path = "../did"}
 candid = { workspace = true }
 ciborium = { workspace = true }
 getrandom = { workspace = true }

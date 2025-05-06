@@ -29,11 +29,11 @@ pub fn get_allowed_users(state: &State, file_id: u64) -> Vec<PublicUser> {
         .iter()
         .filter(|element| element.1.contains(&file_id))
         .map(|(user_principal, _file_vector)| {
-            let user = state.users.get(user_principal).unwrap().clone();
+            let user = state.users.get(&user_principal).unwrap().clone();
             PublicUser {
                 username: user.username,
                 public_key: user.public_key,
-                ic_principal: *user_principal,
+                ic_principal: user_principal,
             }
         })
         .collect()

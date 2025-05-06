@@ -150,6 +150,7 @@ version = "0.1.0"
 dependencies = [
  "candid",
  "ciborium",
+ "did",
  "getrandom 0.3.2",
  "ic-cdk 0.18.0",
  "ic-cdk-macros 0.18.0",
