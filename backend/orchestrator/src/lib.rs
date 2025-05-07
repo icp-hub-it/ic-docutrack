@@ -1,19 +1,44 @@
-mod config;
-mod memory;
+mod canister;
+mod storage;
+mod utils;
 
 use candid::Principal;
-use config::Config;
-use did::orchestrator::OrchestratorInitArgs;
-use ic_cdk_macros::{init, query};
+use did::orchestrator::{
+    GetUsersResponse, OrchestratorInitArgs, PublicKey, SetUserResponse, WhoamiResponse,
+};
+use ic_cdk_macros::{init, query, update};
+
+use self::canister::Canister;
+use self::storage::config::Config;
 
 #[init]
 pub fn init(args: OrchestratorInitArgs) {
-    Config::set_orbit_station(args.orbit_station);
+    Canister::init(args);
+}
+
+#[query]
+pub fn get_users() -> GetUsersResponse {
+    Canister::get_users()
 }
 
 #[query]
 pub fn orbit_station() -> Principal {
     Config::get_orbit_station()
+}
+
+#[update]
+pub fn set_user(username: String, public_key: PublicKey) -> SetUserResponse {
+    Canister::set_user(username, public_key)
+}
+
+#[query]
+pub fn username_exists(username: String) -> bool {
+    Canister::username_exists(username)
+}
+
+#[query]
+pub fn who_am_i() -> WhoamiResponse {
+    Canister::whoami()
 }
 
 ic_cdk::export_candid!();

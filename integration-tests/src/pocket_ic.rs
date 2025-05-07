@@ -1,4 +1,5 @@
 mod cycles;
+mod orchestrator_client;
 
 use std::io::Read as _;
 use std::path::PathBuf;
@@ -12,6 +13,7 @@ use did::orchestrator::OrchestratorInitArgs;
 use pocket_ic::nonblocking::PocketIc;
 use serde::de::DeserializeOwned;
 
+pub use self::orchestrator_client::OrchestratorClient;
 use crate::TestEnv;
 use crate::actor::admin;
 use crate::wasm::Canister;
@@ -150,6 +152,11 @@ impl PocketIcTestEnv {
             orchestrator,
             station_admin,
         }
+    }
+
+    /// Stop instance -  Should be called after each test
+    pub async fn stop(self) {
+        self.pic.drop().await
     }
 
     fn is_live(&self) -> bool {
