@@ -43,6 +43,15 @@ Just run the following command to build all canisters:
 just build_all_canisters
 ```
 
+### Fetch External Canisters
+
+Just run the following command to fetch external deps canisters:
+Fetching external cansiters must be made after build command.
+
+```sh
+just fetch_all_canisters
+```
+
 ### Test canisters
 
 To run the tests, run the following command:
@@ -51,6 +60,8 @@ To run the tests, run the following command:
 just test [test_name]
 just integration_test [test_name]
 ```
+
+Integration tests depend on external canisters, fetch them first.
 
 ### Lint and format
 
