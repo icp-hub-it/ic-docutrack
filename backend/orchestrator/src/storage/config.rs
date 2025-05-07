@@ -5,7 +5,7 @@ use did::StorablePrincipal;
 use ic_stable_structures::memory_manager::VirtualMemory;
 use ic_stable_structures::{DefaultMemoryImpl, StableCell};
 
-use crate::memory::{MEMORY_MANAGER, ORBIT_STATION_MEMORY_ID};
+use super::memory::{MEMORY_MANAGER, ORBIT_STATION_MEMORY_ID};
 
 thread_local! {
     /// Orbit station

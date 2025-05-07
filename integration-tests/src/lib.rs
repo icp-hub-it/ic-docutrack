@@ -7,7 +7,7 @@ mod pocket_ic;
 mod wasm;
 
 #[cfg(feature = "pocket-ic")]
-pub use self::pocket_ic::PocketIcTestEnv;
+pub use self::pocket_ic::{OrchestratorClient, PocketIcTestEnv};
 
 pub trait TestEnv {
     fn query<R>(
