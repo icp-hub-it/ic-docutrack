@@ -8,10 +8,11 @@ pub fn trap<S>(msg: S) -> !
 where
     S: AsRef<str>,
 {
-    #[cfg(target_family = "wasm")]
-    ic_cdk::trap(msg);
-    #[cfg(not(target_family = "wasm"))]
-    panic!("{}", msg.as_ref());
+    if cfg!(target_family = "wasm") {
+        ic_cdk::trap(msg)
+    } else {
+        panic!("{}", msg.as_ref())
+    }
 }
 
 /// Returns the caller of a message as [`Principal`].
