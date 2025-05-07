@@ -20,13 +20,14 @@ pub fn share_file(
                 FileSharingResponse::PendingError
             }
             FileContent::Uploaded { shared_keys, .. } => {
-                let mut file_shares = state.file_shares.get(&sharing_with).unwrap_or_else(|  |   {
-                    state.file_shares.insert(sharing_with, StorableFileIdVec::new());
-                    state.file_shares.get(&sharing_with).unwrap()
-                });
+                let mut file_shares = state.file_shares.get(&sharing_with)
+                .unwrap_or_else(StorableFileIdVec::new);
 
                 if !file_shares.contains(&file_id) {
                     file_shares.add(file_id);
+                    state
+                    .file_shares
+                    .insert(sharing_with, file_shares);  
                     shared_keys.insert(sharing_with, file_key_encrypted_for_user);
                 }
 
@@ -56,7 +57,15 @@ pub fn revoke_share(
             None => FileSharingResponse::PermissionError,
             Some(mut arr) => {
                 arr.retain(|&val| val != file_id);
-                let file = state.file_data.get_mut(&file_id).unwrap();
+                state
+                    .file_shares
+                    .insert(sharing_with, arr);
+
+                let file = match state.file_data.get_mut(&file_id) {
+                    Some(file) => file,
+                    None => return FileSharingResponse::PermissionError,
+                };
+                // let file = state.file_data.get_mut(&file_id).unwrap();
                 match &mut file.content {
                     FileContent::Pending { .. } | FileContent::PartiallyUploaded { .. } => {
                         FileSharingResponse::PendingError
