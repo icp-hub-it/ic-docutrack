@@ -23,6 +23,7 @@ pre_build:
 
 [private]
 build_canister canister_name wasm_name:
+  mkdir -p "{{WASM_DIR}}"
   echo "Building {{canister_name}} Canister"
   cargo build --target wasm32-unknown-unknown --release --package "{{canister_name}}"
   ic-wasm "target/wasm32-unknown-unknown/release/{{canister_name}}.wasm" -o "{{WASM_DIR}}/{{wasm_name}}.wasm" shrink
