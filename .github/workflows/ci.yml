@@ -31,7 +31,7 @@ jobs:
 
       - name: install ic-wasm
         run: |
-          wget https://github.com/dfinity/ic-wasm/releases/download/0.8.1/ic-wasm-linux64 -O /usr/local/bin/ic-wasm
+          wget https://github.com/dfinity/ic-wasm/releases/download/0.9.3/ic-wasm-linux64 -O /usr/local/bin/ic-wasm
           chmod +x /usr/local/bin/ic-wasm
 
       - name: install candid-extractor

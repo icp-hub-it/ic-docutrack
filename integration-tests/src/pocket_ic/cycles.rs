@@ -4,8 +4,8 @@ mod icp_ledger;
 
 use std::collections::{HashMap, HashSet};
 
+use super::env::{PocketIc, update_candid_as};
 use candid::{Encode, Principal};
-use ic_exports::pocket_ic::{PocketIc, update_candid_as};
 use ic_ledger_types::{AccountIdentifier, DEFAULT_SUBACCOUNT, Tokens};
 
 use super::PocketIcTestEnv;

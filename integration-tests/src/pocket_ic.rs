@@ -1,4 +1,5 @@
 mod cycles;
+mod env;
 mod orchestrator_client;
 
 use std::io::Read as _;
@@ -107,7 +108,7 @@ impl TestEnv for PocketIcTestEnv {
 impl PocketIcTestEnv {
     /// Install the canisters needed for the tests
     pub async fn init() -> Self {
-        let pic = ic_exports::pocket_ic::init_pocket_ic()
+        let pic = env::init_pocket_ic()
             .await
             .with_nns_subnet()
             .with_ii_subnet()
