@@ -92,7 +92,7 @@ impl CreateUserStateMachine {
             UserCanisterCreateState::Failed { .. } => return, // stop the state machine
         };
 
-        // update state in storage if variant has changed
+        // update state in storage if the variant type has changed
         if std::mem::discriminant(&new_state) != current_state_id {
             UserCanisterStorage::set_create_state(self.user, new_state.clone());
         }

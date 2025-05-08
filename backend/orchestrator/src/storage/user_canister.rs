@@ -49,9 +49,15 @@ impl UserCanisterStorage {
     }
 
     /// Set the user canister for a certain user.
+    ///
+    /// Setting the user canister will remove the current user creation state.
     pub fn set_user_canister(principal: Principal, user_canister: Principal) {
         USER_CANISTERS.with_borrow_mut(|canisters| {
             canisters.insert(principal.into(), user_canister.into());
+        });
+
+        USER_CANISTER_CREATE_STATES.with_borrow_mut(|states| {
+            states.remove(&StorablePrincipal::from(principal));
         });
     }
 
@@ -111,5 +117,7 @@ mod test {
             UserCanisterStorage::get_user_canister(principal),
             Some(user_canister)
         );
+
+        assert_eq!(UserCanisterStorage::get_create_state(principal), None);
     }
 }
