@@ -53,13 +53,13 @@ jobs:
           toolchain: nightly
           components: rustfmt
 
-      - name: check rust code style
-        run: |
-          just check_code
-
       - name: build canisters
         run: |
           just build_all_canisters
+
+      - name: check rust code style
+        run: |
+          just check_code
 
       - name: test
         run: |
