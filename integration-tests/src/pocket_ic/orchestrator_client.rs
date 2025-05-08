@@ -1,5 +1,7 @@
 use candid::Principal;
-use did::orchestrator::{GetUsersResponse, PublicKey, SetUserResponse, WhoamiResponse};
+use did::orchestrator::{
+    GetUsersResponse, PublicKey, SetUserResponse, UserCanisterResponse, WhoamiResponse,
+};
 
 use super::PocketIcTestEnv;
 use crate::TestEnv as _;
@@ -50,6 +52,19 @@ impl OrchestratorClient<'_> {
             .query::<WhoamiResponse>(self.pic.orchestrator(), caller, "who_am_i", payload)
             .await
             .expect("Failed to get who am i")
+    }
+
+    pub async fn user_canister(&self, caller: Principal) -> UserCanisterResponse {
+        let payload = candid::encode_args(()).unwrap();
+        self.pic
+            .query::<UserCanisterResponse>(
+                self.pic.orchestrator(),
+                caller,
+                "user_canister",
+                payload,
+            )
+            .await
+            .expect("Failed to get user canister")
     }
 
     pub async fn username_exists(&self, username: String) -> bool {

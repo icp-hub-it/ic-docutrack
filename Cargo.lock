@@ -1457,6 +1457,21 @@ dependencies = [
 ]
 
 [[package]]
+name = "ic-cdk-timers"
+version = "0.12.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "647de2a321d15442c2a73597fd81f031af80624022f069844bf789a317889299"
+dependencies = [
+ "candid",
+ "futures",
+ "ic-cdk 0.18.0",
+ "ic0 0.24.0",
+ "serde",
+ "serde_bytes",
+ "slotmap",
+]
+
+[[package]]
 name = "ic-certification"
 version = "2.6.0"
 source = "git+https://github.com/dfinity/response-verification?rev=da70db93832f88ecc556ae082612aedec47d3816#da70db93832f88ecc556ae082612aedec47d3816"
@@ -1507,7 +1522,7 @@ dependencies = [
  "flate2",
  "ic-cdk 0.17.1",
  "ic-cdk-macros 0.17.1",
- "ic-cdk-timers",
+ "ic-cdk-timers 0.11.0",
  "ic-crypto-getrandom-for-wasm",
  "ic-kit",
  "log",
@@ -2223,7 +2238,7 @@ dependencies = [
  "getrandom 0.2.16",
  "hex",
  "ic-cdk 0.16.0",
- "ic-cdk-timers",
+ "ic-cdk-timers 0.11.0",
  "ic-certification 2.6.0",
  "ic-http-certification",
  "ic-representation-independent-hash",
@@ -2259,8 +2274,10 @@ dependencies = [
  "did",
  "ic-cdk 0.18.0",
  "ic-cdk-macros 0.18.0",
+ "ic-cdk-timers 0.12.0",
  "ic-stable-structures",
  "serde",
+ "time",
 ]
 
 [[package]]

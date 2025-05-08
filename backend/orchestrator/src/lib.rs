@@ -1,10 +1,12 @@
 mod canister;
+mod client;
 mod storage;
 mod utils;
 
 use candid::Principal;
 use did::orchestrator::{
-    GetUsersResponse, OrchestratorInitArgs, PublicKey, SetUserResponse, WhoamiResponse,
+    GetUsersResponse, OrchestratorInitArgs, PublicKey, SetUserResponse, UserCanisterResponse,
+    WhoamiResponse,
 };
 use ic_cdk_macros::{init, query, update};
 
@@ -34,6 +36,11 @@ pub fn set_user(username: String, public_key: PublicKey) -> SetUserResponse {
 #[query]
 pub fn username_exists(username: String) -> bool {
     Canister::username_exists(username)
+}
+
+#[query]
+pub fn user_canister() -> UserCanisterResponse {
+    Canister::user_canister()
 }
 
 #[query]

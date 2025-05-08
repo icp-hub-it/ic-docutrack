@@ -143,7 +143,7 @@ impl PocketIcTestEnv {
         // install orchestrator
         let orchestrator = pic.create_canister_with_settings(Some(admin()), None).await;
         println!("Orchestrator: {orchestrator}",);
-        Self::install_orchestrator(&pic, orchestrator, orbit_station).await;
+        Self::install_orchestrator(&pic, orchestrator, orbit_station, station_admin.clone()).await;
 
         Self {
             backend,
@@ -181,13 +181,17 @@ impl PocketIcTestEnv {
         pic: &PocketIc,
         canister_id: Principal,
         orbit_station: Principal,
+        orbit_station_admin: String,
     ) {
         pic.add_cycles(canister_id, DEFAULT_CYCLES).await;
 
         let wasm_bytes = Self::load_wasm(Canister::Orchestrator);
 
-        let init_arg =
-            Encode!(&OrchestratorInitArgs { orbit_station }).expect("Failed to encode init arg");
+        let init_arg = Encode!(&OrchestratorInitArgs {
+            orbit_station,
+            orbit_station_admin
+        })
+        .expect("Failed to encode init arg");
 
         pic.install_canister(canister_id, wasm_bytes, init_arg, Some(admin()))
             .await;

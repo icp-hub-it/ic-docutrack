@@ -1,10 +1,14 @@
+mod create_user;
+
 use candid::Principal;
+use create_user::CreateUserStateMachine;
 use did::orchestrator::{
     GetUsersResponse, MAX_USERNAME_SIZE, OrchestratorInitArgs, PublicKey, PublicUser,
-    SetUserResponse, User, WhoamiResponse,
+    SetUserResponse, User, UserCanisterResponse, WhoamiResponse,
 };
 
 use crate::storage::config::Config;
+use crate::storage::user_canister::{UserCanisterCreateState, UserCanisterStorage};
 use crate::storage::users::UserStorage;
 use crate::utils::msg_caller;
 
@@ -15,6 +19,7 @@ impl Canister {
     /// Initialize the canister with the given arguments.
     pub fn init(args: OrchestratorInitArgs) {
         Config::set_orbit_station(args.orbit_station);
+        Config::set_orbit_station_admin(args.orbit_station_admin);
     }
 
     /// Get the users from the storage as [`GetUsersResponse`].
@@ -60,6 +65,11 @@ impl Canister {
             return SetUserResponse::CallerHasAlreadyAUser;
         }
 
+        // start state machine to create user canister
+        if cfg!(target_family = "wasm") {
+            CreateUserStateMachine::start(Config::get_orbit_station(), caller);
+        }
+
         // Add the user to the storage and return Ok.
         UserStorage::add_user(
             caller,
@@ -75,6 +85,33 @@ impl Canister {
     /// Checks whether a given username exists in the storage.
     pub fn username_exists(username: String) -> bool {
         UserStorage::username_exists(&username)
+    }
+
+    /// Get user canister information for the current caller.
+    ///
+    /// Returns [`UserCanisterResponse::AnonymousCaller`] if the caller is anonymous.
+    /// Returns [`UserCanisterResponse::Ok`] if the user canister is created and ready to use.
+    /// Returns [`UserCanisterResponse::CreationPending`] if the user canister is being created.
+    /// Returns [`UserCanisterResponse::CreationFailed`] if the user canister creation failed.
+    pub fn user_canister() -> UserCanisterResponse {
+        let caller = msg_caller();
+        if caller == Principal::anonymous() {
+            return UserCanisterResponse::AnonymousCaller;
+        }
+
+        if let Some(canister) = UserCanisterStorage::get_user_canister(caller) {
+            return UserCanisterResponse::Ok(canister);
+        }
+
+        // otherwise check if it failed or it is pending
+        UserCanisterStorage::get_create_state(caller)
+            .map(|state| match state {
+                UserCanisterCreateState::Failed { reason } => {
+                    UserCanisterResponse::CreationFailed { reason }
+                }
+                _ => UserCanisterResponse::CreationPending,
+            })
+            .unwrap_or(UserCanisterResponse::Uninitialized)
     }
 
     /// Get [`WhoamiResponse`] for the current caller.
@@ -101,7 +138,10 @@ mod test {
     #[test]
     fn test_should_init_canister() {
         let orbit_station = Principal::from_text("rwlgt-iiaaa-aaaaa-aaaaa-cai").unwrap();
-        Canister::init(OrchestratorInitArgs { orbit_station });
+        Canister::init(OrchestratorInitArgs {
+            orbit_station,
+            orbit_station_admin: "admin".to_string(),
+        });
 
         assert_eq!(Config::get_orbit_station(), orbit_station);
     }
@@ -237,6 +277,9 @@ mod test {
 
     fn init_canister() {
         let orbit_station = Principal::from_text("rwlgt-iiaaa-aaaaa-aaaaa-cai").unwrap();
-        Canister::init(OrchestratorInitArgs { orbit_station });
+        Canister::init(OrchestratorInitArgs {
+            orbit_station,
+            orbit_station_admin: "admin".to_string(),
+        });
     }
 }
