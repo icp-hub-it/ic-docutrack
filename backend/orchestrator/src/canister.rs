@@ -65,11 +65,6 @@ impl Canister {
             return SetUserResponse::CallerHasAlreadyAUser;
         }
 
-        // start state machine to create user canister
-        if cfg!(target_family = "wasm") {
-            CreateUserStateMachine::start(Config::get_orbit_station(), caller);
-        }
-
         // Add the user to the storage and return Ok.
         UserStorage::add_user(
             caller,
@@ -78,6 +73,11 @@ impl Canister {
                 public_key,
             },
         );
+
+        // start state machine to create user canister
+        if cfg!(target_family = "wasm") {
+            CreateUserStateMachine::start(Config::get_orbit_station(), caller);
+        }
 
         SetUserResponse::Ok
     }

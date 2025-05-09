@@ -42,11 +42,9 @@ impl CreateUserStateMachine {
     fn tick(self, delay: Duration) {
         // run state machine
         ic_cdk_timers::set_timer(delay, move || {
-            ic_cdk::futures::in_executor_context(|| {
-                ic_cdk::futures::spawn(async move {
-                    self.run().await;
-                });
-            })
+            ic_cdk::futures::spawn(async move {
+                self.run().await;
+            });
         });
     }
 

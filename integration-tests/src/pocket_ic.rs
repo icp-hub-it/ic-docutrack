@@ -22,6 +22,9 @@ use crate::wasm::Canister;
 const DEFAULT_CYCLES: u128 = 2_000_000_000_000_000;
 const NNS_ROOT_CANISTER_ID: Principal = Principal::from_slice(&[0, 0, 0, 0, 0, 0, 0, 3, 1, 1]);
 
+const ADMIN_NAME: &str = "orbit-admin";
+const ADMIN_ORCHESTRATOR: &str = "docutrack-orchestrator";
+
 /// Test environment
 pub struct PocketIcTestEnv {
     pub pic: PocketIc,
@@ -123,6 +126,8 @@ impl PocketIcTestEnv {
         println!("Backend: {backend}",);
         let orbit_station = pic.create_canister_with_settings(Some(admin()), None).await;
         println!("Orbit station: {orbit_station}",);
+        let orchestrator = pic.create_canister_with_settings(Some(admin()), None).await;
+        println!("Orchestrator: {orchestrator}",);
 
         // set controllers for station
         pic.set_controllers(orbit_station, Some(admin()), vec![admin(), orbit_station])
@@ -133,18 +138,27 @@ impl PocketIcTestEnv {
         cycles::setup_cycles_minting_canister(&pic).await;
 
         // install orbit station
-        Self::install_orbit_station(&pic, orbit_station).await;
+        Self::install_orbit_station(&pic, orbit_station, orchestrator).await;
         // install the backend canister
         Self::install_backend(&pic, backend).await;
 
         // get station admin
-        let station_admin = Self::get_station_admin(&pic, orbit_station).await;
+        let station_admin = Self::get_station_admin(&pic, orbit_station, ADMIN_NAME).await;
         println!("Station admin: {station_admin}",);
 
+        let station_orchestrator_admin =
+            Self::get_station_admin(&pic, orbit_station, ADMIN_ORCHESTRATOR).await;
+        println!("Station orchestrator admin: {station_orchestrator_admin}",);
+
         // install orchestrator
-        let orchestrator = pic.create_canister_with_settings(Some(admin()), None).await;
         println!("Orchestrator: {orchestrator}",);
-        Self::install_orchestrator(&pic, orchestrator, orbit_station, station_admin.clone()).await;
+        Self::install_orchestrator(
+            &pic,
+            orchestrator,
+            orbit_station,
+            station_orchestrator_admin,
+        )
+        .await;
 
         Self {
             backend,
@@ -199,7 +213,11 @@ impl PocketIcTestEnv {
     }
 
     /// Install [`Canister::OrbitStation`] canister
-    async fn install_orbit_station(pic: &PocketIc, canister_id: Principal) {
+    async fn install_orbit_station(
+        pic: &PocketIc,
+        canister_id: Principal,
+        orchestrator_id: Principal,
+    ) {
         pic.add_cycles(canister_id, DEFAULT_CYCLES).await;
         let wasm_bytes = Self::load_wasm(Canister::OrbitStation);
 
@@ -212,10 +230,16 @@ impl PocketIcTestEnv {
                 wasm_module: Self::load_wasm(Canister::OrbitUpgrader).into(),
             },
             accounts: None,
-            admins: vec![AdminInitInput {
-                name: "station-admin".to_string(),
-                identity: admin(),
-            }],
+            admins: vec![
+                AdminInitInput {
+                    name: ADMIN_NAME.to_string(),
+                    identity: admin(),
+                },
+                AdminInitInput {
+                    name: ADMIN_ORCHESTRATOR.to_string(),
+                    identity: orchestrator_id,
+                },
+            ],
             quorum: Some(1),
         }));
 
@@ -252,7 +276,7 @@ impl PocketIcTestEnv {
     }
 
     /// Get the station admin
-    async fn get_station_admin(pic: &PocketIc, station_id: Principal) -> String {
+    async fn get_station_admin(pic: &PocketIc, station_id: Principal, username: &str) -> String {
         let payload = ListUsersInput {
             groups: None,
             statuses: None,
@@ -275,7 +299,7 @@ impl PocketIcTestEnv {
         let admin = res
             .users
             .into_iter()
-            .find(|u| u.name == "station-admin")
+            .find(|u| u.name == username)
             .expect("Failed to find station admin");
 
         admin.id
