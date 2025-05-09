@@ -5,8 +5,8 @@ mod utils;
 
 use candid::Principal;
 use did::orchestrator::{
-    GetUsersResponse, OrchestratorInitArgs, PublicKey, SetUserResponse, UserCanisterResponse,
-    WhoamiResponse,
+    GetUsersResponse, OrchestratorInitArgs, PublicKey, RetryUserCanisterCreationResponse,
+    SetUserResponse, UserCanisterResponse, WhoamiResponse,
 };
 use ic_cdk_macros::{init, query, update};
 
@@ -26,6 +26,11 @@ pub fn get_users() -> GetUsersResponse {
 #[query]
 pub fn orbit_station() -> Principal {
     Config::get_orbit_station()
+}
+
+#[update]
+pub fn retry_user_canister_creation() -> RetryUserCanisterCreationResponse {
+    Canister::retry_user_canister_creation()
 }
 
 #[update]

@@ -8,7 +8,7 @@ use serde::{Deserialize, Serialize};
 pub use self::user::{
     GetUsersResponse, MAX_USERNAME_SIZE, PUBKEY_SIZE, PublicKey, PublicUser, SetUserResponse, User,
 };
-pub use self::user_canister::UserCanisterResponse;
+pub use self::user_canister::{RetryUserCanisterCreationResponse, UserCanisterResponse};
 pub use self::whoami::WhoamiResponse;
 
 /// Orchestrator canister init arguments
