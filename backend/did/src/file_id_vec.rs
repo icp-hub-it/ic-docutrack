@@ -2,10 +2,20 @@ use std::borrow::Cow;
 use ic_stable_structures::Storable;
 use ic_stable_structures::storable::Bound;
 
+use crate::utils::trap;
 
 pub type FileId = u64;
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct StorableFileIdVec(pub Vec<FileId>);
 impl StorableFileIdVec {
+
+  ///get vec/
+  pub fn as_vec(&self) -> &Vec<FileId> {
+      &self.0
+  }
+  pub fn as_vec_mut(&mut self) -> &mut Vec<FileId> {
+      &mut self.0
+  }
   pub fn new() -> Self {
       StorableFileIdVec(Vec::new())
   }
@@ -64,7 +74,7 @@ impl Storable for StorableFileIdVec {
   fn from_bytes(bytes: Cow<[u8]>) -> Self {
       // Ensure there are enough bytes for the length (u32 = 4 bytes)
       if bytes.len() < 4 {
-          return StorableFileIdVec(Vec::new()); // Or panic, depending on your error handling
+         trap("Invalid byte array: not enough bytes for length");
       }
 
       // Read the length (first 4 bytes) as u32
@@ -72,7 +82,7 @@ impl Storable for StorableFileIdVec {
 
       // Ensure the remaining bytes match the expected length (len * 8 bytes for u64)
       if bytes.len() < 4 + len * 8 {
-          return StorableFileIdVec(Vec::new()); // Or panic
+          trap("Invalid byte array: not enough bytes for FileId vector");
       }
 
       // Deserialize each u64 into the vector
@@ -88,10 +98,7 @@ impl Storable for StorableFileIdVec {
   }
 
 
-  const BOUND: Bound = Bound::Bounded {
-      max_size: 1_000_000, // Maximum bytes for the serialized Vec<FileId>
-      is_fixed_size: false,
-  };
+  const BOUND: Bound = Bound::Unbounded; // No fixed size limit
 }
 
 #[cfg(test)]
