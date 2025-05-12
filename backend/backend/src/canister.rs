@@ -2,7 +2,7 @@ use std::collections::BTreeMap;
 
 use candid::Principal;
 use did::backend::{
-    AliasInfo, BackendInitArgs, FileStatus, GetAliasInfoError, PublicFileMetadata, UploadFileError,FileSharingResponse,UploadFileAtomicRequest
+    AliasInfo, BackendInitArgs, FileStatus, GetAliasInfoError, PublicFileMetadata, UploadFileError,FileSharingResponse,UploadFileAtomicRequest,UploadFileContinueRequest,FileDownloadResponse,FileData,
 };
 
 
@@ -161,6 +161,37 @@ impl Canister {
         file_id
     }
 
+    /// Upload file continue
+    /// 
+    pub fn upload_file_continue(
+        request: UploadFileContinueRequest,
+    ) {
+        let file = FileDataStorage::get_file(&request.file_id);
+        if file.is_none() {
+            return;
+        }
+        let mut file = file.unwrap();
+        let chunk_id = request.chunk_id;
+        // Add file to the content storage
+        FileContentsStorage::set_file_contents(&request.file_id, &chunk_id, request.contents);
+        // Update file content
+        match &file.content {
+            FileContent::PartiallyUploaded { num_chunks, .. } => {
+                if chunk_id == *num_chunks - 1 {
+                    file.content = FileContent::Uploaded {
+                        file_type: "text/plain".to_string(),
+                        owner_key: [0; 32],
+                        shared_keys: BTreeMap::new(),
+                        num_chunks: *num_chunks,
+                    };
+                }
+            }
+            _ => {}
+        }
+        // Persist file
+        FileDataStorage::set_file(&request.file_id, file);
+    }
+
     /// Share file with user
     pub fn share_file(
         user_id: Principal,
@@ -236,6 +267,55 @@ impl Canister {
         }
         // persist file
         FileDataStorage::set_file(&file_id, file);
+    }
+
+    /// Download file
+    pub fn download_file(
+        file_id: FileId,
+        chunk_id: u64,
+        caller: Principal,
+    ) -> FileDownloadResponse {
+        let file = FileDataStorage::get_file(&file_id);
+        if file.is_none() {
+            return FileDownloadResponse::NotFoundFile;
+        }
+        let file = file.unwrap();
+        // Check if the file is shared with the caller or if the caller is the owner
+        let file_c  = match &file.content {
+            FileContent::Pending { .. } => {
+                return FileDownloadResponse::NotUploadedFile;
+            }
+            FileContent::Uploaded { shared_keys, num_chunks,  file_type, owner_key  } => {
+                if !shared_keys.contains_key(&caller) && caller != file.metadata.requester_principal {
+                    return FileDownloadResponse::PermissionError;
+                }
+                let num_chunks = *num_chunks;
+                let file_type = file_type.clone();
+                // if the caller is the owner, use the owner key
+                // else use the shared key
+                let owner_key = match caller == file.metadata.requester_principal {
+                    true => owner_key.clone(),
+                    false => shared_keys.get(&caller).unwrap().clone(),
+                };
+
+                (num_chunks, file_type, owner_key)
+              
+            }
+            FileContent::PartiallyUploaded { .. } => {
+                return FileDownloadResponse::NotUploadedFile;
+            }
+        };
+        let contents = FileContentsStorage::get_file_contents(&file_id, &chunk_id);
+        if contents.is_none() {
+            return FileDownloadResponse::NotFoundFile;
+        }
+        let contents = contents.unwrap();
+        FileDownloadResponse::FoundFile(FileData {
+            num_chunks : file_c.0,
+            contents,
+            file_type : file_c.1,
+            owner_key : file_c.2,
+        })
     }
 
     pub fn get_allowed_users(file_id: &FileId) -> Vec<Principal> {
@@ -399,6 +479,103 @@ mod test {
         // Check if the file content was stored correctly
         let file_content_stored = FileContentsStorage::get_file_contents(&file_id, &0).unwrap();
         assert_eq!(file_content_stored, file_content);
+    }
+
+    #[test]
+    fn test_should_upload_file_continue() {
+        let caller = Principal::from_slice(&[0, 1, 2, 3]);
+        let file_name = "test_file.txt";
+        let file_content = vec![1, 2, 3];
+        let file_type = "text/plain".to_string();
+        let owner_key = [0; 32];
+        let num_chunks = 2;
+        let file_id = Canister::upload_file_atomic(
+            caller,
+            UploadFileAtomicRequest {
+                name: file_name.to_string(),
+                content: file_content.clone(),
+                file_type,
+                owner_key,
+                num_chunks,
+            },
+        );
+        assert_eq!(file_id, 1);
+        
+        // Check if the file was uploaded correctly
+        let file = FileDataStorage::get_file(&file_id).unwrap();
+        assert_eq!(file.content, FileContent::PartiallyUploaded {
+            file_type: "text/plain".to_string(),
+            owner_key,
+            shared_keys: BTreeMap::new(),
+            num_chunks,
+        });
+        
+        // Upload the second chunk
+        Canister::upload_file_continue(UploadFileContinueRequest {
+            file_id,
+            chunk_id: 1,
+            contents: vec![4, 5, 6],
+        });
+        
+        // Check if the file content was stored correctly
+        let file_content_stored_0 = FileContentsStorage::get_file_contents(&file_id, &0).unwrap();
+        assert_eq!(file_content_stored_0, vec![1, 2, 3]);
+        
+        let file_content_stored_1 = FileContentsStorage::get_file_contents(&file_id, &1).unwrap();
+        assert_eq!(file_content_stored_1, vec![4, 5, 6]);
+        // Check if the file content was updated correctly
+        let file = FileDataStorage::get_file(&file_id).unwrap();
+        assert_eq!(file.content, FileContent::Uploaded {
+            file_type: "text/plain".to_string(),
+            owner_key,
+            shared_keys: BTreeMap::new(),
+            num_chunks,
+        });
+    }
+
+    #[test]
+    fn test_should_download_file() {
+       
+        let owner = Principal::from_slice(&[0, 1, 2, 3]);
+        let file_name = "test_file.txt";
+        let alias = Canister::request_file(owner, file_name);
+        let file_id = FileAliasIndexStorage::get_file_id(&alias).unwrap();
+        let file_content = vec![1, 2, 3];
+        let file_type = "text/plain".to_string();
+        let owner_key = [0; 32];
+        let num_chunks = 1;
+        let _ = Canister::upload_file(
+            file_id,
+            file_content.clone(),
+            file_type.clone(),
+            owner_key,
+            num_chunks,
+        );
+        // Download the file as the owner
+        let result = Canister::download_file(file_id, 0, owner);
+        assert_eq!(
+            result,
+            FileDownloadResponse::FoundFile(FileData {
+                contents: file_content.clone(),
+                file_type: file_type.clone(),
+                owner_key,
+                num_chunks
+            })
+        );
+        // Download the file as a shared user
+        let user_id = Principal::from_slice(&[4, 5, 6, 7]);
+        let file_key_encrypted_for_user = [6; 32];
+        Canister::share_file(user_id, file_id, file_key_encrypted_for_user);
+        let result = Canister::download_file(file_id, 0, user_id);
+        assert_eq!(
+            result,
+            FileDownloadResponse::FoundFile(FileData {
+                contents: file_content,
+                file_type,
+                owner_key: [6; 32],
+                num_chunks
+            })
+        );
     }
 
     #[test]

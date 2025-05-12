@@ -37,10 +37,10 @@ pub struct AliasInfo {
 
 #[derive(CandidType, Serialize, Deserialize, Debug, PartialEq)]
 pub struct FileData {
-    contents: Vec<u8>,
-    file_type: String,
-    owner_key: Vec<u8>,
-    num_chunks: u64,
+    pub contents: Vec<u8>,
+    pub file_type: String,
+    pub owner_key: [u8; 32],
+    pub num_chunks: u64,
 }
 
 #[derive(CandidType, Serialize, Deserialize, PartialEq, Debug)]

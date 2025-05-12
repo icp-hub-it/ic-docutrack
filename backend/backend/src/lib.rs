@@ -5,7 +5,7 @@ mod utils;
 
 use did::backend::{
     AliasInfo, BackendInitArgs, GetAliasInfoError, PublicFileMetadata, UploadFileError,
-    UploadFileRequest, FileSharingResponse,UploadFileAtomicRequest
+    UploadFileRequest, FileSharingResponse,UploadFileAtomicRequest,UploadFileContinueRequest,FileDownloadResponse
 };
 use candid::Principal;
 use ic_cdk_macros::{init, query, update};
@@ -50,20 +50,21 @@ fn upload_file_atomic(request: UploadFileAtomicRequest) -> u64 {
     Canister::upload_file_atomic(msg_caller(),request) 
 }
 
-// #[update]
-// fn upload_file_continue(request: UploadFileContinueRequest) {
-//     with_state_mut(|s| crate::api::upload_file_continue(request, s))
-// }
+#[update]
+fn upload_file_continue(request: UploadFileContinueRequest) {
+    Canister::upload_file_continue(request)
+}
 
 #[update]
 fn request_file(request_name: String) -> String {
     Canister::request_file(msg_caller(), request_name)
 }
 
-// #[query]
-// fn download_file(file_id: u64, chunk_id: u64) -> FileDownloadResponse {
-//     with_state(|s| crate::api::download_file(s, file_id, chunk_id, ic_cdk::api::msg_caller()))
-// }
+#[query]
+fn download_file(file_id: u64, chunk_id: u64) -> FileDownloadResponse {
+    Canister::download_file(file_id, chunk_id, msg_caller())
+    // with_state(|s| crate::api::download_file(s, file_id, chunk_id, ic_cdk::api::msg_caller()))
+}
 
 #[update]
 fn share_file(
