@@ -3,12 +3,14 @@ mod canister;
 mod storage;
 mod utils;
 
-use did::backend::{
-    AliasInfo, BackendInitArgs, GetAliasInfoError, PublicFileMetadata, UploadFileError,
-    UploadFileRequest, FileSharingResponse,UploadFileAtomicRequest,UploadFileContinueRequest,FileDownloadResponse
-};
 use candid::Principal;
+use did::backend::{
+    AliasInfo, BackendInitArgs, FileDownloadResponse, FileSharingResponse, GetAliasInfoError,
+    PublicFileMetadata, UploadFileAtomicRequest, UploadFileContinueRequest, UploadFileError,
+    UploadFileRequest,
+};
 use ic_cdk_macros::{init, query, update};
+use storage::files::OwnerKey;
 use utils::msg_caller;
 
 use self::canister::Canister;
@@ -35,7 +37,6 @@ fn get_alias_info(alias: String) -> Result<AliasInfo, GetAliasInfoError> {
 
 #[update]
 fn upload_file(request: UploadFileRequest) -> Result<(), UploadFileError> {
-
     Canister::upload_file(
         request.file_id,
         request.file_content,
@@ -47,7 +48,7 @@ fn upload_file(request: UploadFileRequest) -> Result<(), UploadFileError> {
 
 #[update]
 fn upload_file_atomic(request: UploadFileAtomicRequest) -> u64 {
-    Canister::upload_file_atomic(msg_caller(),request) 
+    Canister::upload_file_atomic(msg_caller(), request)
 }
 
 #[update]
@@ -63,14 +64,13 @@ fn request_file(request_name: String) -> String {
 #[query]
 fn download_file(file_id: u64, chunk_id: u64) -> FileDownloadResponse {
     Canister::download_file(file_id, chunk_id, msg_caller())
-    // with_state(|s| crate::api::download_file(s, file_id, chunk_id, ic_cdk::api::msg_caller()))
 }
 
 #[update]
 fn share_file(
     user_id: Principal,
     file_id: u64,
-    file_key_encrypted_for_user: [u8; 32],
+    file_key_encrypted_for_user: OwnerKey,
 ) -> FileSharingResponse {
     Canister::share_file(user_id, file_id, file_key_encrypted_for_user)
 }
@@ -79,14 +79,9 @@ fn share_file(
 fn share_file_with_users(
     user_id: Vec<Principal>,
     file_id: u64,
-    file_key_encrypted_for_user: Vec<[u8; 32]>,
+    file_key_encrypted_for_user: Vec<OwnerKey>,
 ) {
-
-    Canister::share_file_with_users(
-        user_id,
-        file_id,
-        file_key_encrypted_for_user,
-    )
+    Canister::share_file_with_users(user_id, file_id, file_key_encrypted_for_user)
 }
 
 //TODO review response

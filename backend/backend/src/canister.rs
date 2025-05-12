@@ -2,14 +2,15 @@ use std::collections::BTreeMap;
 
 use candid::Principal;
 use did::backend::{
-    AliasInfo, BackendInitArgs, FileStatus, GetAliasInfoError, PublicFileMetadata, UploadFileError,FileSharingResponse,UploadFileAtomicRequest,UploadFileContinueRequest,FileDownloadResponse,FileData,
+    AliasInfo, BackendInitArgs, FileData, FileDownloadResponse, FileSharingResponse, FileStatus,
+    GetAliasInfoError, PublicFileMetadata, UploadFileAtomicRequest, UploadFileContinueRequest,
+    UploadFileError,
 };
-
 
 use crate::storage::config::Config;
 use crate::storage::files::{
     File, FileAliasIndexStorage, FileContent, FileContentsStorage, FileCountStorage,
-    FileDataStorage, FileId, FileMetadata, FileSharesStorage, OwnedFilesStorage,
+    FileDataStorage, FileId, FileMetadata, FileSharesStorage, OwnedFilesStorage, OwnerKey,
 };
 use crate::utils::time;
 
@@ -69,7 +70,7 @@ impl Canister {
         file_id: FileId,
         file_content: Vec<u8>,
         file_type: String,
-        owner_key: [u8; 32],
+        owner_key: OwnerKey,
         num_chunks: u64,
     ) -> Result<(), UploadFileError> {
         let file = FileDataStorage::get_file(&file_id);
@@ -119,10 +120,7 @@ impl Canister {
 
     /// Upload file Atomic
     /// to be triggered by owners, no need to request file
-    pub fn upload_file_atomic(
-        caller: Principal,
-        request: UploadFileAtomicRequest,
-    ) -> FileId {
+    pub fn upload_file_atomic(caller: Principal, request: UploadFileAtomicRequest) -> FileId {
         let file_id = FileCountStorage::generate_file_id();
         let content = if request.num_chunks == 1 {
             FileContent::Uploaded {
@@ -155,17 +153,15 @@ impl Canister {
             content,
         };
         FileDataStorage::set_file(&file_id, file);
-        
+
         OwnedFilesStorage::add_owned_file(&file_id);
 
         file_id
     }
 
     /// Upload file continue
-    /// 
-    pub fn upload_file_continue(
-        request: UploadFileContinueRequest,
-    ) {
+    ///
+    pub fn upload_file_continue(request: UploadFileContinueRequest) {
         let file = FileDataStorage::get_file(&request.file_id);
         if file.is_none() {
             return;
@@ -175,18 +171,17 @@ impl Canister {
         // Add file to the content storage
         FileContentsStorage::set_file_contents(&request.file_id, &chunk_id, request.contents);
         // Update file content
-        match &file.content {
-            FileContent::PartiallyUploaded { num_chunks, .. } => {
-                if chunk_id == *num_chunks - 1 {
-                    file.content = FileContent::Uploaded {
-                        file_type: "text/plain".to_string(),
-                        owner_key: [0; 32],
-                        shared_keys: BTreeMap::new(),
-                        num_chunks: *num_chunks,
-                    };
-                }
+        //TODO CONSIDER PARTIA: UPLOAD IN DISORDER
+        //TODO maybe add a check to verify all chunks are uploaded before marking as uploaded
+        if let FileContent::PartiallyUploaded { num_chunks, .. } = &file.content {
+            if chunk_id == *num_chunks - 1 {
+                file.content = FileContent::Uploaded {
+                    file_type: "text/plain".to_string(),
+                    owner_key: [0; 32],
+                    shared_keys: BTreeMap::new(),
+                    num_chunks: *num_chunks,
+                };
             }
-            _ => {}
         }
         // Persist file
         FileDataStorage::set_file(&request.file_id, file);
@@ -196,10 +191,8 @@ impl Canister {
     pub fn share_file(
         user_id: Principal,
         file_id: FileId,
-        file_key_encrypted_for_user: [u8; 32],)
-        -> FileSharingResponse {
-
-
+        file_key_encrypted_for_user: OwnerKey,
+    ) -> FileSharingResponse {
         let mut file = FileDataStorage::get_file(&file_id).unwrap();
 
         // If uploaded or partially uploaded, Modify File content, add user's decryption key to map
@@ -207,30 +200,40 @@ impl Canister {
             FileContent::Pending { .. } => {
                 return FileSharingResponse::PendingError;
             }
-            FileContent::Uploaded { shared_keys, num_chunks,owner_key,file_type } => {
+            FileContent::Uploaded {
+                shared_keys,
+                num_chunks,
+                owner_key,
+                file_type,
+            } => {
                 if !shared_keys.contains_key(&user_id) {
-                let mut shared_keys = shared_keys.clone();
-                shared_keys.insert(user_id, file_key_encrypted_for_user);
-                file.content = FileContent::Uploaded {
-                    num_chunks : num_chunks.clone(),
-                    file_type : file_type.clone(),
-                    owner_key : owner_key.clone(),
-                    shared_keys,
-                };           
-             }
+                    let mut shared_keys = shared_keys.clone();
+                    shared_keys.insert(user_id, file_key_encrypted_for_user);
+                    file.content = FileContent::Uploaded {
+                        num_chunks: *num_chunks,
+                        file_type: file_type.clone(),
+                        owner_key: *owner_key,
+                        shared_keys,
+                    };
+                }
             }
-            FileContent::PartiallyUploaded {  shared_keys, num_chunks,owner_key,file_type } => {
+            FileContent::PartiallyUploaded {
+                shared_keys,
+                num_chunks,
+                owner_key,
+                file_type,
+            } => {
                 if !shared_keys.contains_key(&user_id) {
-                let mut shared_keys = shared_keys.clone();
-                shared_keys.insert(user_id, file_key_encrypted_for_user);
-                file.content = FileContent::Uploaded {
-                    num_chunks : num_chunks.clone(),
-                    file_type : file_type.clone(),
-                    owner_key : owner_key.clone(),
-                    shared_keys,
-                };
+                    let mut shared_keys = shared_keys.clone();
+                    shared_keys.insert(user_id, file_key_encrypted_for_user);
+                    file.content = FileContent::Uploaded {
+                        num_chunks: *num_chunks,
+                        file_type: file_type.clone(),
+                        owner_key: *owner_key,
+                        shared_keys,
+                    };
+                }
             }
-        }
         };
         //persist file
         FileDataStorage::set_file(&file_id, file);
@@ -243,7 +246,7 @@ impl Canister {
     pub fn share_file_with_users(
         user_id: Vec<Principal>,
         file_id: FileId,
-        file_key_encrypted_for_user: Vec<[u8; 32]>,
+        file_key_encrypted_for_user: Vec<OwnerKey>,
     ) {
         for (user, decryption_key) in user_id.iter().zip(file_key_encrypted_for_user.iter()) {
             Self::share_file(*user, file_id, *decryption_key);
@@ -251,7 +254,7 @@ impl Canister {
     }
 
     /// Revoke file sharing
-    pub fn revoke_file_sharing(user_id: Principal, file_id: FileId){
+    pub fn revoke_file_sharing(user_id: Principal, file_id: FileId) {
         // remove file from user shares
         FileSharesStorage::remove_file_shares(&user_id, &file_id);
         // remove user from file shares
@@ -281,12 +284,18 @@ impl Canister {
         }
         let file = file.unwrap();
         // Check if the file is shared with the caller or if the caller is the owner
-        let file_c  = match &file.content {
+        let file_c = match &file.content {
             FileContent::Pending { .. } => {
                 return FileDownloadResponse::NotUploadedFile;
             }
-            FileContent::Uploaded { shared_keys, num_chunks,  file_type, owner_key  } => {
-                if !shared_keys.contains_key(&caller) && caller != file.metadata.requester_principal {
+            FileContent::Uploaded {
+                shared_keys,
+                num_chunks,
+                file_type,
+                owner_key,
+            } => {
+                if !shared_keys.contains_key(&caller) && caller != file.metadata.requester_principal
+                {
                     return FileDownloadResponse::PermissionError;
                 }
                 let num_chunks = *num_chunks;
@@ -294,12 +303,11 @@ impl Canister {
                 // if the caller is the owner, use the owner key
                 // else use the shared key
                 let owner_key = match caller == file.metadata.requester_principal {
-                    true => owner_key.clone(),
-                    false => shared_keys.get(&caller).unwrap().clone(),
+                    true => *owner_key,
+                    false => *shared_keys.get(&caller).unwrap(),
                 };
 
                 (num_chunks, file_type, owner_key)
-              
             }
             FileContent::PartiallyUploaded { .. } => {
                 return FileDownloadResponse::NotUploadedFile;
@@ -311,10 +319,10 @@ impl Canister {
         }
         let contents = contents.unwrap();
         FileDownloadResponse::FoundFile(FileData {
-            num_chunks : file_c.0,
+            num_chunks: file_c.0,
             contents,
-            file_type : file_c.1,
-            owner_key : file_c.2,
+            file_type: file_c.1,
+            owner_key: file_c.2,
         })
     }
 
@@ -327,7 +335,7 @@ impl Canister {
     }
     pub fn get_file_status(file_id: &FileId) -> FileStatus {
         // unwrap is safe, we know the file exists
-        let file = &FileDataStorage::get_file(&file_id).unwrap();
+        let file = &FileDataStorage::get_file(file_id).unwrap();
         match &file.content {
             FileContent::Pending { alias } => FileStatus::Pending {
                 alias: alias.clone(),
@@ -338,7 +346,7 @@ impl Canister {
                 owner_key: own_key, ..
             } => FileStatus::Uploaded {
                 uploaded_at: file.metadata.uploaded_at.unwrap(),
-                document_key: own_key.clone(),
+                document_key: *own_key,
             },
         }
     }
@@ -398,9 +406,9 @@ mod test {
             owner,
         });
 
-        assert_eq!(Config::get_orbit_station(), orbit_station);
-        assert_eq!(Config::get_orchestrator(), orchestrator);
-        assert_eq!(Config::get_owner(), owner);
+        assert_eq!(Config::_get_orbit_station(), orbit_station);
+        assert_eq!(Config::_get_orchestrator(), orchestrator);
+        assert_eq!(Config::_get_owner(), owner);
     }
 
     #[test]
@@ -440,12 +448,15 @@ mod test {
         );
         assert!(result.is_ok());
         let file = FileDataStorage::get_file(&file_id).unwrap();
-        assert_eq!(file.content, FileContent::Uploaded {
-            file_type,
-            owner_key,
-            shared_keys: BTreeMap::new(),
-            num_chunks,
-        });
+        assert_eq!(
+            file.content,
+            FileContent::Uploaded {
+                file_type,
+                owner_key,
+                shared_keys: BTreeMap::new(),
+                num_chunks,
+            }
+        );
     }
 
     #[test]
@@ -467,15 +478,18 @@ mod test {
             },
         );
         assert_eq!(file_id, 1);
-        
+
         // Check if the file was uploaded correctly
         let file = FileDataStorage::get_file(&file_id).unwrap();
-        assert_eq!(file.content, FileContent::Uploaded {
-            file_type: "text/plain".to_string(),
-            owner_key,
-            shared_keys: BTreeMap::new(),
-            num_chunks,
-        });
+        assert_eq!(
+            file.content,
+            FileContent::Uploaded {
+                file_type: "text/plain".to_string(),
+                owner_key,
+                shared_keys: BTreeMap::new(),
+                num_chunks,
+            }
+        );
         // Check if the file content was stored correctly
         let file_content_stored = FileContentsStorage::get_file_contents(&file_id, &0).unwrap();
         assert_eq!(file_content_stored, file_content);
@@ -500,42 +514,47 @@ mod test {
             },
         );
         assert_eq!(file_id, 1);
-        
+
         // Check if the file was uploaded correctly
         let file = FileDataStorage::get_file(&file_id).unwrap();
-        assert_eq!(file.content, FileContent::PartiallyUploaded {
-            file_type: "text/plain".to_string(),
-            owner_key,
-            shared_keys: BTreeMap::new(),
-            num_chunks,
-        });
-        
+        assert_eq!(
+            file.content,
+            FileContent::PartiallyUploaded {
+                file_type: "text/plain".to_string(),
+                owner_key,
+                shared_keys: BTreeMap::new(),
+                num_chunks,
+            }
+        );
+
         // Upload the second chunk
         Canister::upload_file_continue(UploadFileContinueRequest {
             file_id,
             chunk_id: 1,
             contents: vec![4, 5, 6],
         });
-        
+
         // Check if the file content was stored correctly
         let file_content_stored_0 = FileContentsStorage::get_file_contents(&file_id, &0).unwrap();
         assert_eq!(file_content_stored_0, vec![1, 2, 3]);
-        
+
         let file_content_stored_1 = FileContentsStorage::get_file_contents(&file_id, &1).unwrap();
         assert_eq!(file_content_stored_1, vec![4, 5, 6]);
         // Check if the file content was updated correctly
         let file = FileDataStorage::get_file(&file_id).unwrap();
-        assert_eq!(file.content, FileContent::Uploaded {
-            file_type: "text/plain".to_string(),
-            owner_key,
-            shared_keys: BTreeMap::new(),
-            num_chunks,
-        });
+        assert_eq!(
+            file.content,
+            FileContent::Uploaded {
+                file_type: "text/plain".to_string(),
+                owner_key,
+                shared_keys: BTreeMap::new(),
+                num_chunks,
+            }
+        );
     }
 
     #[test]
     fn test_should_download_file() {
-       
         let owner = Principal::from_slice(&[0, 1, 2, 3]);
         let file_name = "test_file.txt";
         let alias = Canister::request_file(owner, file_name);
@@ -605,18 +624,20 @@ mod test {
         let result = Canister::share_file(user_id, file_id, file_key_encrypted_for_user);
         assert_eq!(result, FileSharingResponse::Ok);
         let file = FileDataStorage::get_file(&file_id).unwrap();
-       
-        assert_eq!(file.content, FileContent::Uploaded {
-            file_type:file_type.clone(),
-            owner_key,
-            shared_keys: BTreeMap::from([(user_id, file_key_encrypted_for_user)]),
-            num_chunks,
-        });
+
+        assert_eq!(
+            file.content,
+            FileContent::Uploaded {
+                file_type: file_type.clone(),
+                owner_key,
+                shared_keys: BTreeMap::from([(user_id, file_key_encrypted_for_user)]),
+                num_chunks,
+            }
+        );
         // Check if the file is shared with the user
         let shared_files = Canister::get_shared_files(user_id);
         assert_eq!(shared_files.len(), 1);
         assert_eq!(shared_files[0].file_id, file_id);
-
     }
 
     #[test]
@@ -639,7 +660,7 @@ mod test {
         );
         assert!(res.is_ok());
         // Now share the file with multiple users
-        
+
         let user_ids = vec![
             Principal::from_slice(&[4, 5, 6, 7]),
             Principal::from_slice(&[8, 9, 10, 11]),
@@ -682,12 +703,15 @@ mod test {
         assert_eq!(shared_files.len(), 0);
         // check if file has its sharing revoked
         let file = FileDataStorage::get_file(&file_id).unwrap();
-        assert_eq!(file.content, FileContent::Uploaded {
-            file_type:file_type.clone(),
-            owner_key,
-            shared_keys: BTreeMap::new(),
-            num_chunks,
-        });
+        assert_eq!(
+            file.content,
+            FileContent::Uploaded {
+                file_type: file_type.clone(),
+                owner_key,
+                shared_keys: BTreeMap::new(),
+                num_chunks,
+            }
+        );
     }
     // #[test]
     // fn test_should_get_shared_files() {

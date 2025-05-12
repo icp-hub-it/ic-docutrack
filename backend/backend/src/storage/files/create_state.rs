@@ -92,14 +92,14 @@ pub enum FileContent {
     Uploaded {
         num_chunks: u64,
         file_type: String,
-        owner_key: [u8; ENCRYPTION_KEY_SIZE],
-        shared_keys: BTreeMap<Principal, [u8; ENCRYPTION_KEY_SIZE]>,
+        owner_key: OwnerKey,
+        shared_keys: BTreeMap<Principal, OwnerKey>,
     },
     PartiallyUploaded {
         num_chunks: u64,
         file_type: String,
-        owner_key: [u8; ENCRYPTION_KEY_SIZE],
-        shared_keys: BTreeMap<Principal, [u8; ENCRYPTION_KEY_SIZE]>,
+        owner_key: OwnerKey,
+        shared_keys: BTreeMap<Principal, OwnerKey>,
     },
 }
 
@@ -163,7 +163,7 @@ impl FileContent {
     // Decode Variant for [`Uploaded::{num_chunks, file_type, owner_key, shared_keys}`]
     fn decode_uploaded(bytes: &[u8]) -> FileContent {
         let mut offset = 0;
-        if bytes.len() < 1 {
+        if bytes.is_empty() {
             trap("Not enough bytes for FileContent");
         }
         // Read num_chunks
@@ -252,8 +252,8 @@ impl FileContent {
     fn encode_uploaded(
         num_chunks: &u64,
         file_type: &String,
-        owner_key: &[u8; ENCRYPTION_KEY_SIZE],
-        shared_keys: &BTreeMap<Principal, [u8; ENCRYPTION_KEY_SIZE]>,
+        owner_key: &OwnerKey,
+        shared_keys: &BTreeMap<Principal, OwnerKey>,
     ) -> Vec<u8> {
         let mut bytes = vec![OP_UPLOADED];
 
@@ -288,7 +288,7 @@ impl FileContent {
     // Decode Variant for [`PartiallyUploaded::{num_chunks, file_type, owner_key, shared_keys}`]
     fn decode_partially_uploaded(bytes: &[u8]) -> FileContent {
         let mut offset = 0;
-        if bytes.len() < 1 {
+        if bytes.is_empty() {
             trap("Not enough bytes for FileContent");
         }
         // Read num_chunks (u8)
@@ -380,8 +380,8 @@ impl FileContent {
     fn encode_partially_uploaded(
         num_chunks: &u64,
         file_type: &String,
-        owner_key: &[u8; ENCRYPTION_KEY_SIZE],
-        shared_keys: &BTreeMap<Principal, [u8; ENCRYPTION_KEY_SIZE]>,
+        owner_key: &OwnerKey,
+        shared_keys: &BTreeMap<Principal, OwnerKey>,
     ) -> Vec<u8> {
         let mut bytes = vec![OP_PARTIALLY_UPLOADED];
 
@@ -503,21 +503,21 @@ impl Storable for FileMetadata {
                     .expect("Invalid uploaded_at size"),
             );
 
-            return FileMetadata {
+            FileMetadata {
                 file_name,
                 user_public_key,
                 requester_principal,
                 requested_at,
                 uploaded_at: Some(uploaded_at),
-            };
+            }
         } else {
-            return FileMetadata {
+            FileMetadata {
                 file_name,
                 user_public_key,
                 requester_principal,
                 requested_at,
                 uploaded_at: None,
-            };
+            }
         }
     }
 

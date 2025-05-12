@@ -4,8 +4,9 @@ use candid::{CandidType, Principal};
 use serde::{Deserialize, Serialize};
 
 pub use self::file::{
-    AliasInfo, FileData, FileDownloadResponse, FileStatus, GetAliasInfoError, PublicFileMetadata,
-    UploadFileError, UploadFileRequest,FileSharingResponse,UploadFileAtomicRequest,UploadFileContinueRequest
+    AliasInfo, FileData, FileDownloadResponse, FileSharingResponse, FileStatus, GetAliasInfoError,
+    PublicFileMetadata, UploadFileAtomicRequest, UploadFileContinueRequest, UploadFileError,
+    UploadFileRequest,
 };
 
 #[derive(Debug, CandidType, Serialize, Deserialize)]

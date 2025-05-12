@@ -5,47 +5,48 @@ use rand::seq::IndexedRandom;
 use rand_chacha::ChaCha20Rng;
 
 // List of English adjective words
-const ADJECTIVES: &[&str] = &include!(concat!(env!("OUT_DIR"), "/adjectives.rs"));
+const _ADJECTIVES: &[&str] = &include!(concat!(env!("OUT_DIR"), "/adjectives.rs"));
 // List of English noun words
-const NOUNS: &[&str] = &include!(concat!(env!("OUT_DIR"), "/nouns.rs"));
+const _NOUNS: &[&str] = &include!(concat!(env!("OUT_DIR"), "/nouns.rs"));
 
 #[derive(Clone, Debug)]
-pub struct Randomness([u8; 32]);
+#[repr(transparent)]
+pub struct _Randomness([u8; 32]);
 
-impl TryFrom<&[u8]> for Randomness {
+impl TryFrom<&[u8]> for _Randomness {
     type Error = &'static str;
 
     fn try_from(value: &[u8]) -> Result<Self, Self::Error> {
-        Ok(Randomness(
+        Ok(_Randomness(
             value[0..32]
                 .try_into()
-                .map_err(|_| "Randomness is not 32 bytes")?,
+                .map_err(|_| "_Randomness is not 32 bytes")?,
         ))
     }
 }
 
-impl Randomness {
-    pub fn get(&self) -> [u8; 32] {
+impl _Randomness {
+    pub fn _get(&self) -> [u8; 32] {
         self.0
     }
 }
 
-pub struct AliasGenerator {
+pub struct _AliasGenerator {
     rng: ChaCha20Rng,
 }
 
-impl AliasGenerator {
+impl _AliasGenerator {
     /// Creates a new `AliasGenerator`.
-    pub fn new(randomness: Randomness) -> Self {
+    pub fn _new(randomness: _Randomness) -> Self {
         Self {
-            rng: ChaCha20Rng::from_seed(randomness.get()),
+            rng: ChaCha20Rng::from_seed(randomness._get()),
         }
     }
 
     /// Returns the next unique alias from this `AliasGenerator`.
-    pub fn next(&mut self) -> String {
-        let adjective = ADJECTIVES.choose(&mut self.rng).unwrap();
-        let noun = NOUNS.choose(&mut self.rng).unwrap();
+    pub fn _next(&mut self) -> String {
+        let adjective = _ADJECTIVES.choose(&mut self.rng).unwrap();
+        let noun = _NOUNS.choose(&mut self.rng).unwrap();
         format!("{adjective}-{noun}")
     }
 }

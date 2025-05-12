@@ -11,13 +11,14 @@ use did::{StorableFileIdVec, StorablePrincipal};
 use ic_stable_structures::memory_manager::VirtualMemory;
 use ic_stable_structures::{DefaultMemoryImpl, StableBTreeMap, StableCell, StableVec};
 
-pub use self::create_state::{ChunkId, File, FileContent, FileId, FileMetadata};
+pub use self::create_state::{ChunkId, File, FileContent, FileId, FileMetadata, OwnerKey};
 use crate::storage::memory::{
     /*ALIAS_GENERATOR_MEMORY_ID ,*/ FILE_ALIAS_INDEX_MEMORY_ID, FILE_CONTENTS_MEMORY_ID,
     FILE_COUNT_MEMORY_ID, FILE_DATA_MEMORY_ID, FILE_SHARES_MEMORY_ID, MEMORY_MANAGER,
-    OWNED_FILES_MEMORY_ID, SHARED_KEYS_MEMORY_ID,
+    OWNED_FILES_MEMORY_ID,
 };
 
+type ContentTuple = (FileId, ChunkId);
 //
 // Alias generator
 // Generates aliases for file requests.
@@ -56,25 +57,22 @@ thread_local! {
       RefCell::new(StableBTreeMap::new(MEMORY_MANAGER.with(|mm| mm.get(FILE_SHARES_MEMORY_ID)))
   );
   /// The contents of the file (stored in stable memory).
-  static FILE_CONTENTS_STORAGE: RefCell<StableBTreeMap<(FileId, ChunkId), Vec<u8>, VirtualMemory<DefaultMemoryImpl>>> =
+  static FILE_CONTENTS_STORAGE: RefCell<StableBTreeMap<ContentTuple, Vec<u8>, VirtualMemory<DefaultMemoryImpl>>> =
       RefCell::new(StableBTreeMap::new(MEMORY_MANAGER.with(|mm| mm.get(FILE_CONTENTS_MEMORY_ID)))
   );
 
-  // shared keys storage map
-  static SHARED_KEYS_STORAGE: RefCell<StableBTreeMap<StorablePrincipal, Vec<u8>, VirtualMemory<DefaultMemoryImpl>>> =
-      RefCell::new(StableBTreeMap::new(MEMORY_MANAGER.with(|mm| mm.get(SHARED_KEYS_MEMORY_ID)))
-  );
+
 
 }
 /// Accessor to the file count
-fn with_file_count<T, F>(f: F) -> T
+fn _with_file_count<T, F>(f: F) -> T
 where
     F: FnOnce(&StableCell<u64, VirtualMemory<DefaultMemoryImpl>>) -> T,
 {
     FILE_COUNT.with_borrow_mut(|file_count| f(file_count))
 }
 /// Immutable accessor to the file count
-fn with_file_count_value<T, F>(f: F) -> T
+fn _with_file_count_value<T, F>(f: F) -> T
 where
     F: FnOnce(&u64) -> T,
 {
@@ -94,16 +92,11 @@ fn with_owned_files<F>(f: F) -> Vec<u64>
 where
     F: Fn(FileId) -> u64,
 {
-    OWNED_FILES_STORAGE.with_borrow(|owned_files| {
-        owned_files
-            .iter()
-            .map(|file_id| f(file_id))
-            .collect::<Vec<u64>>()
-    })
+    OWNED_FILES_STORAGE.with_borrow(|owned_files| owned_files.iter().map(f).collect::<Vec<u64>>())
 }
 
 /// Accessor to the file data storage
-fn with_file_data_storage<T, F>(f: F) -> T
+fn _with_file_data_storage<T, F>(f: F) -> T
 where
     F: FnOnce(&StableBTreeMap<FileId, File, VirtualMemory<DefaultMemoryImpl>>) -> T,
 {
@@ -117,7 +110,7 @@ where
     FILE_DATA_STORAGE.with_borrow(|file_data| file_data.get(file_id).map(f))
 }
 /// Accessor to the file alias index storage
-fn with_file_alias_index_storage<T, F>(f: F) -> T
+fn _with_file_alias_index_storage<T, F>(f: F) -> T
 where
     F: FnOnce(&StableBTreeMap<String, FileId, VirtualMemory<DefaultMemoryImpl>>) -> T,
 {
@@ -147,7 +140,7 @@ where
     FILE_SHARES_STORAGE.with_borrow(|file_shares| file_shares.get(principal).map(f))
 }
 /// Accessor to the file contents storage
-fn with_file_contents_storage<T, F>(f: F) -> T
+fn _with_file_contents_storage<T, F>(f: F) -> T
 where
     F: FnOnce(&StableBTreeMap<(FileId, ChunkId), Vec<u8>, VirtualMemory<DefaultMemoryImpl>>) -> T,
 {
@@ -158,28 +151,8 @@ fn with_file_contents<T, F>(file_id: &FileId, chunk_id: &ChunkId, f: F) -> Optio
 where
     F: FnOnce(Vec<u8>) -> T,
 {
-    FILE_CONTENTS_STORAGE.with_borrow(|file_contents| {
-        file_contents
-            .get(&(file_id.clone(), chunk_id.clone()))
-            .map(f)
-    })
-}
-
-// Accessor to the shared keys storage
-fn with_shared_keys_storage<T, F>(f: F) -> T
-where
-    F: FnOnce(&StableBTreeMap<StorablePrincipal, Vec<u8>, VirtualMemory<DefaultMemoryImpl>>) -> T,
-{
-    SHARED_KEYS_STORAGE.with_borrow(|shared_keys| f(shared_keys))
-}
-
-// Inmutable accessor to a shared keys
-fn with_shared_key<T, F>(principal: &Principal, f: F) -> Option<T>
-where
-    F: FnOnce(Vec<u8>) -> T,
-{
-    SHARED_KEYS_STORAGE
-        .with_borrow(|shared_keys| shared_keys.get(&StorablePrincipal::from(*principal)).map(f))
+    FILE_CONTENTS_STORAGE
+        .with_borrow(|file_contents| file_contents.get(&(*file_id, *chunk_id)).map(f))
 }
 
 // // Accesor to Alias generator
@@ -201,8 +174,8 @@ where
 pub struct FileCountStorage;
 impl FileCountStorage {
     /// Get the current file count
-    pub fn get_file_count() -> u64 {
-        with_file_count_value(|&file_count| file_count)
+    pub fn _get_file_count() -> u64 {
+        _with_file_count_value(|&file_count| file_count)
     }
 
     /// Increment the file count
@@ -260,12 +233,12 @@ impl FileDataStorage {
     /// Set a file by its ID
     pub fn set_file(file_id: &FileId, file: File) {
         FILE_DATA_STORAGE.with_borrow_mut(|file_data| {
-            file_data.insert(file_id.clone(), file);
+            file_data.insert(*file_id, file);
         });
     }
 
     /// Remove a file by its ID
-    pub fn remove_file(file_id: &FileId) {
+    pub fn _remove_file(file_id: &FileId) {
         FILE_DATA_STORAGE.with_borrow_mut(|file_data| {
             file_data.remove(file_id);
         });
@@ -281,9 +254,9 @@ impl FileAliasIndexStorage {
     }
 
     /// Set a file ID by its alias
-    pub fn set_file_id(alias: &String, file_id: &FileId) {
+    pub fn set_file_id(alias: &str, file_id: &FileId) {
         FILE_ALIAS_INDEX_STORAGE.with_borrow_mut(|file_alias_index| {
-            file_alias_index.insert(alias.clone(), file_id.clone());
+            file_alias_index.insert(alias.to_owned(), *file_id);
         });
     }
 
@@ -305,15 +278,10 @@ impl FileSharesStorage {
                 .map(|(principal, file_ids)| {
                     (
                         principal.0,
-                        file_ids
-                            .0
-                            .iter()
-                            .map(|file_id| file_id.clone())
-                            .collect::<Vec<FileId>>(),
+                        file_ids.iter().copied().collect::<Vec<FileId>>().to_vec(),
                     )
                 })
                 .collect::<HashMap<Principal, Vec<FileId>>>()
-              
         })
     }
     /// Get a list of file IDs shared with a principal
@@ -330,7 +298,7 @@ impl FileSharesStorage {
     }
 
     /// Remove a list of file IDs shared with a principal
-    pub fn remove_whole_file_shares_list(principal: &Principal) {
+    pub fn _remove_whole_file_shares_list(principal: &Principal) {
         let principal = StorablePrincipal::from(*principal);
         FILE_SHARES_STORAGE.with_borrow_mut(|file_shares| {
             file_shares.remove(&principal);
@@ -342,7 +310,7 @@ impl FileSharesStorage {
         FILE_SHARES_STORAGE.with_borrow_mut(|file_shares| {
             let mut updated = file_shares
                 .get(&StorablePrincipal::from(*principal))
-                .unwrap_or(StorableFileIdVec::new())
+                .unwrap_or_default()
                 .0
                 .clone();
             // Remove the file ID from the list
@@ -358,8 +326,6 @@ impl FileSharesStorage {
                 StorableFileIdVec::from(updated),
             );
         });
-
-      
     }
 }
 // Public API for the file contents storage
@@ -373,57 +339,14 @@ impl FileContentsStorage {
     /// Set the contents of a file by its ID and chunk ID
     pub fn set_file_contents(file_id: &FileId, chunk_id: &ChunkId, contents: Vec<u8>) {
         FILE_CONTENTS_STORAGE.with_borrow_mut(|file_contents| {
-            file_contents.insert((file_id.clone(), chunk_id.clone()), contents);
+            file_contents.insert((*file_id, *chunk_id), contents);
         });
     }
 
     /// Remove the contents of a file by its ID and chunk ID
-    pub fn remove_file_contents(file_id: &FileId, chunk_id: &ChunkId) {
+    pub fn _remove_file_contents(file_id: &FileId, chunk_id: &ChunkId) {
         FILE_CONTENTS_STORAGE.with_borrow_mut(|file_contents| {
-            file_contents.remove(&(file_id.clone(), chunk_id.clone()));
-        });
-    }
-}
-
-// Public API for the shared keys storage
-pub struct SharedKeysStorage;
-
-impl SharedKeysStorage {
-    /// Get a shared key by principal
-    pub fn get_shared_key(principal: &Principal) -> Option<Vec<u8>> {
-        with_shared_key(principal, |key| key)
-    }
-
-    // /// Get all shared keys by their principal
-    // REMOVED FOR NOW
-    // pub fn get_shared_keys() -> HashMap<Principal, Vec<u8>> {
-    //     with_shared_keys_storage(|shared_keys| {
-    //         shared_keys
-    //             .iter()
-    //             .map(|(principal, key)| (principal.0, key.clone()))
-    //             .collect()
-    //     })
-    // }
-
-    /// Set a shared key by principal
-    pub fn set_shared_key(principal: Principal, key: Vec<u8>) {
-        // SHARED_KEYS_STORAGE.with_borrow_mut(|shared_keys| {
-        //     shared_keys.insert(StorablePrincipal::from(*principal), key);
-        // });
-        if principal == Principal::anonymous() {
-            crate::utils::trap("Cannot add anonymous user");
-        }
-
-        SHARED_KEYS_STORAGE.with_borrow_mut(|shared_keys| {
-            shared_keys.insert(StorablePrincipal::from(principal), key);
-        });
-    }
-
-    /// Remove a shared key by principal
-    /// //Added for now
-    pub fn remove_shared_key(principal: &Principal) {
-        SHARED_KEYS_STORAGE.with_borrow_mut(|shared_keys| {
-            shared_keys.remove(&StorablePrincipal::from(*principal));
+            file_contents.remove(&(*file_id, *chunk_id));
         });
     }
 }
@@ -436,7 +359,6 @@ impl SharedKeysStorage {
 ///
 #[cfg(test)]
 mod test {
-  
 
     use self::create_state::{File, FileContent, FileMetadata};
     use super::*;
@@ -444,7 +366,7 @@ mod test {
     #[test]
     fn test_file_count_storage() {
         FileCountStorage::generate_file_id();
-        assert_eq!(FileCountStorage::get_file_count(), 1);
+        assert_eq!(FileCountStorage::_get_file_count(), 1);
     }
 
     #[test]
@@ -475,7 +397,7 @@ mod test {
         FileDataStorage::set_file(&file_id, file.clone());
         assert_eq!(FileDataStorage::get_file(&file_id), Some(file));
 
-        FileDataStorage::remove_file(&file_id);
+        FileDataStorage::_remove_file(&file_id);
         assert_eq!(FileDataStorage::get_file(&file_id), None);
     }
 
@@ -494,10 +416,7 @@ mod test {
     fn test_file_shares_storage() {
         let principal = Principal::from_slice(&[1; 6]);
         let file_id = 1;
-        FileSharesStorage::set_file_shares(
-            &principal,
-       vec![file_id],
-        );
+        FileSharesStorage::set_file_shares(&principal, vec![file_id]);
         assert_eq!(
             FileSharesStorage::get_file_shares(&principal),
             Some(StorableFileIdVec(vec![file_id]))
@@ -519,33 +438,10 @@ mod test {
             Some(contents)
         );
 
-        FileContentsStorage::remove_file_contents(&file_id, &chunk_id);
+        FileContentsStorage::_remove_file_contents(&file_id, &chunk_id);
         assert_eq!(
             FileContentsStorage::get_file_contents(&file_id, &chunk_id),
             None
         );
-    }
-
-    #[test]
-    fn test_shared_keys_storage() {
-        let principal = Principal::from_slice(&[1; 29]);
-        let key = vec![1, 2, 3, 4, 5];
-        SharedKeysStorage::set_shared_key(principal, key.clone());
-        assert_eq!(SharedKeysStorage::get_shared_key(&principal), Some(key));
-    }
-
-    // #[test]
-    // fn test_remove_shared_key() {
-    //     let principal = Principal::from_slice(&[1; 29]);
-    //     let key = vec![1, 2, 3, 4, 5];
-    //     SharedKeysStorage::set_shared_key(principal, key.clone());
-    // }
-
-    #[test]
-    #[should_panic = "Cannot add anonymous user"]
-    fn test_should_panic_when_adding_anonymous_user() {
-        let principal = Principal::anonymous();
-        let key = vec![1, 2, 3, 4, 5];
-        SharedKeysStorage::set_shared_key(principal, key.clone());
     }
 }

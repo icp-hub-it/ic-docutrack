@@ -1,8 +1,8 @@
 use candid::Principal;
 
-use crate::aliases::{AliasGenerator, Randomness};
+use crate::aliases::{_AliasGenerator, _Randomness};
 
-fn get_randomness_seed() -> Vec<u8> {
+fn _get_randomness_seed() -> Vec<u8> {
     // this is an array of u8 of length 8.
     let time_seed = ic_cdk::api::time().to_be_bytes();
     // we need to extend this to an array of size 32 by adding to it an array of size 24 full of 0s.
@@ -10,8 +10,8 @@ fn get_randomness_seed() -> Vec<u8> {
     [&time_seed[..], &zeroes_arr[..]].concat()
 }
 
-fn init_alias_generator() -> AliasGenerator {
-    AliasGenerator::new(Randomness::try_from(get_randomness_seed().as_slice()).unwrap())
+fn _init_alias_generator() -> _AliasGenerator {
+    _AliasGenerator::_new(_Randomness::try_from(_get_randomness_seed().as_slice()).unwrap())
 }
 
 /// Utility functions to trap the canister.
