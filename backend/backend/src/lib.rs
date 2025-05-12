@@ -88,9 +88,10 @@ fn share_file_with_users(
     )
 }
 
-// #[update]
-// fn revoke_share(user_id: Principal, file_id: u64) -> FileSharingResponse {
-//     with_state_mut(|s| crate::api::revoke_share(s, ic_cdk::api::msg_caller(), user_id, file_id))
-// }
+//TODO review response
+#[update]
+fn revoke_share(user_id: Principal, file_id: u64) {
+    Canister::revoke_file_sharing(user_id, file_id);
+}
 
 ic_cdk::export_candid!();

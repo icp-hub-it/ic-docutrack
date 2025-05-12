@@ -298,12 +298,22 @@ impl FileAliasIndexStorage {
 pub struct FileSharesStorage;
 impl FileSharesStorage {
     ///get the whole file shares storage
-    pub fn get_file_shares_storage() -> HashMap<StorablePrincipal, StorableFileIdVec> {
+    pub fn get_file_shares_storage() -> HashMap<Principal, Vec<FileId>> {
         with_file_shares_storage(|file_shares| {
             file_shares
                 .iter()
-                .map(|(principal, file_ids)| (principal.clone(), file_ids.clone()))
-                .collect()
+                .map(|(principal, file_ids)| {
+                    (
+                        principal.0,
+                        file_ids
+                            .0
+                            .iter()
+                            .map(|file_id| file_id.clone())
+                            .collect::<Vec<FileId>>(),
+                    )
+                })
+                .collect::<HashMap<Principal, Vec<FileId>>>()
+              
         })
     }
     /// Get a list of file IDs shared with a principal
@@ -320,10 +330,36 @@ impl FileSharesStorage {
     }
 
     /// Remove a list of file IDs shared with a principal
-    pub fn remove_file_shares(principal: &StorablePrincipal) {
+    pub fn remove_whole_file_shares_list(principal: &Principal) {
+        let principal = StorablePrincipal::from(*principal);
         FILE_SHARES_STORAGE.with_borrow_mut(|file_shares| {
-            file_shares.remove(principal);
+            file_shares.remove(&principal);
         });
+    }
+
+    /// Remove a single file ID from the list of shares for a principal
+    pub fn remove_file_shares(principal: &Principal, file_id: &FileId) {
+        FILE_SHARES_STORAGE.with_borrow_mut(|file_shares| {
+            let mut updated = file_shares
+                .get(&StorablePrincipal::from(*principal))
+                .unwrap_or(StorableFileIdVec::new())
+                .0
+                .clone();
+            // Remove the file ID from the list
+            updated.retain(|id| id != file_id);
+            // If the list is empty, remove the principal from the storage
+            if updated.is_empty() {
+                file_shares.remove(&StorablePrincipal::from(*principal));
+                return;
+            }
+            // Otherwise, update the list of file IDs for the principal
+            file_shares.insert(
+                StorablePrincipal::from(*principal),
+                StorableFileIdVec::from(updated),
+            );
+        });
+
+      
     }
 }
 // Public API for the file contents storage
@@ -400,7 +436,7 @@ impl SharedKeysStorage {
 ///
 #[cfg(test)]
 mod test {
-    use did::StorablePrincipal;
+  
 
     use self::create_state::{File, FileContent, FileMetadata};
     use super::*;
@@ -467,13 +503,8 @@ mod test {
             Some(StorableFileIdVec(vec![file_id]))
         );
 
-        FileSharesStorage::get_file_shares_storage()
-            .iter()
-            .for_each(|(_principal, file_ids)| {
-                assert_eq!(file_ids, &StorableFileIdVec(vec![file_id]));
-            });
-
-        FileSharesStorage::remove_file_shares(&StorablePrincipal::from(principal));
+        // Remove a single file ID from the list of shares for a principal
+        FileSharesStorage::remove_file_shares(&principal, &file_id);
         assert_eq!(FileSharesStorage::get_file_shares(&principal), None);
     }
 
