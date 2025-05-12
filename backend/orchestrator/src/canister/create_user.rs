@@ -303,8 +303,12 @@ impl CreateUserStateMachine {
     ///
     /// If the scheduled time is in the past, return [`DEFAULT_INTERVAL`].
     fn scheduled_at_time_diff(date: OffsetDateTime, scheduled_at: &TimestampRfc3339) -> Duration {
-        let scheduled_at = OffsetDateTime::parse(scheduled_at, &Rfc3339)
-            .unwrap_or_else(|_| trap("Failed to parse scheduled_at"));
+        let scheduled_at = match OffsetDateTime::parse(scheduled_at, &Rfc3339) {
+            Ok(scheduled_at) => scheduled_at,
+            Err(_) => {
+                return DEFAULT_INTERVAL;
+            }
+        };
 
         (scheduled_at.unix_timestamp() as u64)
             .checked_sub(date.unix_timestamp() as u64)
@@ -343,6 +347,20 @@ mod test {
         );
 
         let scheduled_at = "2021-05-06T19:17:10.000000031Z".to_string();
+
+        let diff = CreateUserStateMachine::scheduled_at_time_diff(test_date, &scheduled_at);
+
+        assert_eq!(diff, DEFAULT_INTERVAL);
+    }
+
+    #[test]
+    fn test_should_return_default_interval_if_parse_fails() {
+        let test_date = OffsetDateTime::new_utc(
+            Date::from_calendar_date(2024, time::Month::May, 6).unwrap(),
+            Time::from_hms(19, 10, 8).unwrap(),
+        );
+
+        let scheduled_at = "2021-05-6T19:17:10.000000031Z".to_string();
 
         let diff = CreateUserStateMachine::scheduled_at_time_diff(test_date, &scheduled_at);
 
