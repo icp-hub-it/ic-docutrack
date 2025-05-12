@@ -1,7 +1,5 @@
-
-use candid::{CandidType, Principal };
+use candid::{CandidType, Principal};
 use serde::{Deserialize, Serialize};
-
 
 #[derive(CandidType, Serialize, Deserialize, Clone, Debug, PartialEq, Eq)]
 pub struct PublicFileMetadata {
@@ -10,7 +8,6 @@ pub struct PublicFileMetadata {
     pub file_status: FileStatus,
     pub shared_with: Vec<Principal>,
 }
-    
 
 #[derive(CandidType, Serialize, Deserialize, Clone, Debug, PartialEq, Eq)]
 pub enum FileStatus {
@@ -25,7 +22,6 @@ pub enum FileStatus {
     },
 }
 
-
 #[derive(CandidType, Serialize, Deserialize, Clone, Debug, PartialEq, Eq)]
 pub enum GetAliasInfoError {
     #[serde(rename = "not_found")]
@@ -38,8 +34,6 @@ pub struct AliasInfo {
     pub file_name: String,
     // pub user: PublicUser,
 }
-
-
 
 #[derive(CandidType, Serialize, Deserialize, Debug, PartialEq)]
 pub struct FileData {
@@ -79,7 +73,6 @@ pub enum FileSharingResponse {
     Ok,
 }
 
-
 #[derive(CandidType, Serialize, Deserialize, Clone, Debug, PartialEq)]
 pub struct UploadFileRequest {
     pub file_id: u64,
@@ -95,5 +88,3 @@ pub struct UploadFileContinueRequest {
     pub chunk_id: u64,
     pub contents: Vec<u8>,
 }
-
-

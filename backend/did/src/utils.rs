@@ -1,4 +1,3 @@
-
 use candid::Principal;
 
 /// Utility functions to trap the canister.
@@ -27,7 +26,6 @@ pub fn msg_caller() -> Principal {
     }
 }
 
-
 /// Returns current time in nanoseconds
 pub fn time() -> u64 {
     if cfg!(target_family = "wasm") {
@@ -39,4 +37,3 @@ pub fn time() -> u64 {
         time.as_nanos() as u64
     }
 }
-

@@ -1,12 +1,15 @@
 use std::cell::RefCell;
 
 use candid::Principal;
-use did::orchestrator::PublicKey;
 use did::StorablePrincipal;
+use did::orchestrator::PublicKey;
 use ic_stable_structures::memory_manager::VirtualMemory;
 use ic_stable_structures::{DefaultMemoryImpl, StableCell};
 
-use super::memory::{MEMORY_MANAGER, ORBIT_STATION_MEMORY_ID, OWNER_MEMORY_ID, ORCHESTRATOR_MEMORY_ID, OWNER_PUBLIC_KEY_MEMORY_ID};
+use super::memory::{
+    MEMORY_MANAGER, ORBIT_STATION_MEMORY_ID, ORCHESTRATOR_MEMORY_ID, OWNER_MEMORY_ID,
+    OWNER_PUBLIC_KEY_MEMORY_ID,
+};
 
 thread_local! {
     /// Orbit station
@@ -28,7 +31,6 @@ thread_local! {
 
 
 }
-
 
 /// Canister configuration
 pub struct Config;
@@ -77,7 +79,7 @@ impl Config {
             ic_cdk::trap(format!("Failed to set orchestrator: {:?}", err));
         }
     }
-    }
+}
 
 #[cfg(test)]
 mod test {
@@ -105,7 +107,7 @@ mod test {
     }
     #[test]
     fn test_owner_public_key() {
-        let public_key =[4; 32];
+        let public_key = [4; 32];
         Config::set_owner_public_key(public_key);
         assert_eq!(Config::get_owner_public_key(), public_key);
     }

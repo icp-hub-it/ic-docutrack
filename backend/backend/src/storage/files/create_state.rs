@@ -1,13 +1,12 @@
-use candid::Principal;
+use std::borrow::Cow;
 use std::collections::BTreeMap;
+
+use candid::Principal;
+use did::orchestrator::{PUBKEY_SIZE, PublicKey};
 use ic_stable_structures::Storable;
 use ic_stable_structures::storable::Bound;
 
-use std::borrow::Cow;
-
 use crate::utils::trap;
-use did::orchestrator::{PublicKey, PUBKEY_SIZE};
-
 
 pub const MAX_FILE_NAME_SIZE: usize = 255;
 pub const MAX_PRINCIPAL_SIZE: usize = 29;
@@ -24,7 +23,6 @@ pub struct File {
     pub metadata: FileMetadata,
     pub content: FileContent,
 }
-
 
 //strategy [metadata_len: u16 | metadata_bytes | content_bytes]
 impl Storable for File {
@@ -67,7 +65,8 @@ impl Storable for File {
         if offset + metadata_len > bytes.len() {
             trap("Not enough bytes for metadata");
         }
-        let metadata = FileMetadata::from_bytes(Cow::Borrowed(&bytes[offset..offset + metadata_len]));
+        let metadata =
+            FileMetadata::from_bytes(Cow::Borrowed(&bytes[offset..offset + metadata_len]));
         offset += metadata_len;
 
         // Read content (remaining bytes)
@@ -76,19 +75,13 @@ impl Storable for File {
         }
         let content = FileContent::from_bytes(Cow::Borrowed(&bytes[offset..]));
 
-        File {
-            metadata,
-            content,
-        }
+        File { metadata, content }
     }
-
-
 }
 
 const OP_PENDING: u8 = 0;
 const OP_UPLOADED: u8 = 1;
 const OP_PARTIALLY_UPLOADED: u8 = 2;
-
 
 /// The content of a file can be pending, uploaded, or partially uploaded.
 #[derive(Debug, PartialEq, Eq, Clone)]
@@ -100,53 +93,52 @@ pub enum FileContent {
         num_chunks: u64,
         file_type: String,
         owner_key: [u8; ENCRYPTION_KEY_SIZE],
-        shared_keys: BTreeMap<Principal,[u8; ENCRYPTION_KEY_SIZE]>,
-      },
+        shared_keys: BTreeMap<Principal, [u8; ENCRYPTION_KEY_SIZE]>,
+    },
     PartiallyUploaded {
         num_chunks: u64,
         file_type: String,
         owner_key: [u8; ENCRYPTION_KEY_SIZE],
-        shared_keys: BTreeMap<Principal,[u8; ENCRYPTION_KEY_SIZE]>,
+        shared_keys: BTreeMap<Principal, [u8; ENCRYPTION_KEY_SIZE]>,
     },
 }
 
 impl Storable for FileContent {
-  const BOUND: Bound = Bound::Unbounded;
+    const BOUND: Bound = Bound::Unbounded;
 
-  fn from_bytes(bytes: std::borrow::Cow<[u8]>) -> Self {
-      if bytes.is_empty() {
-          trap(" Failed to decode FileContent: empty bytes");
-      }
+    fn from_bytes(bytes: std::borrow::Cow<[u8]>) -> Self {
+        if bytes.is_empty() {
+            trap(" Failed to decode FileContent: empty bytes");
+        }
 
-      let op_code = bytes[0];
+        let op_code = bytes[0];
 
-      match op_code {
+        match op_code {
             OP_PENDING => Self::decode_pending(&bytes[1..]),
             OP_UPLOADED => Self::decode_uploaded(&bytes[1..]),
             OP_PARTIALLY_UPLOADED => Self::decode_partially_uploaded(&bytes[1..]),
             _ => trap("Failed to decode FileContent: invalid op code"),
-      }
-   
-  }
-
-  fn to_bytes(&self) -> std::borrow::Cow<'_,[u8]> {
-    match self {
-        FileContent::Pending { alias } => Self::encode_pending(alias).into(),
-        FileContent::Uploaded {
-            num_chunks,
-            file_type,
-            owner_key,
-            shared_keys,
-        } => Self::encode_uploaded(num_chunks, file_type, owner_key, shared_keys).into(),
-        FileContent::PartiallyUploaded {
-            num_chunks,
-            file_type,
-            owner_key,
-            shared_keys,
-        } => Self::encode_partially_uploaded(num_chunks, file_type, owner_key, shared_keys).into(),
+        }
     }
-    
-}
+
+    fn to_bytes(&self) -> std::borrow::Cow<'_, [u8]> {
+        match self {
+            FileContent::Pending { alias } => Self::encode_pending(alias).into(),
+            FileContent::Uploaded {
+                num_chunks,
+                file_type,
+                owner_key,
+                shared_keys,
+            } => Self::encode_uploaded(num_chunks, file_type, owner_key, shared_keys).into(),
+            FileContent::PartiallyUploaded {
+                num_chunks,
+                file_type,
+                owner_key,
+                shared_keys,
+            } => Self::encode_partially_uploaded(num_chunks, file_type, owner_key, shared_keys)
+                .into(),
+        }
+    }
 }
 
 impl FileContent {
@@ -154,15 +146,12 @@ impl FileContent {
     fn decode_pending(bytes: &[u8]) -> FileContent {
         let alias_len = bytes[0] as usize;
         let alias_bytes = &bytes[1..1 + alias_len];
-        let alias = String::from_utf8(alias_bytes.to_vec())
-            .expect("Failed to decode alias");
-        FileContent::Pending {
-            alias,
-        }
+        let alias = String::from_utf8(alias_bytes.to_vec()).expect("Failed to decode alias");
+        FileContent::Pending { alias }
     }
 
     //Encode Variant for [`Pending::{alias}`]
-    fn encode_pending(alias : &String) -> Vec<u8> {
+    fn encode_pending(alias: &String) -> Vec<u8> {
         let mut bytes = vec![OP_PENDING];
         // write alias len
         bytes.push(alias.len() as u8);
@@ -190,18 +179,15 @@ impl FileContent {
         );
         offset += num_chunks_len;
 
-        // Read file_type 
-        // one byte 
+        // Read file_type
+        // one byte
         let file_type_len = bytes[offset] as usize;
         offset += 1;
         if offset + file_type_len > bytes.len() {
             trap("Not enough bytes for file_type");
         }
-        let file_type = String::from_utf8(
-            bytes[offset..offset + file_type_len]
-                .to_vec(),
-        )
-        .expect("Failed to decode file_type");
+        let file_type = String::from_utf8(bytes[offset..offset + file_type_len].to_vec())
+            .expect("Failed to decode file_type");
         offset += file_type_len;
 
         // Read owner_key
@@ -260,8 +246,6 @@ impl FileContent {
             owner_key,
             shared_keys,
         }
-   
-
     }
 
     //Encode Variant for [`Uploaded::{num_chunks, file_type, owner_key, shared_keys}`]
@@ -272,8 +256,8 @@ impl FileContent {
         shared_keys: &BTreeMap<Principal, [u8; ENCRYPTION_KEY_SIZE]>,
     ) -> Vec<u8> {
         let mut bytes = vec![OP_UPLOADED];
-        
-        // Write num_chunks(one byte for length)    
+
+        // Write num_chunks(one byte for length)
         let num_chunks_bytes = num_chunks.to_le_bytes();
         bytes.push(num_chunks_bytes.len() as u8);
         bytes.extend_from_slice(&num_chunks_bytes);
@@ -292,7 +276,6 @@ impl FileContent {
         for (principal, encryption_key) in shared_keys {
             let principal_bytes = principal.as_slice();
             let principal_len = principal_bytes.len();
-          
 
             bytes.push(principal_len as u8);
             bytes.extend_from_slice(principal_bytes);
@@ -300,8 +283,6 @@ impl FileContent {
         }
 
         bytes
-
-        
     }
 
     // Decode Variant for [`PartiallyUploaded::{num_chunks, file_type, owner_key, shared_keys}`]
@@ -323,18 +304,15 @@ impl FileContent {
         );
         offset += num_chunks_len;
 
-        // Read file_type 
-        // one byte 
+        // Read file_type
+        // one byte
         let file_type_len = bytes[offset] as usize;
         offset += 1;
         if offset + file_type_len > bytes.len() {
             trap("Not enough bytes for file_type");
         }
-        let file_type = String::from_utf8(
-            bytes[offset..offset + file_type_len]
-                .to_vec(),
-        )
-        .expect("Failed to decode file_type");
+        let file_type = String::from_utf8(bytes[offset..offset + file_type_len].to_vec())
+            .expect("Failed to decode file_type");
         offset += file_type_len;
 
         // Read owner_key
@@ -349,44 +327,46 @@ impl FileContent {
             .expect("Failed to decode owner_key");
         offset += owner_key_len;
 
-         // Read shared_keys (no length prefix, first 8 bytes are num_entries)
-         let mut shared_keys = BTreeMap::new();
-         if offset + 8 > bytes.len() {
-             trap("Not enough bytes for num_entries");
-         }
-         let num_entries = u64::from_le_bytes(
-             bytes[offset..offset + 8]
-                 .try_into()
-                 .expect("Failed to decode num_entries"),
-         ) as usize;
-         offset += 8;
+        // Read shared_keys (no length prefix, first 8 bytes are num_entries)
+        let mut shared_keys = BTreeMap::new();
+        if offset + 8 > bytes.len() {
+            trap("Not enough bytes for num_entries");
+        }
+        let num_entries = u64::from_le_bytes(
+            bytes[offset..offset + 8]
+                .try_into()
+                .expect("Failed to decode num_entries"),
+        ) as usize;
+        offset += 8;
 
-         for _ in 0..num_entries {
-             // Read the principal length (u8)
-             if offset + 1 > bytes.len() {
-                 trap("Not enough bytes for principal_len");
-             }
-             let principal_len = bytes[offset] as usize;
-             offset += 1;
+        for _ in 0..num_entries {
+            // Read the principal length (u8)
+            if offset + 1 > bytes.len() {
+                trap("Not enough bytes for principal_len");
+            }
+            let principal_len = bytes[offset] as usize;
+            offset += 1;
 
-             if offset + principal_len > bytes.len() {
-                 trap("
-             Not enough bytes for principal");
-             }
-             let principal = Principal::try_from(&bytes[offset..offset + principal_len])
-                 .expect("Failed to decode principal");
-             offset += principal_len;
+            if offset + principal_len > bytes.len() {
+                trap(
+                    "
+             Not enough bytes for principal",
+                );
+            }
+            let principal = Principal::try_from(&bytes[offset..offset + principal_len])
+                .expect("Failed to decode principal");
+            offset += principal_len;
 
-             if offset + ENCRYPTION_KEY_SIZE > bytes.len() {
-                 trap("Not enough bytes for encryption key");
-             }
-             let encryption_key = bytes[offset..offset + ENCRYPTION_KEY_SIZE]
-                 .try_into()
-                 .expect("Failed to decode encryption key");
-             offset += ENCRYPTION_KEY_SIZE;
+            if offset + ENCRYPTION_KEY_SIZE > bytes.len() {
+                trap("Not enough bytes for encryption key");
+            }
+            let encryption_key = bytes[offset..offset + ENCRYPTION_KEY_SIZE]
+                .try_into()
+                .expect("Failed to decode encryption key");
+            offset += ENCRYPTION_KEY_SIZE;
 
-             shared_keys.insert(principal, encryption_key);
-         }
+            shared_keys.insert(principal, encryption_key);
+        }
 
         FileContent::PartiallyUploaded {
             num_chunks,
@@ -404,8 +384,8 @@ impl FileContent {
         shared_keys: &BTreeMap<Principal, [u8; ENCRYPTION_KEY_SIZE]>,
     ) -> Vec<u8> {
         let mut bytes = vec![OP_PARTIALLY_UPLOADED];
-        
-        // Write num_chunks(one byte for length)    
+
+        // Write num_chunks(one byte for length)
         let num_chunks_bytes = num_chunks.to_le_bytes();
         bytes.push(num_chunks_bytes.len() as u8);
         bytes.extend_from_slice(&num_chunks_bytes);
@@ -424,7 +404,6 @@ impl FileContent {
         for (principal, encryption_key) in shared_keys {
             let principal_bytes = principal.as_slice();
             let principal_len = principal_bytes.len();
-          
 
             bytes.push(principal_len as u8);
             bytes.extend_from_slice(principal_bytes);
@@ -432,12 +411,10 @@ impl FileContent {
         }
 
         bytes
-
-        
     }
 }
 /// File metadata.
-#[derive( Clone, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub struct FileMetadata {
     pub file_name: String,
     pub user_public_key: PublicKey,
@@ -449,7 +426,12 @@ pub struct FileMetadata {
 impl Storable for FileMetadata {
     /// 1 for file name length, up to 255 for file name, 32 for public key, 29 for principal, 8 for requested_at, 9 for uploaded_at
     const BOUND: Bound = Bound::Bounded {
-        max_size: 1 + MAX_FILE_NAME_SIZE as u32 + PUBKEY_SIZE as u32 + MAX_PRINCIPAL_SIZE as u32 + 8 + 9,
+        max_size: 1
+            + MAX_FILE_NAME_SIZE as u32
+            + PUBKEY_SIZE as u32
+            + MAX_PRINCIPAL_SIZE as u32
+            + 8
+            + 9,
         is_fixed_size: false,
     };
 
@@ -472,7 +454,7 @@ impl Storable for FileMetadata {
             trap("Not enough bytes for public key");
         }
         // Read public key
-        let user_public_key = bytes[offset..offset + PUBKEY_SIZE]   
+        let user_public_key = bytes[offset..offset + PUBKEY_SIZE]
             .try_into()
             .expect("Invalid public key size");
         offset += PUBKEY_SIZE;
@@ -520,7 +502,7 @@ impl Storable for FileMetadata {
                     .try_into()
                     .expect("Invalid uploaded_at size"),
             );
-            
+
             return FileMetadata {
                 file_name,
                 user_public_key,
@@ -534,16 +516,16 @@ impl Storable for FileMetadata {
                 user_public_key,
                 requester_principal,
                 requested_at,
-                uploaded_at:None,
+                uploaded_at: None,
             };
         }
-
-        
     }
 
     fn to_bytes(&self) -> std::borrow::Cow<[u8]> {
         let file_name_len = self.file_name.len() as u8;
-        let mut bytes = Vec::with_capacity(1 + file_name_len as usize + PUBKEY_SIZE + MAX_PRINCIPAL_SIZE + 8 + 9);
+        let mut bytes = Vec::with_capacity(
+            1 + file_name_len as usize + PUBKEY_SIZE + MAX_PRINCIPAL_SIZE + 8 + 9,
+        );
 
         // encode file name
         bytes.push(file_name_len);
@@ -571,7 +553,6 @@ impl Storable for FileMetadata {
     }
 }
 
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -581,7 +562,7 @@ mod tests {
         let file_metadata = FileMetadata {
             file_name: "test.txt".to_string(),
             user_public_key: [0; PUBKEY_SIZE],
-            requester_principal: Principal::from_slice(&[0,1,2,3]),
+            requester_principal: Principal::from_slice(&[0, 1, 2, 3]),
             requested_at: 123456789,
             uploaded_at: Some(987654321),
         };
@@ -592,7 +573,6 @@ mod tests {
 
     #[test]
     fn test_storable_file_content_roundtrip() {
-
         let file_content = FileContent::Uploaded {
             num_chunks: 5,
             file_type: "text/plain".to_string(),

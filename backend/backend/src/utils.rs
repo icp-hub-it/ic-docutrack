@@ -1,14 +1,13 @@
-
 use candid::Principal;
-use crate::aliases::{ AliasGenerator, Randomness};
 
+use crate::aliases::{AliasGenerator, Randomness};
 
 fn get_randomness_seed() -> Vec<u8> {
-     // this is an array of u8 of length 8.
-     let time_seed = ic_cdk::api::time().to_be_bytes();
-     // we need to extend this to an array of size 32 by adding to it an array of size 24 full of 0s.
-     let zeroes_arr: [u8; 24] = [0; 24];
-     [&time_seed[..], &zeroes_arr[..]].concat()
+    // this is an array of u8 of length 8.
+    let time_seed = ic_cdk::api::time().to_be_bytes();
+    // we need to extend this to an array of size 32 by adding to it an array of size 24 full of 0s.
+    let zeroes_arr: [u8; 24] = [0; 24];
+    [&time_seed[..], &zeroes_arr[..]].concat()
 }
 
 fn init_alias_generator() -> AliasGenerator {
@@ -41,7 +40,6 @@ pub fn msg_caller() -> Principal {
     }
 }
 
-
 /// Returns current time in nanoseconds
 pub fn time() -> u64 {
     if cfg!(target_family = "wasm") {
@@ -53,4 +51,3 @@ pub fn time() -> u64 {
         time.as_nanos() as u64
     }
 }
-

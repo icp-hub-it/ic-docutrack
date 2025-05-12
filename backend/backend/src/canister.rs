@@ -1,20 +1,17 @@
 use std::collections::BTreeMap;
 
 use candid::Principal;
-
 use did::backend::{
-    BackendInitArgs, FileStatus, GetAliasInfoError, PublicFileMetadata,
+    AliasInfo, BackendInitArgs, FileStatus, GetAliasInfoError, PublicFileMetadata, UploadFileError,FileSharingResponse,
 };
-use did::backend::{AliasInfo,UploadFileError};
+use did::{StorableFileIdVec, StorablePrincipal};
 
 use crate::storage::config::Config;
-use crate::utils::time;
 use crate::storage::files::{
-    File, FileAliasIndexStorage, FileContent, FileContentsStorage, FileCountStorage, FileDataStorage, FileId, FileMetadata, FileSharesStorage, OwnedFilesStorage
-
+    File, FileAliasIndexStorage, FileContent, FileContentsStorage, FileCountStorage,
+    FileDataStorage, FileId, FileMetadata, FileSharesStorage, OwnedFilesStorage,
 };
-
-
+use crate::utils::time;
 
 /// API for the backend canister
 pub struct Canister;
@@ -27,37 +24,33 @@ impl Canister {
         Config::set_owner(args.owner);
     }
 
-    pub fn request_file<S: Into<String>>(
-        caller: Principal,
-        request_name: S) -> String {
-            let file_id = FileCountStorage::generate_file_id();
-            //FIXME: make alias generator work
-            let alias = "mock_alias".to_string();
-            let file = File {
-                metadata: FileMetadata {
-                    file_name: request_name.into(),
-                    user_public_key: Config::get_owner_public_key(),
-                    requester_principal: caller,
-                    requested_at: time(),
-                    uploaded_at: None,
-                },
-                content: FileContent::Pending {
-                    alias: alias.clone(),
-                },
-            };
-            FileDataStorage::set_file(&file_id, file);
-            FileAliasIndexStorage::set_file_id(&alias, &file_id);
-            OwnedFilesStorage::add_owned_file(&file_id);
+    pub fn request_file<S: Into<String>>(caller: Principal, request_name: S) -> String {
+        let file_id = FileCountStorage::generate_file_id();
+        //FIXME: make alias generator work
+        let alias = "mock_alias".to_string();
+        let file = File {
+            metadata: FileMetadata {
+                file_name: request_name.into(),
+                user_public_key: Config::get_owner_public_key(),
+                requester_principal: caller,
+                requested_at: time(),
+                uploaded_at: None,
+            },
+            content: FileContent::Pending {
+                alias: alias.clone(),
+            },
+        };
+        FileDataStorage::set_file(&file_id, file);
+        FileAliasIndexStorage::set_file_id(&alias, &file_id);
+        OwnedFilesStorage::add_owned_file(&file_id);
 
-            alias
-                    
-        }
+        alias
+    }
 
     pub fn get_requests() -> Vec<PublicFileMetadata> {
         OwnedFilesStorage::get_owned_files()
-        .iter()
-        .map(|file_id| { 
-            PublicFileMetadata {
+            .iter()
+            .map(|file_id| PublicFileMetadata {
                 file_id: *file_id,
                 file_name: FileDataStorage::get_file(file_id)
                     .expect("file must exist")
@@ -66,9 +59,8 @@ impl Canister {
                     .clone(),
                 shared_with: Self::get_allowed_users(file_id),
                 file_status: Self::get_file_status(file_id),
-            }
-        })
-        .collect()
+            })
+            .collect()
     }
 
     /// update file
@@ -105,6 +97,8 @@ impl Canister {
                     };
                 }
                 file.metadata.uploaded_at = Some(time());
+                //persist file
+                FileDataStorage::set_file(&file_id, file);
 
                 //add file to the storage
                 let chunk_id = 0;
@@ -118,20 +112,64 @@ impl Canister {
 
         //removing alias from the index
         FileAliasIndexStorage::remove_file_id(&alias);
-        
+
         Ok(())
+    }
+
+    /// Share file with user
+    pub fn share_file(
+        user_id: Principal,
+        file_id: FileId,
+        file_key_encrypted_for_user: [u8; 32],)
+        -> FileSharingResponse {
+
+
+        let mut file = FileDataStorage::get_file(&file_id).unwrap();
+
+        // If uploaded or partially uploaded, Modify File content, add user's decryption key to map
+        match &file.content {
+            FileContent::Pending { .. } => {
+                return FileSharingResponse::PendingError;
+            }
+            FileContent::Uploaded { shared_keys, num_chunks,owner_key,file_type } => {
+                if !shared_keys.contains_key(&user_id) {
+                let mut shared_keys = shared_keys.clone();
+                shared_keys.insert(user_id, file_key_encrypted_for_user);
+                file.content = FileContent::Uploaded {
+                    num_chunks : num_chunks.clone(),
+                    file_type : file_type.clone(),
+                    owner_key : owner_key.clone(),
+                    shared_keys,
+                };           
+             }
+            }
+            FileContent::PartiallyUploaded {  shared_keys, num_chunks,owner_key,file_type } => {
+                if !shared_keys.contains_key(&user_id) {
+                let mut shared_keys = shared_keys.clone();
+                shared_keys.insert(user_id, file_key_encrypted_for_user);
+                file.content = FileContent::Uploaded {
+                    num_chunks : num_chunks.clone(),
+                    file_type : file_type.clone(),
+                    owner_key : owner_key.clone(),
+                    shared_keys,
+                };
+            }
+        }
+        };
+        //persist file
+        FileDataStorage::set_file(&file_id, file);
+        //add to file shares storage
+        FileSharesStorage::set_file_shares(&user_id, vec![file_id]);
+        FileSharingResponse::Ok
     }
 
     pub fn get_allowed_users(file_id: &FileId) -> Vec<Principal> {
         FileSharesStorage::get_file_shares_storage()
             .iter()
             .filter(|element| element.1.contains(file_id))
-            .map(|(user_principal, _file_vector)| {
-                *user_principal.as_principal()
-            })
+            .map(|(user_principal, _file_vector)| *user_principal.as_principal())
             .collect()
-           
-        }
+    }
     pub fn get_file_status(file_id: &FileId) -> FileStatus {
         // unwrap is safe, we know the file exists
         let file = &FileDataStorage::get_file(&file_id).unwrap();
@@ -150,7 +188,7 @@ impl Canister {
         }
     }
 
-    pub fn get_shared_files(caller : Principal) -> Vec<PublicFileMetadata> {
+    pub fn get_shared_files(caller: Principal) -> Vec<PublicFileMetadata> {
         match FileSharesStorage::get_file_shares(&caller) {
             None => vec![],
             Some(file_ids) => file_ids
@@ -169,46 +207,41 @@ impl Canister {
         }
     }
 
-    pub fn get_alias_info(alias: String) -> Result<AliasInfo, GetAliasInfoError>{
+    pub fn get_alias_info(alias: String) -> Result<AliasInfo, GetAliasInfoError> {
         let file_id = FileAliasIndexStorage::get_file_id(&alias);
         if file_id.is_none() {
             return Err(GetAliasInfoError::NotFound);
         }
         let file_id = file_id.unwrap();
         let file = FileDataStorage::get_file(&file_id).unwrap();
-        
+
         Ok(AliasInfo {
-            file_id: file_id,
+            file_id,
             file_name: file.metadata.file_name.clone(),
         })
-            
     }
 
-   
     // pub fn generate_alias() -> String {
 
     // }
 }
-            
-    
-            
-  
-
 
 #[cfg(test)]
-
 mod test {
     use candid::Principal;
 
     use super::*;
-    
+
     #[test]
     fn test_should_init_canister() {
         let orbit_station = Principal::from_text("rwlgt-iiaaa-aaaaa-aaaaa-cai").unwrap();
         let orchestrator = Principal::from_slice(&[0, 1, 2, 3]);
         let owner = Principal::from_slice(&[4, 5, 6, 7]);
-        Canister::init(BackendInitArgs { orbit_station, orchestrator, owner });
-        
+        Canister::init(BackendInitArgs {
+            orbit_station,
+            orchestrator,
+            owner,
+        });
 
         assert_eq!(Config::get_orbit_station(), orbit_station);
         assert_eq!(Config::get_orchestrator(), orchestrator);
@@ -243,8 +276,62 @@ mod test {
         let file_type = "text/plain".to_string();
         let owner_key = [0; 32];
         let num_chunks = 1;
-        let result = Canister::upload_file(file_id, file_content.clone(), file_type.clone(), owner_key, num_chunks);
+        let result = Canister::upload_file(
+            file_id,
+            file_content.clone(),
+            file_type.clone(),
+            owner_key,
+            num_chunks,
+        );
         assert!(result.is_ok());
+        let file = FileDataStorage::get_file(&file_id).unwrap();
+        assert_eq!(file.content, FileContent::Uploaded {
+            file_type,
+            owner_key,
+            shared_keys: BTreeMap::new(),
+            num_chunks,
+        });
+    }
+
+    #[test]
+    fn test_should_share_a_file() {
+        let caller = Principal::from_slice(&[0, 1, 2, 3]);
+        let file_name = "test_file.txt";
+        let alias = Canister::request_file(caller, file_name);
+        let file_id = FileAliasIndexStorage::get_file_id(&alias).unwrap();
+        let user_id = Principal::from_slice(&[4, 5, 6, 7]);
+        let file_key_encrypted_for_user = [0; 32];
+        let result = Canister::share_file(user_id, file_id, file_key_encrypted_for_user);
+        assert_eq!(result, FileSharingResponse::PendingError);
+        // Upload the file first
+        let file_content = vec![1, 2, 3];
+        let file_type = "text/plain".to_string();
+        let owner_key = [0; 32];
+        let num_chunks = 1;
+        let res = Canister::upload_file(
+            file_id,
+            file_content,
+            file_type.clone(),
+            owner_key,
+            num_chunks,
+        );
+        assert!(res.is_ok());
+        // Now share the file
+        let result = Canister::share_file(user_id, file_id, file_key_encrypted_for_user);
+        assert_eq!(result, FileSharingResponse::Ok);
+        let file = FileDataStorage::get_file(&file_id).unwrap();
+       
+        assert_eq!(file.content, FileContent::Uploaded {
+            file_type:file_type.clone(),
+            owner_key,
+            shared_keys: BTreeMap::from([(user_id, file_key_encrypted_for_user)]),
+            num_chunks,
+        });
+        // Check if the file is shared with the user
+        let shared_files = Canister::get_shared_files(user_id);
+        assert_eq!(shared_files.len(), 1);
+        assert_eq!(shared_files[0].file_id, file_id);
+
     }
     // #[test]
     // fn test_should_get_shared_files() {
@@ -272,9 +359,4 @@ mod test {
         assert!(alias_info.is_err());
         assert_eq!(alias_info.unwrap_err(), GetAliasInfoError::NotFound);
     }
-    
-   
-  
-
-
 }

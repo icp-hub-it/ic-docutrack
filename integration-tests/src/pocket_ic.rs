@@ -5,12 +5,12 @@ use std::io::Read as _;
 use std::path::PathBuf;
 
 use candid::{CandidType, Decode, Encode, Principal};
+use did::backend::BackendInitArgs;
 use did::orbit_station::{
     AdminInitInput, HealthStatus, ListUsersInput, ListUsersResult, SystemInit, SystemInstall,
     SystemUpgraderInput,
 };
 use did::orchestrator::OrchestratorInitArgs;
-use did::backend::BackendInitArgs;
 use pocket_ic::nonblocking::PocketIc;
 use serde::de::DeserializeOwned;
 
@@ -30,7 +30,6 @@ pub struct PocketIcTestEnv {
     orchestrator: Principal,
     /// Uuid of the station admin
     station_admin: String,
-    bob: Principal,
 }
 
 impl TestEnv for PocketIcTestEnv {
@@ -138,18 +137,18 @@ impl PocketIcTestEnv {
 
         // install orbit station
         Self::install_orbit_station(&pic, orbit_station).await;
-        
+
         // get station admin
         let station_admin = Self::get_station_admin(&pic, orbit_station).await;
         println!("Station admin: {station_admin}",);
-        
+
         // install orchestrator
         let orchestrator = pic.create_canister_with_settings(Some(admin()), None).await;
         println!("Orchestrator: {orchestrator}",);
         Self::install_orchestrator(&pic, orchestrator, orbit_station).await;
-        
+
         // install the backend canister
-        Self::install_backend(&pic, backend,orbit_station,orchestrator,bob() ).await;
+        Self::install_backend(&pic, backend, orbit_station, orchestrator, bob()).await;
 
         Self {
             backend,
@@ -157,7 +156,6 @@ impl PocketIcTestEnv {
             orbit_station,
             orchestrator,
             station_admin,
-            bob: bob(),
         }
     }
 
@@ -171,13 +169,23 @@ impl PocketIcTestEnv {
     }
 
     /// Install [`Canister::Backend`] canister
-    async fn install_backend(pic: &PocketIc, canister_id: Principal, orbit_station: Principal,orchestrator: Principal, owner: Principal) {
+    async fn install_backend(
+        pic: &PocketIc,
+        canister_id: Principal,
+        orbit_station: Principal,
+        orchestrator: Principal,
+        owner: Principal,
+    ) {
         pic.add_cycles(canister_id, DEFAULT_CYCLES).await;
 
         let wasm_bytes = Self::load_wasm(Canister::Backend);
 
-        //let init_arg = todo!();
-        let init_arg = Encode!(&BackendInitArgs{ orbit_station, orchestrator, owner}).expect("Failed to encode init arg for backend");
+        let init_arg = Encode!(&BackendInitArgs {
+            orbit_station,
+            orchestrator,
+            owner
+        })
+        .expect("Failed to encode init arg for backend");
 
         pic.install_canister(canister_id, wasm_bytes, init_arg, Some(admin()))
             .await;

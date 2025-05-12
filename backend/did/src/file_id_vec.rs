@@ -1,4 +1,5 @@
 use std::borrow::Cow;
+
 use ic_stable_structures::Storable;
 use ic_stable_structures::storable::Bound;
 
@@ -8,97 +9,102 @@ pub type FileId = u64;
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct StorableFileIdVec(pub Vec<FileId>);
 impl StorableFileIdVec {
+    ///get vec/
+    pub fn as_vec(&self) -> &Vec<FileId> {
+        &self.0
+    }
+    pub fn as_vec_mut(&mut self) -> &mut Vec<FileId> {
+        &mut self.0
+    }
+    pub fn new() -> Self {
+        StorableFileIdVec(Vec::new())
+    }
 
-  ///get vec/
-  pub fn as_vec(&self) -> &Vec<FileId> {
-      &self.0
-  }
-  pub fn as_vec_mut(&mut self) -> &mut Vec<FileId> {
-      &mut self.0
-  }
-  pub fn new() -> Self {
-      StorableFileIdVec(Vec::new())
-  }
+    pub fn add(&mut self, file_id: FileId) {
+        self.0.push(file_id);
+    }
 
-  pub fn add(&mut self, file_id: FileId) {
-      self.0.push(file_id);
-  }
+    pub fn get(&self, index: usize) -> Option<FileId> {
+        self.0.get(index).copied()
+    }
+    pub fn get_mut(&mut self, index: usize) -> Option<&mut FileId> {
+        self.0.get_mut(index)
+    }
 
-  pub fn get(&self, index: usize) -> Option<FileId> {
-      self.0.get(index).copied()
-  }
-  pub fn get_mut(&mut self, index: usize) -> Option<&mut FileId> {
-    self.0.get_mut(index)
- }
-
-  pub fn len(&self) -> usize {
-      self.0.len()
-  }
-  pub fn contains(&self, file_id: &FileId) -> bool {
-    self.0.contains(file_id)
-  }
-  pub fn retain<F>(&mut self, f: F)
-  where
-      F: FnMut(&FileId) -> bool,
-  {
-      self.0.retain(f);
-  }
-  pub fn iter(&self) -> std::slice::Iter<FileId> {
-    self.0.iter()
+    pub fn len(&self) -> usize {
+        self.0.len()
+    }
+    pub fn is_empty(&self) -> bool {
+        self.0.is_empty()
+    }
+    pub fn contains(&self, file_id: &FileId) -> bool {
+        self.0.contains(file_id)
+    }
+    pub fn retain<F>(&mut self, f: F)
+    where
+        F: FnMut(&FileId) -> bool,
+    {
+        self.0.retain(f);
+    }
+    pub fn iter(&self) -> std::slice::Iter<FileId> {
+        self.0.iter()
+    }
 }
 
-  
+impl Default for StorableFileIdVec {
+    fn default() -> Self {
+        Self::new()
+    }
 }
 impl From<Vec<FileId>> for StorableFileIdVec {
-  fn from(vec: Vec<FileId>) -> Self {
-      StorableFileIdVec(vec)
-  }
+    fn from(vec: Vec<FileId>) -> Self {
+        StorableFileIdVec(vec)
+    }
 }
 
 impl Storable for StorableFileIdVec {
-  fn to_bytes(&self) -> Cow<[u8]> {
-      // Create a buffer to hold the serialized data
-      let mut buf = Vec::new();
+    fn to_bytes(&self) -> Cow<[u8]> {
+        // Create a buffer to hold the serialized data
+        let mut buf = Vec::new();
 
-      // Serialize the length of the vector as a u32 (to save space)
-      buf.extend_from_slice(&(self.len() as u32).to_le_bytes());
+        // Serialize the length of the vector as a u32 (to save space)
+        buf.extend_from_slice(&(self.len() as u32).to_le_bytes());
 
-      // Serialize each FileId (u64) in little-endian format
-      for file_id in self.0.iter() {
-          buf.extend_from_slice(&file_id.to_le_bytes());
-      }
+        // Serialize each FileId (u64) in little-endian format
+        for file_id in self.0.iter() {
+            buf.extend_from_slice(&file_id.to_le_bytes());
+        }
 
-      Cow::Owned(buf)
-  }
+        Cow::Owned(buf)
+    }
 
-  fn from_bytes(bytes: Cow<[u8]>) -> Self {
-      // Ensure there are enough bytes for the length (u32 = 4 bytes)
-      if bytes.len() < 4 {
-         trap("Invalid byte array: not enough bytes for length");
-      }
+    fn from_bytes(bytes: Cow<[u8]>) -> Self {
+        // Ensure there are enough bytes for the length (u32 = 4 bytes)
+        if bytes.len() < 4 {
+            trap("Invalid byte array: not enough bytes for length");
+        }
 
-      // Read the length (first 4 bytes) as u32
-      let len = u32::from_le_bytes(bytes[0..4].try_into().unwrap()) as usize;
+        // Read the length (first 4 bytes) as u32
+        let len = u32::from_le_bytes(bytes[0..4].try_into().unwrap()) as usize;
 
-      // Ensure the remaining bytes match the expected length (len * 8 bytes for u64)
-      if bytes.len() < 4 + len * 8 {
-          trap("Invalid byte array: not enough bytes for FileId vector");
-      }
+        // Ensure the remaining bytes match the expected length (len * 8 bytes for u64)
+        if bytes.len() < 4 + len * 8 {
+            trap("Invalid byte array: not enough bytes for FileId vector");
+        }
 
-      // Deserialize each u64 into the vector
-      let mut result = Vec::with_capacity(len);
-      for i in 0..len {
-          let start = 4 + i * 8;
-          let end = start + 8;
-          let file_id = u64::from_le_bytes(bytes[start..end].try_into().unwrap());
-          result.push(file_id);
-      }
+        // Deserialize each u64 into the vector
+        let mut result = Vec::with_capacity(len);
+        for i in 0..len {
+            let start = 4 + i * 8;
+            let end = start + 8;
+            let file_id = u64::from_le_bytes(bytes[start..end].try_into().unwrap());
+            result.push(file_id);
+        }
 
-      StorableFileIdVec(result)
-  }
+        StorableFileIdVec(result)
+    }
 
-
-  const BOUND: Bound = Bound::Unbounded; // No fixed size limit
+    const BOUND: Bound = Bound::Unbounded; // No fixed size limit
 }
 
 #[cfg(test)]
