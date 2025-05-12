@@ -476,8 +476,9 @@ impl Storable for FileMetadata {
             .try_into()
             .expect("Invalid public key size");
         offset += PUBKEY_SIZE;
-        if offset + MAX_PRINCIPAL_SIZE > bytes.len() {
-            trap("Not enough bytes for principal");
+
+        if offset + 1 > bytes.len() {
+            trap("Not enough bytes for principal_len");
         }
         // Read principal length (u8)
         let principal_len = bytes[offset] as usize;
@@ -580,7 +581,7 @@ mod tests {
         let file_metadata = FileMetadata {
             file_name: "test.txt".to_string(),
             user_public_key: [0; PUBKEY_SIZE],
-            requester_principal: Principal::from_slice(&[0; MAX_PRINCIPAL_SIZE]),
+            requester_principal: Principal::from_slice(&[0,1,2,3]),
             requested_at: 123456789,
             uploaded_at: Some(987654321),
         };

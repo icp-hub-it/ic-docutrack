@@ -13,6 +13,9 @@ use did::backend::{
    PublicFileMetadata,
    GetAliasInfoError, 
    AliasInfo,
+   UploadFileRequest,
+   UploadFileError,
+
 };
 
 
@@ -36,19 +39,26 @@ fn get_alias_info(alias: String) -> Result<AliasInfo, GetAliasInfoError> {
     Canister::get_alias_info(alias)
 }
 
-// #[update]
-// fn upload_file(request: UploadFileRequest) -> Result<(), UploadFileError> {
-//     with_state_mut(|s| {
-//         crate::api::upload_file(
-//             request.file_id,
-//             request.file_content,
-//             request.file_type,
-//             request.owner_key,
-//             request.num_chunks,
-//             s,
-//         )
-//     })
-// }
+#[update]
+fn upload_file(request: UploadFileRequest) -> Result<(), UploadFileError> {
+    // with_state_mut(|s| {
+    //     crate::api::upload_file(
+    //         request.file_id,
+    //         request.file_content,
+    //         request.file_type,
+    //         request.owner_key,
+    //         request.num_chunks,
+    //         s,
+    //     )
+    // })
+    Canister::upload_file(
+        request.file_id,
+        request.file_content,
+        request.file_type,
+        request.owner_key,
+        request.num_chunks,
+    )
+}
 
 // #[update]
 // fn upload_file_atomic(request: UploadFileAtomicRequest) -> u64 {

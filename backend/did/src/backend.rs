@@ -3,7 +3,9 @@ mod file;
 use candid::{CandidType, Principal};
 use serde::{Deserialize, Serialize};
 
-pub use self::file::{FileStatus, GetAliasInfoError, PublicFileMetadata,AliasInfo
+pub use self::file::{FileStatus, GetAliasInfoError, PublicFileMetadata,AliasInfo,
+    FileDownloadResponse, FileData, UploadFileRequest, UploadFileError,
+   
 };
 
 

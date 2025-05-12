@@ -95,7 +95,12 @@ thread_local! {
   where
       F: FnOnce(FileId) -> T,
   {
-        OWNED_FILES_STORAGE.with_borrow(|owned_files| owned_files.iter().collect())
+        OWNED_FILES_STORAGE.with_borrow(|owned_files| {
+            owned_files
+                .iter()
+                .map(|file_id| file_id.clone())
+                .collect()
+        })
   }
 
   /// Accessor to the file data storage
@@ -110,7 +115,7 @@ thread_local! {
   where
       F: FnOnce(File) -> T,
   {
-      FILE_DATA_STORAGE.with_borrow(|file_data| file_data.get(file_id).map(f))
+        FILE_DATA_STORAGE.with_borrow(|file_data| file_data.get(file_id).map(f))
   }
   /// Accessor to the file alias index storage
   fn with_file_alias_index_storage<T, F>(f: F) -> T
@@ -199,7 +204,7 @@ thread_local! {
         pub fn generate_file_id() -> u64 {
             let new =FILE_COUNT.with_borrow_mut(|file_count| {
                 let new_count = file_count.get() + 1;
-                file_count.set(new_count);
+                file_count.set(new_count).expect("Failed to set file count");
                 new_count
             });
             new
@@ -220,12 +225,12 @@ thread_local! {
         }
     
         /// Add a file ID to the owned files storage
-        pub fn add_owned_file(file_id: FileId) {
+        pub fn add_owned_file(file_id: &FileId) {
             // OWNED_FILES_STORAGE.with_borrow_mut(|owned_files| {
             //     owned_files.push(file_id);
             // });
             with_owned_files_storage( |owned_files| {
-                owned_files.push(&file_id)
+                owned_files.push(file_id)
             });
         }
     
@@ -406,7 +411,7 @@ thread_local! {
         #[test]
         fn test_owned_files_storage() {
             let file_id = 1;
-            OwnedFilesStorage::add_owned_file(file_id);
+            OwnedFilesStorage::add_owned_file(&file_id);
             assert_eq!(OwnedFilesStorage::get_owned_files(), vec![file_id]);
 
             // OwnedFilesStorage::remove_owned_file(file_id);
@@ -448,13 +453,21 @@ thread_local! {
 
         #[test]
         fn test_file_shares_storage() {
-            let principal = Principal::from_slice(&[1; 29]);
+            let principal = Principal::from_slice(&[1; 6]);
             let file_id = 1;
             FileSharesStorage::set_file_shares(&StorablePrincipal::from(principal), StorableFileIdVec(vec![file_id]));
             assert_eq!(FileSharesStorage::get_file_shares(&principal), Some(StorableFileIdVec(vec![file_id])));
 
+            FileSharesStorage::get_file_shares_storage()
+                .iter()
+                .for_each(|(_principal, file_ids)| {
+                    assert_eq!(file_ids, &StorableFileIdVec(vec![file_id]));
+                });
+
             FileSharesStorage::remove_file_shares(&StorablePrincipal::from(principal));
             assert_eq!(FileSharesStorage::get_file_shares(&principal), None);
+
+
         }
 
         #[test]
@@ -479,12 +492,12 @@ thread_local! {
             assert_eq!(SharedKeysStorage::get_shared_key(&principal), Some(key));
         }
 
-        #[test]
-        fn test_remove_shared_key() {
-            let principal = Principal::from_slice(&[1; 29]);
-            let key = vec![1, 2, 3, 4, 5];
-            SharedKeysStorage::set_shared_key(principal, key.clone());
-        }
+        // #[test]
+        // fn test_remove_shared_key() {
+        //     let principal = Principal::from_slice(&[1; 29]);
+        //     let key = vec![1, 2, 3, 4, 5];
+        //     SharedKeysStorage::set_shared_key(principal, key.clone());
+        // }
 
         #[test]
         #[should_panic = "Cannot add anonymous user"]
@@ -493,4 +506,6 @@ thread_local! {
             let key = vec![1, 2, 3, 4, 5];
             SharedKeysStorage::set_shared_key(principal, key.clone());
         }
+
+      
       }

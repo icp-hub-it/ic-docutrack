@@ -33,6 +33,8 @@ pub trait TestEnv {
     /// Admin principal id
     fn admin(&self) -> Principal;
 
+    /// Bob principal id
+    fn bob(&self) -> Principal;
     /// Backend canister id
     fn backend(&self) -> Principal;
 
