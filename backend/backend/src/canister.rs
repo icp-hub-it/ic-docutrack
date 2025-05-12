@@ -2,9 +2,9 @@ use std::collections::BTreeMap;
 
 use candid::Principal;
 use did::backend::{
-    AliasInfo, BackendInitArgs, FileStatus, GetAliasInfoError, PublicFileMetadata, UploadFileError,FileSharingResponse,
+    AliasInfo, BackendInitArgs, FileStatus, GetAliasInfoError, PublicFileMetadata, UploadFileError,FileSharingResponse,UploadFileAtomicRequest
 };
-use did::{StorableFileIdVec, StorablePrincipal};
+
 
 use crate::storage::config::Config;
 use crate::storage::files::{
@@ -64,6 +64,7 @@ impl Canister {
     }
 
     /// update file
+    /// to be triggered by requested file uploads
     pub fn upload_file(
         file_id: FileId,
         file_content: Vec<u8>,
@@ -114,6 +115,50 @@ impl Canister {
         FileAliasIndexStorage::remove_file_id(&alias);
 
         Ok(())
+    }
+
+    /// Upload file Atomic
+    /// to be triggered by owners, no need to request file
+    pub fn upload_file_atomic(
+        caller: Principal,
+        request: UploadFileAtomicRequest,
+    ) -> FileId {
+        let file_id = FileCountStorage::generate_file_id();
+        let content = if request.num_chunks == 1 {
+            FileContent::Uploaded {
+                file_type: request.file_type,
+                owner_key: request.owner_key,
+                shared_keys: BTreeMap::new(),
+                num_chunks: request.num_chunks,
+            }
+        } else {
+            FileContent::PartiallyUploaded {
+                file_type: request.file_type,
+                owner_key: request.owner_key,
+                shared_keys: BTreeMap::new(),
+                num_chunks: request.num_chunks,
+            }
+        };
+
+        // Aff File to content storage
+        let chunk_id = 0;
+        FileContentsStorage::set_file_contents(&file_id, &chunk_id, request.content);
+        // Add file to the file storage
+        let file = File {
+            metadata: FileMetadata {
+                file_name: request.name,
+                user_public_key: Config::get_owner_public_key(),
+                requester_principal: caller,
+                requested_at: time(),
+                uploaded_at: None,
+            },
+            content,
+        };
+        FileDataStorage::set_file(&file_id, file);
+        
+        OwnedFilesStorage::add_owned_file(&file_id);
+
+        file_id
     }
 
     /// Share file with user
@@ -321,6 +366,39 @@ mod test {
             shared_keys: BTreeMap::new(),
             num_chunks,
         });
+    }
+
+    #[test]
+    fn test_should_upload_file_atomic() {
+        let caller = Principal::from_slice(&[0, 1, 2, 3]);
+        let file_name = "test_file.txt";
+        let file_content = vec![1, 2, 3];
+        let file_type = "text/plain".to_string();
+        let owner_key = [0; 32];
+        let num_chunks = 1;
+        let file_id = Canister::upload_file_atomic(
+            caller,
+            UploadFileAtomicRequest {
+                name: file_name.to_string(),
+                content: file_content.clone(),
+                file_type,
+                owner_key,
+                num_chunks,
+            },
+        );
+        assert_eq!(file_id, 1);
+        
+        // Check if the file was uploaded correctly
+        let file = FileDataStorage::get_file(&file_id).unwrap();
+        assert_eq!(file.content, FileContent::Uploaded {
+            file_type: "text/plain".to_string(),
+            owner_key,
+            shared_keys: BTreeMap::new(),
+            num_chunks,
+        });
+        // Check if the file content was stored correctly
+        let file_content_stored = FileContentsStorage::get_file_contents(&file_id, &0).unwrap();
+        assert_eq!(file_content_stored, file_content);
     }
 
     #[test]

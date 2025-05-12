@@ -5,11 +5,11 @@ mod utils;
 
 use did::backend::{
     AliasInfo, BackendInitArgs, GetAliasInfoError, PublicFileMetadata, UploadFileError,
-    UploadFileRequest, FileSharingResponse,
+    UploadFileRequest, FileSharingResponse,UploadFileAtomicRequest
 };
 use candid::Principal;
 use ic_cdk_macros::{init, query, update};
-use utils::msg_caller; //post_upgrade, pre_upgrade,
+use utils::msg_caller;
 
 use self::canister::Canister;
 
@@ -45,10 +45,10 @@ fn upload_file(request: UploadFileRequest) -> Result<(), UploadFileError> {
     )
 }
 
-// #[update]
-// fn upload_file_atomic(request: UploadFileAtomicRequest) -> u64 {
-//     with_state_mut(|s| crate::api::upload_file_atomic(ic_cdk::api::msg_caller(), request, s))
-// }
+#[update]
+fn upload_file_atomic(request: UploadFileAtomicRequest) -> u64 {
+    Canister::upload_file_atomic(msg_caller(),request) 
+}
 
 // #[update]
 // fn upload_file_continue(request: UploadFileContinueRequest) {

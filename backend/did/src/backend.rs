@@ -5,7 +5,7 @@ use serde::{Deserialize, Serialize};
 
 pub use self::file::{
     AliasInfo, FileData, FileDownloadResponse, FileStatus, GetAliasInfoError, PublicFileMetadata,
-    UploadFileError, UploadFileRequest,FileSharingResponse
+    UploadFileError, UploadFileRequest,FileSharingResponse,UploadFileAtomicRequest
 };
 
 #[derive(Debug, CandidType, Serialize, Deserialize)]

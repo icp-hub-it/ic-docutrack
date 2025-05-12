@@ -83,6 +83,14 @@ pub struct UploadFileRequest {
 }
 
 #[derive(CandidType, Serialize, Deserialize, Clone, Debug, PartialEq)]
+pub struct UploadFileAtomicRequest {
+    pub name: String,
+    pub content: Vec<u8>,
+    pub owner_key: [u8; 32],
+    pub file_type: String,
+    pub num_chunks: u64,
+}
+#[derive(CandidType, Serialize, Deserialize, Clone, Debug, PartialEq)]
 pub struct UploadFileContinueRequest {
     pub file_id: u64,
     pub chunk_id: u64,
