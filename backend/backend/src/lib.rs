@@ -74,18 +74,19 @@ fn share_file(
     Canister::share_file(user_id, file_id, file_key_encrypted_for_user)
 }
 
-// #[update]
-// fn share_file_with_users(
-//     user_id: Vec<Principal>,
-//     file_id: u64,
-//     file_key_encrypted_for_user: Vec<Vec<u8>>,
-// ) {
-//     with_state_mut(|s| {
-//         for (id, key) in user_id.iter().zip(file_key_encrypted_for_user.iter()) {
-//             crate::api::share_file(s, ic_cdk::api::msg_caller(), *id, file_id, key.clone());
-//         }
-//     });
-// }
+#[update]
+fn share_file_with_users(
+    user_id: Vec<Principal>,
+    file_id: u64,
+    file_key_encrypted_for_user: Vec<[u8; 32]>,
+) {
+
+    Canister::share_file_with_users(
+        user_id,
+        file_id,
+        file_key_encrypted_for_user,
+    )
+}
 
 // #[update]
 // fn revoke_share(user_id: Principal, file_id: u64) -> FileSharingResponse {

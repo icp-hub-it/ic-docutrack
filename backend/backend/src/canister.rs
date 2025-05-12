@@ -163,6 +163,17 @@ impl Canister {
         FileSharingResponse::Ok
     }
 
+    /// Share file with users
+    pub fn share_file_with_users(
+        user_id: Vec<Principal>,
+        file_id: FileId,
+        file_key_encrypted_for_user: Vec<[u8; 32]>,
+    ) {
+        for (user, decryption_key) in user_id.iter().zip(file_key_encrypted_for_user.iter()) {
+            Self::share_file(*user, file_id, *decryption_key);
+        }
+    }
+
     pub fn get_allowed_users(file_id: &FileId) -> Vec<Principal> {
         FileSharesStorage::get_file_shares_storage()
             .iter()
@@ -332,6 +343,40 @@ mod test {
         assert_eq!(shared_files.len(), 1);
         assert_eq!(shared_files[0].file_id, file_id);
 
+    }
+
+    #[test]
+    fn should_share_file_with_users() {
+        let caller = Principal::from_slice(&[0, 1, 2, 3]);
+        let file_name = "test_file.txt";
+        let alias = Canister::request_file(caller, file_name);
+        let file_id = FileAliasIndexStorage::get_file_id(&alias).unwrap();
+        //upload the file first
+        let file_content = vec![1, 2, 3];
+        let file_type = "text/plain".to_string();
+        let owner_key = [0; 32];
+        let num_chunks = 1;
+        let res = Canister::upload_file(
+            file_id,
+            file_content,
+            file_type.clone(),
+            owner_key,
+            num_chunks,
+        );
+        assert!(res.is_ok());
+        // Now share the file with multiple users
+        
+        let user_ids = vec![
+            Principal::from_slice(&[4, 5, 6, 7]),
+            Principal::from_slice(&[8, 9, 10, 11]),
+        ];
+        let file_key_encrypted_for_user = vec![[2; 32], [1; 32]];
+        Canister::share_file_with_users(user_ids.clone(), file_id, file_key_encrypted_for_user);
+        for user_id in user_ids {
+            let shared_files = Canister::get_shared_files(user_id);
+            assert_eq!(shared_files.len(), 1);
+            assert_eq!(shared_files[0].file_id, file_id);
+        }
     }
     // #[test]
     // fn test_should_get_shared_files() {
