@@ -1,4 +1,5 @@
 mod orchestrator;
+mod backend;
 
 use integration_tests::PocketIcTestEnv;
 

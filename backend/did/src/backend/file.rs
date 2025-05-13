@@ -1,6 +1,9 @@
 use candid::{CandidType, Principal};
 use serde::{Deserialize, Serialize};
 
+pub const ENCRYPTION_KEY_SIZE: usize = 32;
+// User decryption key
+pub type OwnerKey = [u8; ENCRYPTION_KEY_SIZE];
 #[derive(CandidType, Serialize, Deserialize, Clone, Debug, PartialEq, Eq)]
 pub struct PublicFileMetadata {
     pub file_id: u64,

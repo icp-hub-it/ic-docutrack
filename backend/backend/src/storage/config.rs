@@ -1,6 +1,7 @@
 use std::cell::RefCell;
 
 use candid::Principal;
+use did::utils::{msg_caller, trap};
 use did::StorablePrincipal;
 use did::orchestrator::PublicKey;
 use ic_stable_structures::memory_manager::VirtualMemory;
@@ -36,7 +37,7 @@ thread_local! {
 pub struct Config;
 impl Config {
     /// Get the orbit station [`Principal`]
-    pub fn _get_orbit_station() -> Principal {
+    pub fn get_orbit_station() -> Principal {
         ORBIT_STATION.with_borrow(|cell| cell.get().0)
     }
 
@@ -48,7 +49,7 @@ impl Config {
     }
 
     /// Get the owner [`Principal`]
-    pub fn _get_owner() -> Principal {
+    pub fn get_owner() -> Principal {
         OWNER.with_borrow(|cell| cell.get().0)
     }
 
@@ -64,13 +65,19 @@ impl Config {
         OWNER_PUBLIC_KEY.with_borrow(|cell| *cell.get())
     }
     /// Set the owner public key [`PublicKey`]
-    pub fn _set_owner_public_key(public_key: PublicKey) {
+    pub fn set_owner_public_key(public_key: PublicKey) {
+        let owner = Self::get_owner();
+        let caller = msg_caller();
+        if owner != caller {
+            trap("Only the owner can set the public key");
+        }
         if let Err(err) = OWNER_PUBLIC_KEY.with_borrow_mut(|cell| cell.set(public_key)) {
             ic_cdk::trap(format!("Failed to set owner public key: {:?}", err));
         }
     }
     /// Get the orchestrator [`Principal`]
-    pub fn _get_orchestrator() -> Principal {
+    pub fn get_orchestrator() -> Principal {
+
         ORCHESTRATOR.with_borrow(|cell| cell.get().0)
     }
     /// Set the orchestrator [`Principal`]
@@ -89,26 +96,26 @@ mod test {
     fn test_orbit_station() {
         let principal = Principal::from_slice(&[1; 29]);
         Config::set_orbit_station(principal);
-        assert_eq!(Config::_get_orbit_station(), principal);
+        assert_eq!(Config::get_orbit_station(), principal);
     }
 
     #[test]
     fn test_owner() {
         let principal = Principal::from_slice(&[2; 29]);
         Config::set_owner(principal);
-        assert_eq!(Config::_get_owner(), principal);
+        assert_eq!(Config::get_owner(), principal);
     }
 
     #[test]
     fn test_orchestrator() {
         let principal = Principal::from_slice(&[3; 29]);
         Config::set_orchestrator(principal);
-        assert_eq!(Config::_get_orchestrator(), principal);
+        assert_eq!(Config::get_orchestrator(), principal);
     }
     #[test]
     fn test_owner_public_key() {
         let public_key = [4; 32];
-        Config::_set_owner_public_key(public_key);
+        Config::set_owner_public_key(public_key);
         assert_eq!(Config::get_owner_public_key(), public_key);
     }
 }

@@ -3,6 +3,7 @@ use std::collections::BTreeMap;
 
 use candid::Principal;
 use did::orchestrator::{PUBKEY_SIZE, PublicKey};
+use did::backend::{OwnerKey, ENCRYPTION_KEY_SIZE};
 use ic_stable_structures::Storable;
 use ic_stable_structures::storable::Bound;
 
@@ -10,12 +11,12 @@ use crate::utils::trap;
 
 pub const MAX_FILE_NAME_SIZE: usize = 255;
 pub const MAX_PRINCIPAL_SIZE: usize = 29;
-pub const ENCRYPTION_KEY_SIZE: usize = 32;
+
 
 pub type ChunkId = u64;
 pub type FileId = u64;
 
-pub type OwnerKey = [u8; ENCRYPTION_KEY_SIZE];
+
 
 // A file is composed of its metadata and its content, which is a blob.
 #[derive(Debug, PartialEq, Eq, Clone)]

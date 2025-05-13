@@ -1,5 +1,6 @@
 mod cycles;
 mod orchestrator_client;
+mod backend_client;
 
 use std::io::Read as _;
 use std::path::PathBuf;
@@ -15,8 +16,9 @@ use pocket_ic::nonblocking::PocketIc;
 use serde::de::DeserializeOwned;
 
 pub use self::orchestrator_client::OrchestratorClient;
+pub use self::backend_client::BackendClient;
 use crate::TestEnv;
-use crate::actor::{admin, bob};
+use crate::actor::{admin, bob, alice};
 use crate::wasm::Canister;
 
 const DEFAULT_CYCLES: u128 = 2_000_000_000_000_000;
@@ -54,6 +56,9 @@ impl TestEnv for PocketIcTestEnv {
     }
     fn bob(&self) -> Principal {
         bob()
+    }
+    fn alice(&self) -> Principal {
+        alice()
     }
 
     async fn query<R>(

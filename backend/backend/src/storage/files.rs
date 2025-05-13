@@ -3,15 +3,13 @@ use std::cell::RefCell;
 use std::collections::HashMap;
 
 use candid::Principal;
-use did::{StorableFileIdVec, StorablePrincipal};
+use did::{StorableFileIdVec, StorablePrincipal, backend::OwnerKey};
 // use crate::aliases::{AliasGenerator, Randomness};
 
-// use did::backend::File;
-// use did::backend::{FileId, ChunkId};
 use ic_stable_structures::memory_manager::VirtualMemory;
 use ic_stable_structures::{DefaultMemoryImpl, StableBTreeMap, StableCell, StableVec};
 
-pub use self::create_state::{ChunkId, File, FileContent, FileId, FileMetadata, OwnerKey};
+pub use self::create_state::{ChunkId, File, FileContent, FileId, FileMetadata};
 use crate::storage::memory::{
     /*ALIAS_GENERATOR_MEMORY_ID ,*/ FILE_ALIAS_INDEX_MEMORY_ID, FILE_CONTENTS_MEMORY_ID,
     FILE_COUNT_MEMORY_ID, FILE_DATA_MEMORY_ID, FILE_SHARES_MEMORY_ID, MEMORY_MANAGER,
