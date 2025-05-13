@@ -7,9 +7,7 @@ mod pocket_ic;
 mod wasm;
 
 #[cfg(feature = "pocket-ic")]
-pub use self::pocket_ic::{OrchestratorClient, PocketIcTestEnv, BackendClient};
-
-
+pub use self::pocket_ic::{BackendClient, OrchestratorClient, PocketIcTestEnv};
 
 pub trait TestEnv {
     fn query<R>(
@@ -50,5 +48,4 @@ pub trait TestEnv {
 
     /// Uuid of the station admin
     fn station_admin(&self) -> String;
-
 }

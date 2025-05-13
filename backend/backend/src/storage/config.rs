@@ -1,9 +1,9 @@
 use std::cell::RefCell;
 
 use candid::Principal;
-use did::utils::{msg_caller, trap};
 use did::StorablePrincipal;
 use did::orchestrator::PublicKey;
+use did::utils::{msg_caller, trap};
 use ic_stable_structures::memory_manager::VirtualMemory;
 use ic_stable_structures::{DefaultMemoryImpl, StableCell};
 
@@ -37,7 +37,7 @@ thread_local! {
 pub struct Config;
 impl Config {
     /// Get the orbit station [`Principal`]
-    pub fn get_orbit_station() -> Principal {
+    pub fn _get_orbit_station() -> Principal {
         ORBIT_STATION.with_borrow(|cell| cell.get().0)
     }
 
@@ -76,8 +76,7 @@ impl Config {
         }
     }
     /// Get the orchestrator [`Principal`]
-    pub fn get_orchestrator() -> Principal {
-
+    pub fn _get_orchestrator() -> Principal {
         ORCHESTRATOR.with_borrow(|cell| cell.get().0)
     }
     /// Set the orchestrator [`Principal`]
@@ -96,7 +95,7 @@ mod test {
     fn test_orbit_station() {
         let principal = Principal::from_slice(&[1; 29]);
         Config::set_orbit_station(principal);
-        assert_eq!(Config::get_orbit_station(), principal);
+        assert_eq!(Config::_get_orbit_station(), principal);
     }
 
     #[test]
@@ -110,7 +109,7 @@ mod test {
     fn test_orchestrator() {
         let principal = Principal::from_slice(&[3; 29]);
         Config::set_orchestrator(principal);
-        assert_eq!(Config::get_orchestrator(), principal);
+        assert_eq!(Config::_get_orchestrator(), principal);
     }
     #[test]
     fn test_owner_public_key() {

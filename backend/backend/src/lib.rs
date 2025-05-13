@@ -4,9 +4,12 @@ mod storage;
 mod utils;
 
 use candid::Principal;
-use did::{backend::{
-    AliasInfo, BackendInitArgs, FileDownloadResponse, FileSharingResponse, GetAliasInfoError, OwnerKey, PublicFileMetadata, UploadFileAtomicRequest, UploadFileContinueRequest, UploadFileError, UploadFileRequest
-}, orchestrator::PublicKey};
+use did::backend::{
+    AliasInfo, BackendInitArgs, FileDownloadResponse, FileSharingResponse, GetAliasInfoError,
+    OwnerKey, PublicFileMetadata, UploadFileAtomicRequest, UploadFileContinueRequest,
+    UploadFileError, UploadFileRequest,
+};
+use did::orchestrator::PublicKey;
 use ic_cdk_macros::{init, query, update};
 use storage::config::Config;
 use utils::msg_caller;
@@ -20,12 +23,12 @@ pub fn init(args: BackendInitArgs) {
 
 //done
 #[query]
-fn public_key() -> PublicKey{
+fn public_key() -> PublicKey {
     Config::get_owner_public_key()
 }
 //done
 #[update]
-fn set_public_key(public_key: PublicKey){
+fn set_public_key(public_key: PublicKey) {
     Config::set_owner_public_key(public_key);
 }
 //done
@@ -36,7 +39,6 @@ fn get_requests() -> Vec<PublicFileMetadata> {
 
 #[query]
 fn get_shared_files(user_id: Principal) -> Vec<PublicFileMetadata> {
-
     Canister::get_shared_files(user_id)
 }
 //done

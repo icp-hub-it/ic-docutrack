@@ -3,8 +3,8 @@ use std::collections::BTreeMap;
 use candid::Principal;
 use did::backend::{
     AliasInfo, BackendInitArgs, FileData, FileDownloadResponse, FileSharingResponse, FileStatus,
-    GetAliasInfoError, PublicFileMetadata, UploadFileAtomicRequest, UploadFileContinueRequest,
-    UploadFileError, OwnerKey,
+    GetAliasInfoError, OwnerKey, PublicFileMetadata, UploadFileAtomicRequest,
+    UploadFileContinueRequest, UploadFileError,
 };
 use did::utils::{msg_caller, trap};
 
@@ -26,7 +26,7 @@ impl Canister {
         Config::set_owner(args.owner);
     }
 
-    pub fn request_file<S: Into<String>>( request_name: S) -> String {
+    pub fn request_file<S: Into<String>>(request_name: S) -> String {
         let caller = msg_caller();
         if caller != Config::get_owner() {
             trap("Only the owner can request a file");
@@ -53,7 +53,7 @@ impl Canister {
         alias
     }
     // maybe rename this function or see in what context is used
-    // maybe more suitable name is get_owned_files ?? 
+    // maybe more suitable name is get_owned_files ??
     pub fn get_requests() -> Vec<PublicFileMetadata> {
         let caller = msg_caller();
         if caller != Config::get_owner() {
@@ -181,7 +181,7 @@ impl Canister {
         }
         let mut file = file.unwrap();
         let chunk_id = request.chunk_id;
-        
+
         // Update file content
         //TODO CONSIDER PARTIAL: UPLOAD IN DISORDER
         //TODO maybe add a check to verify all chunks are uploaded before marking as uploaded
@@ -190,7 +190,12 @@ impl Canister {
             FileContent::Uploaded { .. } => {
                 return;
             }
-            FileContent::PartiallyUploaded { num_chunks, file_type,owner_key,shared_keys } => {
+            FileContent::PartiallyUploaded {
+                num_chunks,
+                file_type,
+                owner_key,
+                shared_keys,
+            } => {
                 if chunk_id == *num_chunks {
                     file.content = FileContent::Uploaded {
                         file_type: file_type.clone(),
@@ -200,9 +205,7 @@ impl Canister {
                     };
                 }
             }
-            _ => {
-            }
-            
+            _ => {}
         }
         // Add file to the content storage
         FileContentsStorage::set_file_contents(&request.file_id, &chunk_id, request.contents);
@@ -385,7 +388,7 @@ impl Canister {
     }
 
     pub fn get_shared_files(user_id: Principal) -> Vec<PublicFileMetadata> {
-       let caller = msg_caller();
+        let caller = msg_caller();
         if caller == Principal::anonymous() {
             trap("Anonymous user cannot get shared files");
         }
@@ -443,8 +446,8 @@ mod test {
             owner,
         });
 
-        assert_eq!(Config::get_orbit_station(), orbit_station);
-        assert_eq!(Config::get_orchestrator(), orchestrator);
+        assert_eq!(Config::_get_orbit_station(), orbit_station);
+        assert_eq!(Config::_get_orchestrator(), orchestrator);
         assert_eq!(Config::get_owner(), owner);
     }
 
@@ -457,7 +460,6 @@ mod test {
 
     #[test]
     fn test_should_get_requests() {
-        let caller = Principal::from_slice(&[0, 1, 2, 3]);
         let file_name = "test_file.txt";
         Canister::request_file(file_name);
         let requests = Canister::get_requests();
@@ -467,7 +469,6 @@ mod test {
 
     #[test]
     fn test_should_upload_file() {
-        let caller = Principal::from_slice(&[0, 1, 2, 3]);
         let file_name = "test_file.txt";
         let alias = Canister::request_file(file_name);
         let file_id = FileAliasIndexStorage::get_file_id(&alias).unwrap();
@@ -677,7 +678,6 @@ mod test {
 
     #[test]
     fn should_share_file_with_users() {
-   
         let file_name = "test_file.txt";
         let alias = Canister::request_file(file_name);
         let file_id = FileAliasIndexStorage::get_file_id(&alias).unwrap();

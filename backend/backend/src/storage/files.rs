@@ -3,9 +3,9 @@ use std::cell::RefCell;
 use std::collections::HashMap;
 
 use candid::Principal;
-use did::{StorableFileIdVec, StorablePrincipal, backend::OwnerKey};
+// use did::backend::OwnerKey;
+use did::{StorableFileIdVec, StorablePrincipal};
 // use crate::aliases::{AliasGenerator, Randomness};
-
 use ic_stable_structures::memory_manager::VirtualMemory;
 use ic_stable_structures::{DefaultMemoryImpl, StableBTreeMap, StableCell, StableVec};
 
