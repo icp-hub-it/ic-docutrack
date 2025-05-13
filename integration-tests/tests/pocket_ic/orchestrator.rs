@@ -1,6 +1,6 @@
 use candid::Principal;
 use did::orchestrator::{
-    GetUsersResponse, PUBKEY_SIZE, PublicUser, SetUserResponse, WhoamiResponse,
+    GetUsersResponse, PUBKEY_SIZE, PublicUser, SetUserResponse, SharedFilesResponse, WhoamiResponse,
 };
 use integration_tests::{OrchestratorClient, PocketIcTestEnv, TestEnv};
 
@@ -90,6 +90,17 @@ async fn test_should_create_user_canister() {
     // wait for user canister to be created
     let user_canister = client.wait_for_user_canister(me).await;
     assert_ne!(user_canister, Principal::anonymous());
+
+    env.stop().await;
+}
+
+#[tokio::test]
+async fn test_should_not_return_shared_files_if_anonymous() {
+    let env = PocketIcTestEnv::init().await;
+    let client = OrchestratorClient::from(&env);
+
+    let shared_files = client.shared_files(Principal::anonymous()).await;
+    assert_eq!(shared_files, SharedFilesResponse::AnonymousUser);
 
     env.stop().await;
 }

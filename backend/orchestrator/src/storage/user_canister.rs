@@ -9,13 +9,23 @@ use ic_stable_structures::{DefaultMemoryImpl, StableBTreeMap};
 
 pub use self::create_state::UserCanisterCreateState;
 use crate::storage::memory::{
-    MEMORY_MANAGER, USER_CANISTER_CREATE_STATES_MEMORY_ID, USER_CANISTERS_MEMORY_ID,
+    MEMORY_MANAGER, USER_CANISTER_CREATE_STATES_MEMORY_ID, USER_CANISTERS_INDEX_MEMORY_ID,
+    USER_CANISTERS_MEMORY_ID,
 };
 
 thread_local! {
-    /// User canisters
+    /// User canisters.
+    ///
+    /// A map between the owner principal and the user canister principal.
     static USER_CANISTERS: RefCell<StableBTreeMap<StorablePrincipal, StorablePrincipal, VirtualMemory<DefaultMemoryImpl>>> =
         RefCell::new(StableBTreeMap::new(MEMORY_MANAGER.with(|mm| mm.get(USER_CANISTERS_MEMORY_ID)))
+    );
+
+    /// User canisters index.
+    ///
+    /// An index listing all the user canisters.
+    static USER_CANISTER_INDEX: RefCell<StableBTreeMap<StorablePrincipal, (), VirtualMemory<DefaultMemoryImpl>>> =
+        RefCell::new(StableBTreeMap::new(MEMORY_MANAGER.with(|mm| mm.get(USER_CANISTERS_INDEX_MEMORY_ID)))
     );
 
     /// Users storage map
@@ -50,10 +60,15 @@ impl UserCanisterStorage {
 
     /// Set the user canister for a certain user.
     ///
+    /// It also sets the user canister index.
     /// Setting the user canister will remove the current user creation state.
     pub fn set_user_canister(principal: Principal, user_canister: Principal) {
         USER_CANISTERS.with_borrow_mut(|canisters| {
             canisters.insert(principal.into(), user_canister.into());
+        });
+
+        USER_CANISTER_INDEX.with_borrow_mut(|index| {
+            index.insert(user_canister.into(), ());
         });
 
         USER_CANISTER_CREATE_STATES.with_borrow_mut(|states| {
@@ -66,6 +81,12 @@ impl UserCanisterStorage {
         USER_CANISTERS
             .with_borrow(|canisters| canisters.get(&StorablePrincipal::from(principal)))
             .map(|p| p.0)
+    }
+
+    /// Get whether the provided principal is a user canister.
+    pub fn is_user_canister(principal: Principal) -> bool {
+        USER_CANISTER_INDEX
+            .with_borrow(|index| index.contains_key(&StorablePrincipal::from(principal)))
     }
 }
 
@@ -117,6 +138,11 @@ mod test {
             UserCanisterStorage::get_user_canister(principal),
             Some(user_canister)
         );
+
+        assert!(UserCanisterStorage::is_user_canister(user_canister));
+        assert!(!UserCanisterStorage::is_user_canister(
+            Principal::from_slice(&[1; 29])
+        ));
 
         assert_eq!(UserCanisterStorage::get_create_state(principal), None);
     }

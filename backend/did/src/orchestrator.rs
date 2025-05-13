@@ -1,3 +1,4 @@
+mod shared_files;
 mod user;
 mod user_canister;
 mod whoami;
@@ -5,6 +6,9 @@ mod whoami;
 use candid::{CandidType, Principal};
 use serde::{Deserialize, Serialize};
 
+pub use self::shared_files::{
+    FileId, RevokeShareFileResponse, ShareFileResponse, SharedFilesResponse,
+};
 pub use self::user::{
     GetUsersResponse, MAX_USERNAME_SIZE, PUBKEY_SIZE, PublicKey, PublicUser, SetUserResponse, User,
 };
