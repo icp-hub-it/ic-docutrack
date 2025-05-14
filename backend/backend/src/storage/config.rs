@@ -3,7 +3,7 @@ use std::cell::RefCell;
 use candid::Principal;
 use did::StorablePrincipal;
 use did::orchestrator::PublicKey;
-use did::utils::{msg_caller, trap};
+use did::utils::trap;
 use ic_stable_structures::memory_manager::VirtualMemory;
 use ic_stable_structures::{DefaultMemoryImpl, StableCell};
 
@@ -65,9 +65,9 @@ impl Config {
         OWNER_PUBLIC_KEY.with_borrow(|cell| *cell.get())
     }
     /// Set the owner public key [`PublicKey`]
-    pub fn set_owner_public_key(public_key: PublicKey) {
+    pub fn set_owner_public_key(caller: Principal, public_key: PublicKey) {
         let owner = Self::get_owner();
-        let caller = msg_caller();
+
         if owner != caller {
             trap("Only the owner can set the public key");
         }
@@ -89,8 +89,10 @@ impl Config {
 
 #[cfg(test)]
 mod test {
-    use super::*;
+    use did::backend::BackendInitArgs;
 
+    use super::*;
+    use crate::canister::Canister;
     #[test]
     fn test_orbit_station() {
         let principal = Principal::from_slice(&[1; 29]);
@@ -114,7 +116,13 @@ mod test {
     #[test]
     fn test_owner_public_key() {
         let public_key = [4; 32];
-        Config::set_owner_public_key(public_key);
+        let caller = Principal::from_slice(&[5; 29]);
+        Canister::init(BackendInitArgs {
+            orbit_station: Principal::from_slice(&[1; 29]),
+            owner: caller,
+            orchestrator: Principal::from_slice(&[3; 29]),
+        });
+        Config::set_owner_public_key(caller, public_key);
         assert_eq!(Config::get_owner_public_key(), public_key);
     }
 }

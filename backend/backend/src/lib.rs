@@ -29,12 +29,12 @@ fn public_key() -> PublicKey {
 //done
 #[update]
 fn set_public_key(public_key: PublicKey) {
-    Config::set_owner_public_key(public_key);
+    Config::set_owner_public_key(msg_caller(), public_key);
 }
 //done
 #[query]
 fn get_requests() -> Vec<PublicFileMetadata> {
-    Canister::get_requests()
+    Canister::get_requests(msg_caller())
 }
 
 #[query]
@@ -73,7 +73,7 @@ fn upload_file_continue(request: UploadFileContinueRequest) {
 //done
 #[update]
 fn request_file(request_name: String) -> String {
-    Canister::request_file(request_name)
+    Canister::request_file(msg_caller(), request_name)
 }
 //done
 #[query]
