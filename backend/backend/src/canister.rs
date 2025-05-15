@@ -8,6 +8,8 @@ use did::backend::{
 };
 use did::utils::{msg_caller, trap};
 
+use crate::aliases::{AliasGenerator, Randomness};
+use crate::storage::alias_generator_seed::AliasGeneratorSeed;
 use crate::storage::config::Config;
 use crate::storage::files::{
     File, FileAliasIndexStorage, FileContent, FileContentsStorage, FileCountStorage,
@@ -25,14 +27,27 @@ impl Canister {
         Config::set_owner(args.owner);
     }
 
+    /// Initialize the alias generator seed
+    ///
+    /// # Panics
+    ///
+    /// - If the caller is not the orchestrator.
+    /// - If the alias generator seed is already initialized.
+    /// - If the alias generator seed cannot be initialized.
+    pub async fn init_alias_generator_seed(caller: Principal) {
+        if caller != Config::get_orchestrator() {
+            trap("Only the orchestrator can initialize the alias generator seed");
+        }
+        AliasGeneratorSeed::init().await;
+    }
+
     /// Request a file
     pub fn request_file<S: Into<String>>(caller: Principal, request_name: S) -> String {
         if caller != Config::get_owner() {
             trap("Only the owner can request a file");
         }
         let file_id = FileCountStorage::generate_file_id();
-        //FIXME: make alias generator work
-        let alias = "mock_alias".to_string();
+        let alias = AliasGenerator::new(Randomness::default()).next();
         let file = File {
             metadata: FileMetadata {
                 file_name: request_name.into(),
@@ -454,7 +469,7 @@ mod test {
             owner,
         });
 
-        assert_eq!(Config::_get_orchestrator(), orchestrator);
+        assert_eq!(Config::get_orchestrator(), orchestrator);
         assert_eq!(Config::get_owner(), owner);
     }
 
@@ -463,7 +478,7 @@ mod test {
         let file_name = "test_file.txt".to_string();
         let caller = init();
         let alias = Canister::request_file(caller, file_name.clone());
-        assert_eq!(alias, "mock_alias");
+        assert_eq!(alias, "puzzling-mountain");
     }
 
     #[test]
@@ -789,6 +804,35 @@ mod test {
         let alias_info = Canister::get_alias_info(alias);
         assert!(alias_info.is_err());
         assert_eq!(alias_info.unwrap_err(), GetAliasInfoError::NotFound);
+    }
+
+    #[tokio::test]
+    async fn test_should_init_alias_generator_seed() {
+        let caller = Principal::from_slice(&[0, 1, 2, 3]);
+        Canister::init(BackendInitArgs {
+            orchestrator: caller,
+            owner: caller,
+        });
+        Canister::init_alias_generator_seed(caller).await;
+
+        // Check if the alias generator seed is initialized
+        let alias_generator_seed = AliasGeneratorSeed::new().get();
+        assert_ne!(alias_generator_seed, [0; 32]);
+    }
+
+    #[tokio::test]
+    #[should_panic(expected = "Only the orchestrator can initialize the alias generator seed")]
+    async fn test_should_not_init_alias_generator_seed_if_not_called_by_orchestrator() {
+        let caller = Principal::from_slice(&[0, 1, 2, 3]);
+        Canister::init(BackendInitArgs {
+            orchestrator: caller,
+            owner: caller,
+        });
+        Canister::init_alias_generator_seed(Principal::anonymous()).await;
+
+        // Check if the alias generator seed is initialized
+        let alias_generator_seed = AliasGeneratorSeed::new().get();
+        assert_ne!(alias_generator_seed, [0; 32]);
     }
 
     fn init() -> Principal {

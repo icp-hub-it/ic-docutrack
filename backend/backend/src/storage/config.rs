@@ -58,7 +58,7 @@ impl Config {
         }
     }
     /// Get the orchestrator [`Principal`]
-    pub fn _get_orchestrator() -> Principal {
+    pub fn get_orchestrator() -> Principal {
         ORCHESTRATOR.with_borrow(|cell| cell.get().0)
     }
     /// Set the orchestrator [`Principal`]
@@ -87,7 +87,7 @@ mod test {
     fn test_orchestrator() {
         let principal = Principal::from_slice(&[3; 29]);
         Config::set_orchestrator(principal);
-        assert_eq!(Config::_get_orchestrator(), principal);
+        assert_eq!(Config::get_orchestrator(), principal);
     }
     #[test]
     fn test_owner_public_key() {

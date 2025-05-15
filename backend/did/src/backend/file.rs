@@ -4,6 +4,7 @@ use serde::{Deserialize, Serialize};
 pub const ENCRYPTION_KEY_SIZE: usize = 32;
 // User decryption key
 pub type OwnerKey = [u8; ENCRYPTION_KEY_SIZE];
+
 #[derive(CandidType, Serialize, Deserialize, Clone, Debug, PartialEq, Eq)]
 pub struct PublicFileMetadata {
     pub file_id: u64,
@@ -21,7 +22,7 @@ pub enum FileStatus {
     #[serde(rename = "uploaded")]
     Uploaded {
         uploaded_at: u64,
-        document_key: [u8; 32],
+        document_key: OwnerKey,
     },
 }
 
@@ -42,7 +43,7 @@ pub struct AliasInfo {
 pub struct FileData {
     pub contents: Vec<u8>,
     pub file_type: String,
-    pub owner_key: [u8; 32],
+    pub owner_key: OwnerKey,
     pub num_chunks: u64,
 }
 
@@ -81,7 +82,7 @@ pub struct UploadFileRequest {
     pub file_id: u64,
     pub file_content: Vec<u8>,
     pub file_type: String,
-    pub owner_key: [u8; 32],
+    pub owner_key: OwnerKey,
     pub num_chunks: u64,
 }
 
@@ -89,10 +90,11 @@ pub struct UploadFileRequest {
 pub struct UploadFileAtomicRequest {
     pub name: String,
     pub content: Vec<u8>,
-    pub owner_key: [u8; 32],
+    pub owner_key: OwnerKey,
     pub file_type: String,
     pub num_chunks: u64,
 }
+
 #[derive(CandidType, Serialize, Deserialize, Clone, Debug, PartialEq)]
 pub struct UploadFileContinueRequest {
     pub file_id: u64,

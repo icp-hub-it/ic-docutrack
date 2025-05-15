@@ -11,8 +11,7 @@ pub const FILE_DATA_MEMORY_ID: MemoryId = MemoryId::new(12);
 pub const FILE_ALIAS_INDEX_MEMORY_ID: MemoryId = MemoryId::new(13);
 pub const FILE_SHARES_MEMORY_ID: MemoryId = MemoryId::new(14);
 pub const FILE_CONTENTS_MEMORY_ID: MemoryId = MemoryId::new(15);
-pub const _SHARED_KEYS_MEMORY_ID: MemoryId = MemoryId::new(16);
-pub const _ALIAS_GENERATOR_MEMORY_ID: MemoryId = MemoryId::new(17);
+pub const ALIAS_GENERATOR_SEED_MEMORY_ID: MemoryId = MemoryId::new(16);
 
 thread_local! {
   /// Memory manager

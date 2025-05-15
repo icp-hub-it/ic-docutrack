@@ -21,6 +21,11 @@ pub fn init(args: BackendInitArgs) {
     Canister::init(args);
 }
 
+#[update]
+pub async fn init_alias_generator_seed() {
+    Canister::init_alias_generator_seed(msg_caller()).await;
+}
+
 #[query]
 fn public_key() -> PublicKey {
     Config::get_owner_public_key()

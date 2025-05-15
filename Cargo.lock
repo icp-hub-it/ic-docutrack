@@ -147,6 +147,7 @@ dependencies = [
  "rand_chacha 0.9.0",
  "serde",
  "serde_bytes",
+ "tokio",
 ]
 
 [[package]]

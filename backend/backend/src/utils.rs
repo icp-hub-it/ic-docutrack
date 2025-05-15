@@ -1,19 +1,5 @@
 use candid::Principal;
 
-use crate::aliases::{_AliasGenerator, _Randomness};
-
-fn _get_randomness_seed() -> Vec<u8> {
-    // this is an array of u8 of length 8.
-    let time_seed = ic_cdk::api::time().to_be_bytes();
-    // we need to extend this to an array of size 32 by adding to it an array of size 24 full of 0s.
-    let zeroes_arr: [u8; 24] = [0; 24];
-    [&time_seed[..], &zeroes_arr[..]].concat()
-}
-
-fn _init_alias_generator() -> _AliasGenerator {
-    _AliasGenerator::_new(_Randomness::try_from(_get_randomness_seed().as_slice()).unwrap())
-}
-
 /// Utility functions to trap the canister.
 ///
 /// The reason of this is that you cannot use [`panic!`] on canisters and you can't use
