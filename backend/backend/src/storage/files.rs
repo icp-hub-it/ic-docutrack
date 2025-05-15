@@ -59,9 +59,8 @@ thread_local! {
       RefCell::new(StableBTreeMap::new(MEMORY_MANAGER.with(|mm| mm.get(FILE_CONTENTS_MEMORY_ID)))
   );
 
-
-
 }
+
 /// Accessor to the file count
 fn _with_file_count<T, F>(f: F) -> T
 where

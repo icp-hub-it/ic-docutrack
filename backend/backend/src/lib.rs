@@ -21,17 +21,16 @@ pub fn init(args: BackendInitArgs) {
     Canister::init(args);
 }
 
-//done
 #[query]
 fn public_key() -> PublicKey {
     Config::get_owner_public_key()
 }
-//done
+
 #[update]
 fn set_public_key(public_key: PublicKey) {
     Config::set_owner_public_key(msg_caller(), public_key);
 }
-//done
+
 #[query]
 fn get_requests() -> Vec<PublicFileMetadata> {
     Canister::get_requests(msg_caller())
@@ -41,13 +40,12 @@ fn get_requests() -> Vec<PublicFileMetadata> {
 fn get_shared_files(user_id: Principal) -> Vec<PublicFileMetadata> {
     Canister::get_shared_files(user_id)
 }
-//done
+
 #[query]
 fn get_alias_info(alias: String) -> Result<AliasInfo, GetAliasInfoError> {
     Canister::get_alias_info(alias)
 }
 
-//done
 #[update]
 fn upload_file(request: UploadFileRequest) -> Result<(), UploadFileError> {
     Canister::upload_file(
@@ -59,23 +57,21 @@ fn upload_file(request: UploadFileRequest) -> Result<(), UploadFileError> {
     )
 }
 
-//done
 #[update]
 fn upload_file_atomic(request: UploadFileAtomicRequest) -> u64 {
     Canister::upload_file_atomic(msg_caller(), request)
 }
 
-//done
 #[update]
 fn upload_file_continue(request: UploadFileContinueRequest) {
     Canister::upload_file_continue(request)
 }
-//done
+
 #[update]
 fn request_file(request_name: String) -> String {
     Canister::request_file(msg_caller(), request_name)
 }
-//done
+
 #[query]
 fn download_file(file_id: u64, chunk_id: u64) -> FileDownloadResponse {
     Canister::download_file(file_id, chunk_id, msg_caller())
@@ -99,7 +95,6 @@ fn share_file_with_users(
     Canister::share_file_with_users(user_id, file_id, file_key_encrypted_for_user)
 }
 
-//TODO review response
 #[update]
 fn revoke_share(user_id: Principal, file_id: u64) {
     Canister::revoke_file_sharing(user_id, file_id);

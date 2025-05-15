@@ -3,7 +3,7 @@ use did::backend::{
     ENCRYPTION_KEY_SIZE, FileStatus, UploadFileAtomicRequest, UploadFileContinueRequest,
     UploadFileRequest,
 };
-use integration_tests::actor::{alice, bob};
+use integration_tests::actor::{admin, alice};
 use integration_tests::{BackendClient, PocketIcTestEnv};
 
 #[tokio::test]
@@ -27,7 +27,7 @@ async fn test_should_set_and_get_public_key() {
 async fn test_should_request_file_and_get_requests() {
     let env = PocketIcTestEnv::init().await;
     let client = BackendClient::from(&env);
-    let owner = bob();
+    let owner = admin();
 
     let request_name = "test.txt".to_string();
     client.request_file(request_name.clone(), owner).await;
@@ -44,7 +44,7 @@ async fn test_should_upload_file() {
     let env = PocketIcTestEnv::init().await;
     let client = BackendClient::from(&env);
     let external_user: Principal = alice();
-    let owner = bob();
+    let owner = admin();
     let request_name = "test.txt".to_string();
     client.request_file(request_name.clone(), owner).await;
     let r = client
@@ -76,7 +76,7 @@ async fn test_should_upload_file() {
 async fn test_should_get_alias_info() {
     let env = PocketIcTestEnv::init().await;
     let client = BackendClient::from(&env);
-    let owner = bob();
+    let owner = admin();
     let external_user = alice();
     let request_name = "test.txt".to_string();
     let alias = client.request_file(request_name.clone(), owner).await;
@@ -96,7 +96,7 @@ async fn test_should_get_alias_info() {
 async fn test_should_upload_file_atomic() {
     let env = PocketIcTestEnv::init().await;
     let client = BackendClient::from(&env);
-    let owner = bob();
+    let owner = admin();
     let request_name = "test.txt".to_string();
     let file_id = client
         .upload_file_atomic(
@@ -127,7 +127,7 @@ async fn test_should_upload_file_atomic() {
 async fn test_should_upload_file_continue() {
     let env = PocketIcTestEnv::init().await;
     let client = BackendClient::from(&env);
-    let owner = bob();
+    let owner = admin();
     let request_name = "test.txt".to_string();
 
     let file_id = client
@@ -147,8 +147,8 @@ async fn test_should_upload_file_continue() {
         .upload_file_continue(
             UploadFileContinueRequest {
                 file_id,
-                chunk_id: 2,
-                contents: vec![7, 8, 9],
+                chunk_id: 1,
+                contents: vec![4, 5, 6],
             },
             owner,
         )
@@ -166,8 +166,8 @@ async fn test_should_upload_file_continue() {
         .upload_file_continue(
             UploadFileContinueRequest {
                 file_id,
-                chunk_id: 3,
-                contents: vec![4, 5, 6],
+                chunk_id: 2,
+                contents: vec![7, 8, 9],
             },
             owner,
         )
@@ -187,7 +187,7 @@ async fn test_should_upload_file_continue() {
 async fn test_should_download_file() {
     let env = PocketIcTestEnv::init().await;
     let client = BackendClient::from(&env);
-    let owner = bob();
+    let owner = admin();
     let request_name = "test.txt".to_string();
 
     let file_id = client
@@ -207,8 +207,8 @@ async fn test_should_download_file() {
         .upload_file_continue(
             UploadFileContinueRequest {
                 file_id,
-                chunk_id: 2,
-                contents: vec![7, 8, 9],
+                chunk_id: 1,
+                contents: vec![4, 5, 6],
             },
             owner,
         )
@@ -223,8 +223,8 @@ async fn test_should_download_file() {
         .upload_file_continue(
             UploadFileContinueRequest {
                 file_id,
-                chunk_id: 3,
-                contents: vec![4, 5, 6],
+                chunk_id: 2,
+                contents: vec![7, 8, 9],
             },
             owner,
         )
@@ -248,7 +248,7 @@ async fn test_should_download_file() {
 //     let env = PocketIcTestEnv::init().await;
 //     let client = BackendClient::from(&env);
 //     let external_user = alice();
-//     let owner = bob();
+//     let owner = admin();
 //     let request_name = "test.txt".to_string();
 //     client.request_file(request_name.clone(), owner).await;
 //     client

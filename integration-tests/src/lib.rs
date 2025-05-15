@@ -4,6 +4,7 @@ use serde::de::DeserializeOwned;
 pub mod actor;
 #[cfg(feature = "pocket-ic")]
 mod pocket_ic;
+#[cfg(feature = "pocket-ic")]
 mod wasm;
 
 #[cfg(feature = "pocket-ic")]

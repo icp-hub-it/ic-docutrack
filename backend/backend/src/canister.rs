@@ -21,11 +21,11 @@ pub struct Canister;
 impl Canister {
     /// Initialize the canister with the given arguments.
     pub fn init(args: BackendInitArgs) {
-        Config::set_orbit_station(args.orbit_station);
         Config::set_orchestrator(args.orchestrator);
         Config::set_owner(args.owner);
     }
 
+    /// Request a file
     pub fn request_file<S: Into<String>>(caller: Principal, request_name: S) -> String {
         if caller != Config::get_owner() {
             trap("Only the owner can request a file");
@@ -51,8 +51,11 @@ impl Canister {
 
         alias
     }
-    // maybe rename this function or see in what context is used
-    // maybe more suitable name is get_owned_files ??
+
+    /// Get active requests for the caller
+    ///
+    // FIXME: maybe rename this function or see in what context is used
+    // FIXME: maybe more suitable name is get_owned_files ??
     pub fn get_requests(caller: Principal) -> Vec<PublicFileMetadata> {
         if caller != Config::get_owner() {
             trap("Only the owner can get request a file");
@@ -72,7 +75,8 @@ impl Canister {
             .collect()
     }
 
-    /// update file
+    /// upload a file with the given [`FileId`] and file content.
+    ///
     /// to be triggered by requested file uploads
     pub fn upload_file(
         file_id: FileId,
@@ -171,7 +175,6 @@ impl Canister {
     }
 
     /// Upload file continue
-    ///
     pub fn upload_file_continue(request: UploadFileContinueRequest) {
         let file = FileDataStorage::get_file(&request.file_id);
         if file.is_none() {
@@ -269,8 +272,12 @@ impl Canister {
                 }
             }
         };
+
+        // TODO: index file on the orchestrator
+
         //persist file
         FileDataStorage::set_file(&file_id, file);
+
         //add to file shares storage
         FileSharesStorage::set_file_shares(&user_id, vec![file_id]);
         FileSharingResponse::Ok
@@ -285,6 +292,8 @@ impl Canister {
         for (user, decryption_key) in user_id.iter().zip(file_key_encrypted_for_user.iter()) {
             Self::share_file(*user, file_id, *decryption_key);
         }
+
+        // TODO: index files on the orchestrator
     }
 
     /// Revoke file sharing
@@ -304,6 +313,8 @@ impl Canister {
         }
         // persist file
         FileDataStorage::set_file(&file_id, file);
+
+        // TODO: revoke files on the orchestrator
     }
 
     /// Download file
@@ -360,6 +371,7 @@ impl Canister {
         })
     }
 
+    /// Get the list of users that have access to the file by its [`FileId`]
     pub fn get_allowed_users(file_id: &FileId) -> Vec<Principal> {
         FileSharesStorage::get_file_shares_storage()
             .iter()
@@ -367,6 +379,8 @@ impl Canister {
             .map(|(user_principal, _file_vector)| *user_principal)
             .collect()
     }
+
+    /// Get [`FileStatus`] of the file by its [`FileId`]
     pub fn get_file_status(file_id: &FileId) -> FileStatus {
         // unwrap is safe, we know the file exists
         let file = &FileDataStorage::get_file(file_id).unwrap();
@@ -385,6 +399,7 @@ impl Canister {
         }
     }
 
+    /// Get the list of files shared with the user by its [`Principal`]
     pub fn get_shared_files(user_id: Principal) -> Vec<PublicFileMetadata> {
         let caller = msg_caller();
         if caller == Principal::anonymous() {
@@ -408,6 +423,7 @@ impl Canister {
         }
     }
 
+    /// Get the alias info by its [`String`]
     pub fn get_alias_info(alias: String) -> Result<AliasInfo, GetAliasInfoError> {
         let file_id = FileAliasIndexStorage::get_file_id(&alias);
         if file_id.is_none() {
@@ -421,10 +437,6 @@ impl Canister {
             file_name: file.metadata.file_name.clone(),
         })
     }
-
-    // pub fn generate_alias() -> String {
-
-    // }
 }
 
 #[cfg(test)]
@@ -435,16 +447,13 @@ mod test {
 
     #[test]
     fn test_should_init_canister() {
-        let orbit_station = Principal::from_text("rwlgt-iiaaa-aaaaa-aaaaa-cai").unwrap();
         let orchestrator = Principal::from_slice(&[0, 1, 2, 3]);
         let owner = Principal::from_slice(&[4, 5, 6, 7]);
         Canister::init(BackendInitArgs {
-            orbit_station,
             orchestrator,
             owner,
         });
 
-        assert_eq!(Config::_get_orbit_station(), orbit_station);
         assert_eq!(Config::_get_orchestrator(), orchestrator);
         assert_eq!(Config::get_owner(), owner);
     }
@@ -452,12 +461,7 @@ mod test {
     #[test]
     fn test_should_request_file() {
         let file_name = "test_file.txt".to_string();
-        let caller = Principal::from_slice(&[0, 1, 2, 3]);
-        Canister::init(BackendInitArgs {
-            orbit_station: Principal::from_text("rwlgt-iiaaa-aaaaa-aaaaa-cai").unwrap(),
-            orchestrator: Principal::from_slice(&[0, 1, 2, 3]),
-            owner: caller,
-        });
+        let caller = init();
         let alias = Canister::request_file(caller, file_name.clone());
         assert_eq!(alias, "mock_alias");
     }
@@ -467,7 +471,6 @@ mod test {
         let file_name = "test_file.txt";
         let caller = Principal::from_slice(&[0, 1, 2, 3]);
         Canister::init(BackendInitArgs {
-            orbit_station: Principal::from_text("rwlgt-iiaaa-aaaaa-aaaaa-cai").unwrap(),
             orchestrator: Principal::from_slice(&[0, 1, 2, 3, 4]),
             owner: caller,
         });
@@ -482,7 +485,6 @@ mod test {
         let file_name = "test_file.txt";
         let caller = Principal::from_slice(&[0, 1, 2, 3]);
         Canister::init(BackendInitArgs {
-            orbit_station: Principal::from_text("rwlgt-iiaaa-aaaaa-aaaaa-cai").unwrap(),
             orchestrator: Principal::from_slice(&[0, 1, 2, 3]),
             owner: caller,
         });
@@ -516,7 +518,6 @@ mod test {
     fn test_should_upload_file_atomic() {
         let caller = Principal::from_slice(&[0, 1, 2, 3]);
         Canister::init(BackendInitArgs {
-            orbit_station: Principal::from_text("rwlgt-iiaaa-aaaaa-aaaaa-cai").unwrap(),
             orchestrator: Principal::from_slice(&[0, 1, 2, 3]),
             owner: caller,
         });
@@ -555,12 +556,7 @@ mod test {
 
     #[test]
     fn test_should_upload_file_continue() {
-        let caller = Principal::from_slice(&[0, 1, 2, 3]);
-        Canister::init(BackendInitArgs {
-            orbit_station: Principal::from_text("rwlgt-iiaaa-aaaaa-aaaaa-cai").unwrap(),
-            orchestrator: Principal::from_slice(&[0, 1, 2, 3, 4]),
-            owner: caller,
-        });
+        let caller = init();
         let file_name = "test_file.txt";
         let file_content = vec![1, 2, 3];
         let file_type = "text/plain".to_string();
@@ -618,12 +614,7 @@ mod test {
 
     #[test]
     fn test_should_download_file() {
-        let owner = Principal::from_slice(&[0, 1, 2, 3]);
-        Canister::init(BackendInitArgs {
-            orbit_station: Principal::from_text("rwlgt-iiaaa-aaaaa-aaaaa-cai").unwrap(),
-            orchestrator: Principal::from_slice(&[0, 1, 2, 3]),
-            owner,
-        });
+        let owner = init();
         let file_name = "test_file.txt";
         let alias = Canister::request_file(owner, file_name);
         let file_id = FileAliasIndexStorage::get_file_id(&alias).unwrap();
@@ -668,12 +659,7 @@ mod test {
     #[test]
     fn test_should_share_a_file() {
         let file_name = "test_file.txt";
-        let caller = Principal::from_slice(&[0, 1, 2, 3]);
-        Canister::init(BackendInitArgs {
-            orbit_station: Principal::from_text("rwlgt-iiaaa-aaaaa-aaaaa-cai").unwrap(),
-            orchestrator: Principal::from_slice(&[0, 1, 2, 3]),
-            owner: caller,
-        });
+        let caller = init();
         let alias = Canister::request_file(caller, file_name);
         let file_id = FileAliasIndexStorage::get_file_id(&alias).unwrap();
         let user_id = Principal::from_slice(&[4, 5, 6, 7]);
@@ -716,12 +702,7 @@ mod test {
     #[test]
     fn should_share_file_with_users() {
         let file_name = "test_file.txt";
-        let caller = Principal::from_slice(&[0, 1, 2, 3]);
-        Canister::init(BackendInitArgs {
-            orbit_station: Principal::from_text("rwlgt-iiaaa-aaaaa-aaaaa-cai").unwrap(),
-            orchestrator: Principal::from_slice(&[0, 1, 2, 3]),
-            owner: caller,
-        });
+        let caller = init();
         let alias = Canister::request_file(caller, file_name);
         let file_id = FileAliasIndexStorage::get_file_id(&alias).unwrap();
         //upload the file first
@@ -754,12 +735,7 @@ mod test {
     #[test]
     fn test_should_revoke_file_sharing() {
         let file_name = "test_file.txt";
-        let caller = Principal::from_slice(&[0, 1, 2, 3]);
-        Canister::init(BackendInitArgs {
-            orbit_station: Principal::from_text("rwlgt-iiaaa-aaaaa-aaaaa-cai").unwrap(),
-            orchestrator: Principal::from_slice(&[0, 1, 2, 3]),
-            owner: caller,
-        });
+        let caller = init();
         let alias = Canister::request_file(caller, file_name);
         let file_id = FileAliasIndexStorage::get_file_id(&alias).unwrap();
         //upload the file first
@@ -800,12 +776,7 @@ mod test {
     #[test]
     fn test_should_get_alias_info() {
         let file_name = "test_file.txt";
-        let caller = Principal::from_slice(&[0, 1, 2, 3]);
-        Canister::init(BackendInitArgs {
-            orbit_station: Principal::from_text("rwlgt-iiaaa-aaaaa-aaaaa-cai").unwrap(),
-            orchestrator: Principal::from_slice(&[0, 1, 2, 3]),
-            owner: caller,
-        });
+        let caller = init();
         let alias = Canister::request_file(caller, file_name);
         let alias_info = Canister::get_alias_info(alias.clone());
         assert!(alias_info.is_ok());
@@ -818,5 +789,15 @@ mod test {
         let alias_info = Canister::get_alias_info(alias);
         assert!(alias_info.is_err());
         assert_eq!(alias_info.unwrap_err(), GetAliasInfoError::NotFound);
+    }
+
+    fn init() -> Principal {
+        let caller = Principal::from_slice(&[0, 1, 2, 3]);
+        Canister::init(BackendInitArgs {
+            orchestrator: Principal::from_slice(&[0, 1, 2, 3]),
+            owner: caller,
+        });
+
+        caller
     }
 }

@@ -8,15 +8,11 @@ use ic_stable_structures::memory_manager::VirtualMemory;
 use ic_stable_structures::{DefaultMemoryImpl, StableCell};
 
 use super::memory::{
-    MEMORY_MANAGER, ORBIT_STATION_MEMORY_ID, ORCHESTRATOR_MEMORY_ID, OWNER_MEMORY_ID,
-    OWNER_PUBLIC_KEY_MEMORY_ID,
+    MEMORY_MANAGER, ORCHESTRATOR_MEMORY_ID, OWNER_MEMORY_ID, OWNER_PUBLIC_KEY_MEMORY_ID,
 };
 
 thread_local! {
-    /// Orbit station
-    static ORBIT_STATION: RefCell<StableCell<StorablePrincipal, VirtualMemory<DefaultMemoryImpl>>> =
-        RefCell::new(StableCell::new(MEMORY_MANAGER.with(|mm| mm.get(ORBIT_STATION_MEMORY_ID)), Principal::anonymous().into()).unwrap()
-    );
+
     /// Owner
     static OWNER: RefCell<StableCell<StorablePrincipal, VirtualMemory<DefaultMemoryImpl>>> =
         RefCell::new(StableCell::new(MEMORY_MANAGER.with(|mm| mm.get(OWNER_MEMORY_ID)), Principal::anonymous().into()).unwrap()
@@ -29,25 +25,11 @@ thread_local! {
     static ORCHESTRATOR: RefCell<StableCell<StorablePrincipal, VirtualMemory<DefaultMemoryImpl>>> =
         RefCell::new(StableCell::new(MEMORY_MANAGER.with(|mm| mm.get(ORCHESTRATOR_MEMORY_ID)), Principal::anonymous().into()).unwrap()
     );
-
-
 }
 
 /// Canister configuration
 pub struct Config;
 impl Config {
-    /// Get the orbit station [`Principal`]
-    pub fn _get_orbit_station() -> Principal {
-        ORBIT_STATION.with_borrow(|cell| cell.get().0)
-    }
-
-    /// Set the orbit station [`Principal`]
-    pub fn set_orbit_station(principal: Principal) {
-        if let Err(err) = ORBIT_STATION.with_borrow_mut(|cell| cell.set(principal.into())) {
-            ic_cdk::trap(format!("Failed to set orbit station: {:?}", err));
-        }
-    }
-
     /// Get the owner [`Principal`]
     pub fn get_owner() -> Principal {
         OWNER.with_borrow(|cell| cell.get().0)
@@ -93,12 +75,6 @@ mod test {
 
     use super::*;
     use crate::canister::Canister;
-    #[test]
-    fn test_orbit_station() {
-        let principal = Principal::from_slice(&[1; 29]);
-        Config::set_orbit_station(principal);
-        assert_eq!(Config::_get_orbit_station(), principal);
-    }
 
     #[test]
     fn test_owner() {
@@ -118,7 +94,6 @@ mod test {
         let public_key = [4; 32];
         let caller = Principal::from_slice(&[5; 29]);
         Canister::init(BackendInitArgs {
-            orbit_station: Principal::from_slice(&[1; 29]),
             owner: caller,
             orchestrator: Principal::from_slice(&[3; 29]),
         });

@@ -1,10 +1,13 @@
 mod canister;
+mod client;
 mod storage;
 mod utils;
 
 use candid::Principal;
 use did::orchestrator::{
-    GetUsersResponse, OrchestratorInitArgs, PublicKey, SetUserResponse, WhoamiResponse,
+    FileId, GetUsersResponse, OrchestratorInitArgs, PublicKey, RetryUserCanisterCreationResponse,
+    RevokeShareFileResponse, SetUserResponse, ShareFileResponse, SharedFilesResponse,
+    UserCanisterResponse, WhoamiResponse,
 };
 use ic_cdk_macros::{init, query, update};
 
@@ -27,13 +30,43 @@ pub fn orbit_station() -> Principal {
 }
 
 #[update]
+pub fn retry_user_canister_creation() -> RetryUserCanisterCreationResponse {
+    Canister::retry_user_canister_creation()
+}
+
+#[update]
+pub fn revoke_share_file(user: Principal, file_id: FileId) -> RevokeShareFileResponse {
+    Canister::revoke_share_file(user, file_id)
+}
+
+#[update]
 pub fn set_user(username: String, public_key: PublicKey) -> SetUserResponse {
     Canister::set_user(username, public_key)
+}
+
+#[update]
+pub fn share_file(user: Principal, file_id: FileId) -> ShareFileResponse {
+    Canister::share_file(user, file_id)
+}
+
+#[update]
+pub fn share_file_with_users(users: Vec<Principal>, file_id: FileId) -> ShareFileResponse {
+    Canister::share_file_with_users(users, file_id)
+}
+
+#[query]
+pub fn shared_files() -> SharedFilesResponse {
+    Canister::shared_files()
 }
 
 #[query]
 pub fn username_exists(username: String) -> bool {
     Canister::username_exists(username)
+}
+
+#[query]
+pub fn user_canister() -> UserCanisterResponse {
+    Canister::user_canister()
 }
 
 #[query]

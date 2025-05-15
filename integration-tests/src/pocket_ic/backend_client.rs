@@ -8,7 +8,7 @@ use did::orchestrator::PublicKey;
 
 use super::PocketIcTestEnv;
 use crate::TestEnv as _;
-use crate::actor::bob;
+use crate::actor::admin;
 
 pub struct BackendClient<'a> {
     pic: &'a PocketIcTestEnv,
@@ -31,7 +31,7 @@ impl BackendClient<'_> {
     pub async fn set_public_key(&self, public_key: PublicKey) {
         let payload = candid::encode_args((public_key,)).unwrap();
         self.pic
-            .update::<()>(self.pic.backend(), bob(), "set_public_key", payload)
+            .update::<()>(self.pic.backend(), admin(), "set_public_key", payload)
             .await
             .expect("Failed to set public key")
     }
@@ -43,6 +43,7 @@ impl BackendClient<'_> {
             .await
             .expect("Failed to get requests")
     }
+
     pub async fn get_shared_files(&self, caller: Principal) -> Vec<PublicFileMetadata> {
         let payload = candid::encode_args(()).unwrap();
         self.pic
@@ -55,6 +56,7 @@ impl BackendClient<'_> {
             .await
             .expect("Failed to get shared files")
     }
+
     pub async fn get_alias_info(
         &self,
         alias: String,
@@ -71,6 +73,7 @@ impl BackendClient<'_> {
             .await
             .expect("Failed to get alias info")
     }
+
     pub async fn upload_file(
         &self,
         request: UploadFileRequest,
@@ -87,6 +90,7 @@ impl BackendClient<'_> {
             .await
             .expect("Failed to upload file")
     }
+
     pub async fn upload_file_atomic(
         &self,
         request: UploadFileAtomicRequest,
@@ -98,6 +102,7 @@ impl BackendClient<'_> {
             .await
             .expect("Failed to upload file atomically")
     }
+
     pub async fn upload_file_continue(
         &self,
         request: UploadFileContinueRequest,
@@ -109,6 +114,7 @@ impl BackendClient<'_> {
             .await
             .expect("Failed to continue file upload")
     }
+
     pub async fn request_file(&self, request_name: String, caller: Principal) -> String {
         let payload = candid::encode_args((request_name,)).unwrap();
         self.pic
@@ -116,6 +122,7 @@ impl BackendClient<'_> {
             .await
             .expect("Failed to request file")
     }
+
     pub async fn download_file(
         &self,
         file_id: u64,
@@ -128,6 +135,7 @@ impl BackendClient<'_> {
             .await
             .expect("Failed to download file")
     }
+
     pub async fn share_file(
         &self,
         file_id: u64,
@@ -141,6 +149,7 @@ impl BackendClient<'_> {
             .await
             .expect("Failed to share file")
     }
+
     pub async fn share_file_with_users(
         &self,
         user_id: Vec<Principal>,
@@ -154,6 +163,7 @@ impl BackendClient<'_> {
             .await
             .expect("Failed to share file with users")
     }
+
     pub async fn revoke_share(&self, user_id: Principal, file_id: u64, caller: Principal) {
         let payload = candid::encode_args((user_id, file_id)).unwrap();
         self.pic

@@ -15,14 +15,14 @@ pub const MAX_PRINCIPAL_SIZE: usize = 29;
 pub type ChunkId = u64;
 pub type FileId = u64;
 
-// A file is composed of its metadata and its content, which is a blob.
+/// A file is composed of its metadata [`FileMetadata`] and its content [`FileContent`], which is a blob.
 #[derive(Debug, PartialEq, Eq, Clone)]
 pub struct File {
     pub metadata: FileMetadata,
     pub content: FileContent,
 }
 
-//strategy [metadata_len: u16 | metadata_bytes | content_bytes]
+// strategy [metadata_len: u16 | metadata_bytes | content_bytes]
 impl Storable for File {
     const BOUND: Bound = Bound::Unbounded;
 
