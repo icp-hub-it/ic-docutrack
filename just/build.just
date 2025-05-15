@@ -7,11 +7,11 @@ clean:
 
 # Builds all canisters
 [group('build')]
-build_all_canisters: pre_build build_backend build_orchestrator
+build_all_canisters: pre_build build_user_canister build_orchestrator
 
 [group('build')]
-build_backend:
-  just build_canister "backend" "backend"
+build_user_canister:
+  just build_canister "user_canister" "user_canister"
 
 [group('build')]
 build_orchestrator:

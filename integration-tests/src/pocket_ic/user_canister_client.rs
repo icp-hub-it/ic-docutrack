@@ -1,29 +1,29 @@
 use candid::Principal;
-use did::backend::{
+use did::orchestrator::PublicKey;
+use did::user_canister::{
     AliasInfo, FileDownloadResponse, FileSharingResponse, GetAliasInfoError, OwnerKey,
     PublicFileMetadata, UploadFileAtomicRequest, UploadFileContinueRequest, UploadFileError,
     UploadFileRequest,
 };
-use did::orchestrator::PublicKey;
 
 use super::PocketIcTestEnv;
 use crate::TestEnv as _;
 use crate::actor::admin;
 
-pub struct BackendClient<'a> {
+pub struct UserCanisterClient<'a> {
     pic: &'a PocketIcTestEnv,
 }
 
-impl<'a> From<&'a PocketIcTestEnv> for BackendClient<'a> {
+impl<'a> From<&'a PocketIcTestEnv> for UserCanisterClient<'a> {
     fn from(pic: &'a PocketIcTestEnv) -> Self {
         Self { pic }
     }
 }
 
-impl BackendClient<'_> {
+impl UserCanisterClient<'_> {
     pub async fn public_key(&self, caller: Principal) -> PublicKey {
         self.pic
-            .query::<PublicKey>(self.pic.backend(), caller, "public_key", vec![])
+            .query::<PublicKey>(self.pic.user_canister(), caller, "public_key", vec![])
             .await
             .expect("Failed to get public key")
     }
@@ -31,7 +31,7 @@ impl BackendClient<'_> {
     pub async fn set_public_key(&self, public_key: PublicKey) {
         let payload = candid::encode_args((public_key,)).unwrap();
         self.pic
-            .update::<()>(self.pic.backend(), admin(), "set_public_key", payload)
+            .update::<()>(self.pic.user_canister(), admin(), "set_public_key", payload)
             .await
             .expect("Failed to set public key")
     }
@@ -39,7 +39,12 @@ impl BackendClient<'_> {
     pub async fn get_requests(&self, caller: Principal) -> Vec<PublicFileMetadata> {
         let payload = candid::encode_args(()).unwrap();
         self.pic
-            .query::<Vec<PublicFileMetadata>>(self.pic.backend(), caller, "get_requests", payload)
+            .query::<Vec<PublicFileMetadata>>(
+                self.pic.user_canister(),
+                caller,
+                "get_requests",
+                payload,
+            )
             .await
             .expect("Failed to get requests")
     }
@@ -48,7 +53,7 @@ impl BackendClient<'_> {
         let payload = candid::encode_args(()).unwrap();
         self.pic
             .query::<Vec<PublicFileMetadata>>(
-                self.pic.backend(),
+                self.pic.user_canister(),
                 caller,
                 "get_shared_files",
                 payload,
@@ -65,7 +70,7 @@ impl BackendClient<'_> {
         let payload = candid::encode_args((alias,)).unwrap();
         self.pic
             .query::<Result<AliasInfo, GetAliasInfoError>>(
-                self.pic.backend(),
+                self.pic.user_canister(),
                 caller,
                 "get_alias_info",
                 payload,
@@ -82,7 +87,7 @@ impl BackendClient<'_> {
         let payload = candid::encode_args((request,)).unwrap();
         self.pic
             .update::<Result<(), UploadFileError>>(
-                self.pic.backend(),
+                self.pic.user_canister(),
                 caller,
                 "upload_file",
                 payload,
@@ -98,7 +103,12 @@ impl BackendClient<'_> {
     ) -> u64 {
         let payload = candid::encode_args((request,)).unwrap();
         self.pic
-            .update::<u64>(self.pic.backend(), caller, "upload_file_atomic", payload)
+            .update::<u64>(
+                self.pic.user_canister(),
+                caller,
+                "upload_file_atomic",
+                payload,
+            )
             .await
             .expect("Failed to upload file atomically")
     }
@@ -110,7 +120,12 @@ impl BackendClient<'_> {
     ) {
         let payload = candid::encode_args((request,)).unwrap();
         self.pic
-            .update::<()>(self.pic.backend(), caller, "upload_file_continue", payload)
+            .update::<()>(
+                self.pic.user_canister(),
+                caller,
+                "upload_file_continue",
+                payload,
+            )
             .await
             .expect("Failed to continue file upload")
     }
@@ -118,7 +133,7 @@ impl BackendClient<'_> {
     pub async fn request_file(&self, request_name: String, caller: Principal) -> String {
         let payload = candid::encode_args((request_name,)).unwrap();
         self.pic
-            .update::<String>(self.pic.backend(), caller, "request_file", payload)
+            .update::<String>(self.pic.user_canister(), caller, "request_file", payload)
             .await
             .expect("Failed to request file")
     }
@@ -131,7 +146,12 @@ impl BackendClient<'_> {
     ) -> FileDownloadResponse {
         let payload = candid::encode_args((file_id, chunk_id)).unwrap();
         self.pic
-            .query::<FileDownloadResponse>(self.pic.backend(), caller, "download_file", payload)
+            .query::<FileDownloadResponse>(
+                self.pic.user_canister(),
+                caller,
+                "download_file",
+                payload,
+            )
             .await
             .expect("Failed to download file")
     }
@@ -145,7 +165,7 @@ impl BackendClient<'_> {
     ) -> FileSharingResponse {
         let payload = candid::encode_args((user_id, file_id, file_key_encrypted_for_user)).unwrap();
         self.pic
-            .update::<FileSharingResponse>(self.pic.backend(), caller, "share_file", payload)
+            .update::<FileSharingResponse>(self.pic.user_canister(), caller, "share_file", payload)
             .await
             .expect("Failed to share file")
     }
@@ -159,7 +179,12 @@ impl BackendClient<'_> {
     ) {
         let payload = candid::encode_args((user_id, file_id, file_key_encrypted_for_user)).unwrap();
         self.pic
-            .update::<()>(self.pic.backend(), caller, "share_file_with_users", payload)
+            .update::<()>(
+                self.pic.user_canister(),
+                caller,
+                "share_file_with_users",
+                payload,
+            )
             .await
             .expect("Failed to share file with users")
     }
@@ -167,7 +192,7 @@ impl BackendClient<'_> {
     pub async fn revoke_share(&self, user_id: Principal, file_id: u64, caller: Principal) {
         let payload = candid::encode_args((user_id, file_id)).unwrap();
         self.pic
-            .update::<()>(self.pic.backend(), caller, "revoke_share", payload)
+            .update::<()>(self.pic.user_canister(), caller, "revoke_share", payload)
             .await
             .expect("Failed to revoke share")
     }

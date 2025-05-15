@@ -8,7 +8,7 @@ mod pocket_ic;
 mod wasm;
 
 #[cfg(feature = "pocket-ic")]
-pub use self::pocket_ic::{BackendClient, OrchestratorClient, PocketIcTestEnv};
+pub use self::pocket_ic::{OrchestratorClient, PocketIcTestEnv, UserCanisterClient};
 
 pub trait TestEnv {
     fn query<R>(
@@ -36,10 +36,12 @@ pub trait TestEnv {
 
     /// Bob principal id
     fn bob(&self) -> Principal;
+
     /// Alice principal id
     fn alice(&self) -> Principal;
-    /// Backend canister id
-    fn backend(&self) -> Principal;
+
+    /// User canister id
+    fn user_canister(&self) -> Principal;
 
     /// Orbit station canister id
     fn orbit_station(&self) -> Principal;

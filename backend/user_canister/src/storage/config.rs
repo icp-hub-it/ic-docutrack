@@ -71,7 +71,7 @@ impl Config {
 
 #[cfg(test)]
 mod test {
-    use did::backend::BackendInitArgs;
+    use did::user_canister::UserCanisterInitArgs;
 
     use super::*;
     use crate::canister::Canister;
@@ -93,7 +93,7 @@ mod test {
     fn test_owner_public_key() {
         let public_key = [4; 32];
         let caller = Principal::from_slice(&[5; 29]);
-        Canister::init(BackendInitArgs {
+        Canister::init(UserCanisterInitArgs {
             owner: caller,
             orchestrator: Principal::from_slice(&[3; 29]),
         });

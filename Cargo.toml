@@ -1,8 +1,8 @@
 [workspace]
 members = [
-  "backend/backend",
   "backend/did",
   "backend/orchestrator",
+  "backend/user_canister",
   "integration-tests",
 ]
 resolver = "3"
