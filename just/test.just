@@ -10,3 +10,8 @@ test test_name="":
 integration_test test_name="":
   echo "Running integration tests..."
   cargo test {{test_name}} -p integration-tests --features "pocket-ic"
+
+[group('test')]
+integration_test_ci test_name="":
+  echo "Running integration tests..."
+  cargo test {{test_name}} -p integration-tests --features "pocket-ic" -- --test-threads=1
