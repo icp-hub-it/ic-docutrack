@@ -1,5 +1,6 @@
 mod aliases;
 mod canister;
+pub mod inspect;
 mod storage;
 mod utils;
 
