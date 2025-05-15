@@ -8,6 +8,7 @@ use crate::utils::trap;
 pub type FileId = u64;
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct StorableFileIdVec(pub Vec<FileId>);
+
 impl StorableFileIdVec {
     ///get vec/
     pub fn as_vec(&self) -> &Vec<FileId> {

@@ -1,10 +1,10 @@
 {
   "dfx": "0.17.0",
   "canisters": {
-    "backend": {
+    "user_canister": {
       "type": "rust",
-      "package": "backend",
-      "candid": "./.artifact/backend.did",
+      "package": "user_canister",
+      "candid": "./.artifact/user_canister.did",
       "declarations": {
         "node_compatibility": true
       }

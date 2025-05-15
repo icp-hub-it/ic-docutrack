@@ -1,8 +1,8 @@
 use std::time::Duration;
 
 use candid::Principal;
-use did::backend::BackendInitArgs;
 use did::orbit_station::{RequestOperation, RequestStatus, TimestampRfc3339};
+use did::user_canister::UserCanisterInitArgs;
 use time::OffsetDateTime;
 use time::format_description::well_known::Rfc3339;
 
@@ -16,7 +16,7 @@ const DEFAULT_INTERVAL: Duration = Duration::from_secs(10);
 /// Interval to wait for the Orbit Station to process the request.
 const ORBIT_STATION_REQUEST_INTERVAL: Duration = Duration::from_secs(60);
 /// The WASM file for the user canister.
-const USER_CANISTER_WASM: &[u8] = include_bytes!("../../../../.artifact/backend.wasm.gz");
+const USER_CANISTER_WASM: &[u8] = include_bytes!("../../../../.artifact/user_canister.wasm.gz");
 
 /// A service to create the user canister for a user.
 #[derive(Debug, Clone, Copy)]
@@ -197,7 +197,7 @@ impl CreateUserStateMachine {
 
     /// Installs the user canister by sending a request to the Orbit Station canister.
     async fn install_canister(&self, user_canister: Principal) -> UserCanisterCreateState {
-        let user_canister_init_arg = BackendInitArgs {
+        let user_canister_init_arg = UserCanisterInitArgs {
             owner: self.user,
             orchestrator: ic_cdk::api::canister_self(),
         };

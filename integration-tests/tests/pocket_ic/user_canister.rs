@@ -1,15 +1,15 @@
 use candid::Principal;
-use did::backend::{
+use did::user_canister::{
     ENCRYPTION_KEY_SIZE, FileStatus, UploadFileAtomicRequest, UploadFileContinueRequest,
     UploadFileRequest,
 };
 use integration_tests::actor::{admin, alice};
-use integration_tests::{BackendClient, PocketIcTestEnv};
+use integration_tests::{PocketIcTestEnv, UserCanisterClient};
 
 #[tokio::test]
 async fn test_should_set_and_get_public_key() {
     let env = PocketIcTestEnv::init().await;
-    let client = BackendClient::from(&env);
+    let client = UserCanisterClient::from(&env);
     let me = Principal::from_slice(&[1; 29]);
 
     let new_public_key = [1; 32];
@@ -26,7 +26,7 @@ async fn test_should_set_and_get_public_key() {
 #[tokio::test]
 async fn test_should_request_file_and_get_requests() {
     let env = PocketIcTestEnv::init().await;
-    let client = BackendClient::from(&env);
+    let client = UserCanisterClient::from(&env);
     let owner = admin();
 
     let request_name = "test.txt".to_string();
@@ -42,8 +42,7 @@ async fn test_should_request_file_and_get_requests() {
 #[tokio::test]
 async fn test_should_upload_file() {
     let env = PocketIcTestEnv::init().await;
-    let client = BackendClient::from(&env);
-    let external_user: Principal = alice();
+    let client = UserCanisterClient::from(&env);
     let owner = admin();
     let request_name = "test.txt".to_string();
     client.request_file(request_name.clone(), owner).await;
@@ -56,7 +55,7 @@ async fn test_should_upload_file() {
                 owner_key: [1; 32],
                 num_chunks: 1,
             },
-            external_user,
+            owner,
         )
         .await;
     assert!(r.is_ok());
@@ -75,7 +74,7 @@ async fn test_should_upload_file() {
 #[tokio::test]
 async fn test_should_get_alias_info() {
     let env = PocketIcTestEnv::init().await;
-    let client = BackendClient::from(&env);
+    let client = UserCanisterClient::from(&env);
     let owner = admin();
     let external_user = alice();
     let request_name = "test.txt".to_string();
@@ -86,7 +85,7 @@ async fn test_should_get_alias_info() {
         client
             .get_alias_info("not-an-alias".to_string(), external_user)
             .await,
-        Err(did::backend::GetAliasInfoError::NotFound)
+        Err(did::user_canister::GetAliasInfoError::NotFound)
     );
     assert_eq!(alias_info.clone().unwrap().file_name, request_name);
     assert_eq!(alias_info.unwrap().file_id, 1);
@@ -97,7 +96,7 @@ async fn test_should_get_alias_info() {
 #[tokio::test]
 async fn test_should_upload_file_atomic() {
     let env = PocketIcTestEnv::init().await;
-    let client = BackendClient::from(&env);
+    let client = UserCanisterClient::from(&env);
     let owner = admin();
     let request_name = "test.txt".to_string();
     let file_id = client
@@ -128,7 +127,7 @@ async fn test_should_upload_file_atomic() {
 #[tokio::test]
 async fn test_should_upload_file_continue() {
     let env = PocketIcTestEnv::init().await;
-    let client = BackendClient::from(&env);
+    let client = UserCanisterClient::from(&env);
     let owner = admin();
     let request_name = "test.txt".to_string();
 
@@ -188,7 +187,7 @@ async fn test_should_upload_file_continue() {
 #[tokio::test]
 async fn test_should_download_file() {
     let env = PocketIcTestEnv::init().await;
-    let client = BackendClient::from(&env);
+    let client = UserCanisterClient::from(&env);
     let owner = admin();
     let request_name = "test.txt".to_string();
 
@@ -219,7 +218,7 @@ async fn test_should_download_file() {
     let download_response = client.download_file(file_id, 2, owner).await;
     assert_eq!(
         download_response,
-        did::backend::FileDownloadResponse::NotUploadedFile
+        did::user_canister::FileDownloadResponse::NotUploadedFile
     );
     client
         .upload_file_continue(
@@ -234,7 +233,7 @@ async fn test_should_download_file() {
     let download_response = client.download_file(file_id, 2, owner).await;
 
     match download_response {
-        did::backend::FileDownloadResponse::FoundFile(file_data) => {
+        did::user_canister::FileDownloadResponse::FoundFile(file_data) => {
             assert_eq!(file_data.contents, vec![7, 8, 9]);
             assert_eq!(file_data.file_type, "txt");
             assert_eq!(file_data.owner_key, [1; ENCRYPTION_KEY_SIZE]);

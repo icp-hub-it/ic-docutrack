@@ -2,8 +2,8 @@ use std::borrow::Cow;
 use std::collections::BTreeMap;
 
 use candid::Principal;
-use did::backend::{ENCRYPTION_KEY_SIZE, OwnerKey};
 use did::orchestrator::{PUBKEY_SIZE, PublicKey};
+use did::user_canister::{ENCRYPTION_KEY_SIZE, OwnerKey};
 use ic_stable_structures::Storable;
 use ic_stable_structures::storable::Bound;
 

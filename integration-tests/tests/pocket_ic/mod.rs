@@ -1,5 +1,5 @@
-mod backend;
 mod orchestrator;
+mod user_canister;
 
 use integration_tests::PocketIcTestEnv;
 

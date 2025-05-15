@@ -1,12 +1,12 @@
 use std::collections::BTreeMap;
 
 use candid::Principal;
-use did::backend::{
-    AliasInfo, BackendInitArgs, FileData, FileDownloadResponse, FileSharingResponse, FileStatus,
-    GetAliasInfoError, OwnerKey, PublicFileMetadata, UploadFileAtomicRequest,
-    UploadFileContinueRequest, UploadFileError,
+use did::user_canister::{
+    AliasInfo, FileData, FileDownloadResponse, FileSharingResponse, FileStatus, GetAliasInfoError,
+    OwnerKey, PublicFileMetadata, UploadFileAtomicRequest, UploadFileContinueRequest,
+    UploadFileError, UserCanisterInitArgs,
 };
-use did::utils::{msg_caller, trap};
+use did::utils::trap;
 
 use crate::aliases::{AliasGenerator, Randomness};
 use crate::storage::alias_generator_seed::AliasGeneratorSeed;
@@ -22,7 +22,7 @@ pub struct Canister;
 
 impl Canister {
     /// Initialize the canister with the given arguments.
-    pub fn init(args: BackendInitArgs) {
+    pub fn init(args: UserCanisterInitArgs) {
         Config::set_orchestrator(args.orchestrator);
         Config::set_owner(args.owner);
     }
@@ -73,7 +73,7 @@ impl Canister {
     // FIXME: maybe more suitable name is get_owned_files ??
     pub fn get_requests(caller: Principal) -> Vec<PublicFileMetadata> {
         if caller != Config::get_owner() {
-            trap("Only the owner can get request a file");
+            trap("Only the owner can get requests for a file");
         }
         OwnedFilesStorage::get_owned_files()
             .iter()
@@ -84,7 +84,7 @@ impl Canister {
                     .metadata
                     .file_name
                     .clone(),
-                shared_with: Self::get_allowed_users(file_id),
+                shared_with: Self::get_allowed_users(caller, file_id),
                 file_status: Self::get_file_status(file_id),
             })
             .collect()
@@ -94,12 +94,17 @@ impl Canister {
     ///
     /// to be triggered by requested file uploads
     pub fn upload_file(
+        caller: Principal,
         file_id: FileId,
         file_content: Vec<u8>,
         file_type: String,
         owner_key: OwnerKey,
         num_chunks: u64,
     ) -> Result<(), UploadFileError> {
+        if caller != Config::get_owner() {
+            trap("Only the owner can upload a file");
+        }
+
         let file = FileDataStorage::get_file(&file_id);
         if file.is_none() {
             return Err(UploadFileError::NotRequested);
@@ -190,7 +195,11 @@ impl Canister {
     }
 
     /// Upload file continue
-    pub fn upload_file_continue(request: UploadFileContinueRequest) {
+    pub fn upload_file_continue(caller: Principal, request: UploadFileContinueRequest) {
+        if caller != Config::get_owner() {
+            trap("Only the owner can upload a file");
+        }
+
         let file = FileDataStorage::get_file(&request.file_id);
         if file.is_none() {
             return;
@@ -225,26 +234,22 @@ impl Canister {
         }
         // Add file to the content storage
         FileContentsStorage::set_file_contents(&request.file_id, &chunk_id, request.contents);
-        // if let FileContent::PartiallyUploaded { num_chunks, .. } = &file.content {
-        //     if chunk_id == *num_chunks - 1 {
-        //         file.content = FileContent::Uploaded {
-        //             file_type: "text/plain".to_string(),
-        //             owner_key: [0; 32],
-        //             shared_keys: BTreeMap::new(),
-        //             num_chunks: *num_chunks,
-        //         };
-        //     }
-        // }
+
         // Persist file
         FileDataStorage::set_file(&request.file_id, file);
     }
 
     /// Share file with user
     pub fn share_file(
+        caller: Principal,
         user_id: Principal,
         file_id: FileId,
         file_key_encrypted_for_user: OwnerKey,
     ) -> FileSharingResponse {
+        if caller != Config::get_owner() {
+            trap("Only the owner can share a file");
+        }
+
         let mut file = FileDataStorage::get_file(&file_id).unwrap();
 
         // If uploaded or partially uploaded, Modify File content, add user's decryption key to map
@@ -300,19 +305,28 @@ impl Canister {
 
     /// Share file with users
     pub fn share_file_with_users(
+        caller: Principal,
         user_id: Vec<Principal>,
         file_id: FileId,
         file_key_encrypted_for_user: Vec<OwnerKey>,
     ) {
+        if caller != Config::get_owner() {
+            trap("Only the owner can share a file");
+        }
+
         for (user, decryption_key) in user_id.iter().zip(file_key_encrypted_for_user.iter()) {
-            Self::share_file(*user, file_id, *decryption_key);
+            Self::share_file(caller, *user, file_id, *decryption_key);
         }
 
         // TODO: index files on the orchestrator
     }
 
     /// Revoke file sharing
-    pub fn revoke_file_sharing(user_id: Principal, file_id: FileId) {
+    pub fn revoke_file_sharing(caller: Principal, user_id: Principal, file_id: FileId) {
+        if caller != Config::get_owner() {
+            trap("Only the owner can revoke file sharing");
+        }
+
         // remove file from user shares
         FileSharesStorage::remove_file_shares(&user_id, &file_id);
         // remove user from file shares
@@ -334,9 +348,9 @@ impl Canister {
 
     /// Download file
     pub fn download_file(
+        caller: Principal,
         file_id: FileId,
         chunk_id: u64,
-        caller: Principal,
     ) -> FileDownloadResponse {
         let file = FileDataStorage::get_file(&file_id);
         if file.is_none() {
@@ -387,7 +401,11 @@ impl Canister {
     }
 
     /// Get the list of users that have access to the file by its [`FileId`]
-    pub fn get_allowed_users(file_id: &FileId) -> Vec<Principal> {
+    pub fn get_allowed_users(caller: Principal, file_id: &FileId) -> Vec<Principal> {
+        if caller != Config::get_owner() {
+            trap("Only the owner can get allowed users");
+        }
+
         FileSharesStorage::get_file_shares_storage()
             .iter()
             .filter(|element| element.1.contains(file_id))
@@ -415,10 +433,9 @@ impl Canister {
     }
 
     /// Get the list of files shared with the user by its [`Principal`]
-    pub fn get_shared_files(user_id: Principal) -> Vec<PublicFileMetadata> {
-        let caller = msg_caller();
-        if caller == Principal::anonymous() {
-            trap("Anonymous user cannot get shared files");
+    pub fn get_shared_files(caller: Principal, user_id: Principal) -> Vec<PublicFileMetadata> {
+        if caller != Config::get_owner() {
+            trap("Only the owner can get allowed users");
         }
         match FileSharesStorage::get_file_shares(&user_id) {
             None => vec![],
@@ -431,20 +448,19 @@ impl Canister {
                         .metadata
                         .file_name
                         .clone(),
-                    shared_with: Self::get_allowed_users(file_id),
+                    shared_with: Self::get_allowed_users(caller, file_id),
                     file_status: Self::get_file_status(file_id),
                 })
                 .collect(),
         }
     }
 
-    /// Get the alias info by its [`String`]
+    /// Get the alias info by its alias as [`String`]
     pub fn get_alias_info(alias: String) -> Result<AliasInfo, GetAliasInfoError> {
-        let file_id = FileAliasIndexStorage::get_file_id(&alias);
-        if file_id.is_none() {
+        let Some(file_id) = FileAliasIndexStorage::get_file_id(&alias) else {
             return Err(GetAliasInfoError::NotFound);
-        }
-        let file_id = file_id.unwrap();
+        };
+
         let file = FileDataStorage::get_file(&file_id).unwrap();
 
         Ok(AliasInfo {
@@ -464,7 +480,7 @@ mod test {
     fn test_should_init_canister() {
         let orchestrator = Principal::from_slice(&[0, 1, 2, 3]);
         let owner = Principal::from_slice(&[4, 5, 6, 7]);
-        Canister::init(BackendInitArgs {
+        Canister::init(UserCanisterInitArgs {
             orchestrator,
             owner,
         });
@@ -482,13 +498,17 @@ mod test {
     }
 
     #[test]
+    #[should_panic(expected = "Only the owner can request a file")]
+    fn test_should_not_request_file_if_not_owner() {
+        let file_name = "test_file.txt".to_string();
+        init();
+        Canister::request_file(Principal::anonymous(), file_name);
+    }
+
+    #[test]
     fn test_should_get_requests() {
         let file_name = "test_file.txt";
-        let caller = Principal::from_slice(&[0, 1, 2, 3]);
-        Canister::init(BackendInitArgs {
-            orchestrator: Principal::from_slice(&[0, 1, 2, 3, 4]),
-            owner: caller,
-        });
+        let caller = init();
         Canister::request_file(caller, file_name);
         let requests = Canister::get_requests(caller);
         assert_eq!(requests.len(), 1);
@@ -496,13 +516,18 @@ mod test {
     }
 
     #[test]
+    #[should_panic(expected = "Only the owner can get requests for a file")]
+    fn test_should_not_get_requests_if_not_owner() {
+        let file_name = "test_file.txt";
+        let caller = init();
+        Canister::request_file(caller, file_name);
+        Canister::get_requests(Principal::anonymous());
+    }
+
+    #[test]
     fn test_should_upload_file() {
         let file_name = "test_file.txt";
-        let caller = Principal::from_slice(&[0, 1, 2, 3]);
-        Canister::init(BackendInitArgs {
-            orchestrator: Principal::from_slice(&[0, 1, 2, 3]),
-            owner: caller,
-        });
+        let caller = init();
         let alias = Canister::request_file(caller, file_name);
         let file_id = FileAliasIndexStorage::get_file_id(&alias).unwrap();
         let file_content = vec![1, 2, 3];
@@ -510,6 +535,7 @@ mod test {
         let owner_key = [0; 32];
         let num_chunks = 1;
         let result = Canister::upload_file(
+            caller,
             file_id,
             file_content.clone(),
             file_type.clone(),
@@ -530,12 +556,30 @@ mod test {
     }
 
     #[test]
+    #[should_panic(expected = "Only the owner can upload a file")]
+    fn test_should_not_upload_file_if_not_owner() {
+        let caller = init();
+        let file_name = "test_file.txt";
+        let file_content = vec![1, 2, 3];
+        let file_type = "text/plain".to_string();
+        let owner_key = [0; 32];
+        let num_chunks = 1;
+        let alias = Canister::request_file(caller, file_name);
+        let file_id = FileAliasIndexStorage::get_file_id(&alias).unwrap();
+
+        let _ = Canister::upload_file(
+            Principal::anonymous(),
+            file_id,
+            file_content.clone(),
+            file_type.clone(),
+            owner_key,
+            num_chunks,
+        );
+    }
+
+    #[test]
     fn test_should_upload_file_atomic() {
-        let caller = Principal::from_slice(&[0, 1, 2, 3]);
-        Canister::init(BackendInitArgs {
-            orchestrator: Principal::from_slice(&[0, 1, 2, 3]),
-            owner: caller,
-        });
+        let caller = init();
         let file_name = "test_file.txt";
         let file_content = vec![1, 2, 3];
         let file_type = "text/plain".to_string();
@@ -567,6 +611,27 @@ mod test {
         // Check if the file content was stored correctly
         let file_content_stored = FileContentsStorage::get_file_contents(&file_id, &0).unwrap();
         assert_eq!(file_content_stored, file_content);
+    }
+
+    #[test]
+    #[should_panic(expected = "Only the owner can upload a file")]
+    fn test_should_not_upload_file_atomic_if_not_owner() {
+        init();
+        let file_name = "test_file.txt";
+        let file_content = vec![1, 2, 3];
+        let file_type = "text/plain".to_string();
+        let owner_key = [0; 32];
+        let num_chunks = 1;
+        Canister::upload_file_atomic(
+            Principal::anonymous(),
+            UploadFileAtomicRequest {
+                name: file_name.to_string(),
+                content: file_content,
+                file_type,
+                owner_key,
+                num_chunks,
+            },
+        );
     }
 
     #[test]
@@ -602,11 +667,14 @@ mod test {
         );
 
         // Upload the second chunk
-        Canister::upload_file_continue(UploadFileContinueRequest {
-            file_id,
-            chunk_id: 1,
-            contents: vec![4, 5, 6],
-        });
+        Canister::upload_file_continue(
+            caller,
+            UploadFileContinueRequest {
+                file_id,
+                chunk_id: 1,
+                contents: vec![4, 5, 6],
+            },
+        );
 
         // Check if the file content was stored correctly
         let file_content_stored_0 = FileContentsStorage::get_file_contents(&file_id, &0).unwrap();
@@ -628,7 +696,52 @@ mod test {
     }
 
     #[test]
+    #[should_panic(expected = "Only the owner can upload a file")]
+    fn test_should_not_upload_file_continue_if_not_owner() {
+        let caller = init();
+        let file_name = "test_file.txt";
+        let file_content = vec![1, 2, 3];
+        let file_type = "text/plain".to_string();
+        let owner_key = [0; 32];
+        let num_chunks = 2;
+        let file_id = Canister::upload_file_atomic(
+            caller,
+            UploadFileAtomicRequest {
+                name: file_name.to_string(),
+                content: file_content.clone(),
+                file_type,
+                owner_key,
+                num_chunks,
+            },
+        );
+        assert_eq!(file_id, 1);
+
+        // Check if the file was uploaded correctly
+        let file = FileDataStorage::get_file(&file_id).unwrap();
+        assert_eq!(
+            file.content,
+            FileContent::PartiallyUploaded {
+                file_type: "text/plain".to_string(),
+                owner_key,
+                shared_keys: BTreeMap::new(),
+                num_chunks,
+            }
+        );
+
+        // Upload the second chunk
+        Canister::upload_file_continue(
+            Principal::anonymous(),
+            UploadFileContinueRequest {
+                file_id,
+                chunk_id: 1,
+                contents: vec![4, 5, 6],
+            },
+        );
+    }
+
+    #[test]
     fn test_should_download_file() {
+        let caller = init();
         let owner = init();
         let file_name = "test_file.txt";
         let alias = Canister::request_file(owner, file_name);
@@ -638,6 +751,7 @@ mod test {
         let owner_key = [0; 32];
         let num_chunks = 1;
         let _ = Canister::upload_file(
+            caller,
             file_id,
             file_content.clone(),
             file_type.clone(),
@@ -645,7 +759,7 @@ mod test {
             num_chunks,
         );
         // Download the file as the owner
-        let result = Canister::download_file(file_id, 0, owner);
+        let result = Canister::download_file(owner, file_id, 0);
         assert_eq!(
             result,
             FileDownloadResponse::FoundFile(FileData {
@@ -658,8 +772,8 @@ mod test {
         // Download the file as a shared user
         let user_id = Principal::from_slice(&[4, 5, 6, 7]);
         let file_key_encrypted_for_user = [6; 32];
-        Canister::share_file(user_id, file_id, file_key_encrypted_for_user);
-        let result = Canister::download_file(file_id, 0, user_id);
+        Canister::share_file(caller, user_id, file_id, file_key_encrypted_for_user);
+        let result = Canister::download_file(user_id, file_id, 0);
         assert_eq!(
             result,
             FileDownloadResponse::FoundFile(FileData {
@@ -672,6 +786,34 @@ mod test {
     }
 
     #[test]
+    fn test_should_not_download_file_if_not_owner() {
+        let caller = init();
+        let owner = init();
+        let file_name = "test_file.txt";
+        let alias = Canister::request_file(owner, file_name);
+        let file_id = FileAliasIndexStorage::get_file_id(&alias).unwrap();
+        let file_content = vec![1, 2, 3];
+        let file_type = "text/plain".to_string();
+        let owner_key = [0; 32];
+        let num_chunks = 1;
+        let _ = Canister::upload_file(
+            caller,
+            file_id,
+            file_content.clone(),
+            file_type.clone(),
+            owner_key,
+            num_chunks,
+        );
+
+        let user_id = Principal::from_slice(&[4, 5, 6, 7]);
+        let file_key_encrypted_for_user = [6; 32];
+        Canister::share_file(caller, user_id, file_id, file_key_encrypted_for_user);
+
+        let res = Canister::download_file(Principal::anonymous(), file_id, 0);
+        assert_eq!(res, FileDownloadResponse::PermissionError);
+    }
+
+    #[test]
     fn test_should_share_a_file() {
         let file_name = "test_file.txt";
         let caller = init();
@@ -679,7 +821,7 @@ mod test {
         let file_id = FileAliasIndexStorage::get_file_id(&alias).unwrap();
         let user_id = Principal::from_slice(&[4, 5, 6, 7]);
         let file_key_encrypted_for_user = [0; 32];
-        let result = Canister::share_file(user_id, file_id, file_key_encrypted_for_user);
+        let result = Canister::share_file(caller, user_id, file_id, file_key_encrypted_for_user);
         assert_eq!(result, FileSharingResponse::PendingError);
         // Upload the file first
         let file_content = vec![1, 2, 3];
@@ -687,6 +829,7 @@ mod test {
         let owner_key = [0; 32];
         let num_chunks = 1;
         let res = Canister::upload_file(
+            caller,
             file_id,
             file_content,
             file_type.clone(),
@@ -695,7 +838,7 @@ mod test {
         );
         assert!(res.is_ok());
         // Now share the file
-        let result = Canister::share_file(user_id, file_id, file_key_encrypted_for_user);
+        let result = Canister::share_file(caller, user_id, file_id, file_key_encrypted_for_user);
         assert_eq!(result, FileSharingResponse::Ok);
         let file = FileDataStorage::get_file(&file_id).unwrap();
 
@@ -709,7 +852,7 @@ mod test {
             }
         );
         // Check if the file is shared with the user
-        let shared_files = Canister::get_shared_files(user_id);
+        let shared_files = Canister::get_shared_files(caller, user_id);
         assert_eq!(shared_files.len(), 1);
         assert_eq!(shared_files[0].file_id, file_id);
     }
@@ -726,6 +869,7 @@ mod test {
         let owner_key = [0; 32];
         let num_chunks = 1;
         let res = Canister::upload_file(
+            caller,
             file_id,
             file_content,
             file_type.clone(),
@@ -740,13 +884,34 @@ mod test {
             Principal::from_slice(&[8, 9, 10, 11]),
         ];
         let file_key_encrypted_for_user = vec![[2; 32], [1; 32]];
-        Canister::share_file_with_users(user_ids.clone(), file_id, file_key_encrypted_for_user);
+        Canister::share_file_with_users(
+            caller,
+            user_ids.clone(),
+            file_id,
+            file_key_encrypted_for_user,
+        );
         for user_id in user_ids {
-            let shared_files = Canister::get_shared_files(user_id);
+            let shared_files = Canister::get_shared_files(caller, user_id);
             assert_eq!(shared_files.len(), 1);
             assert_eq!(shared_files[0].file_id, file_id);
         }
     }
+
+    #[test]
+    #[should_panic(expected = "Only the owner can share a file")]
+    fn test_only_owner_should_share_file() {
+        init();
+        let user_id = Principal::from_slice(&[4, 5, 6, 7]);
+        let file_id = 1;
+        let file_key_encrypted_for_user = [0; 32];
+        Canister::share_file(
+            Principal::anonymous(),
+            user_id,
+            file_id,
+            file_key_encrypted_for_user,
+        );
+    }
+
     #[test]
     fn test_should_revoke_file_sharing() {
         let file_name = "test_file.txt";
@@ -759,6 +924,7 @@ mod test {
         let owner_key = [0; 32];
         let num_chunks = 1;
         let res = Canister::upload_file(
+            caller,
             file_id,
             file_content,
             file_type.clone(),
@@ -769,11 +935,11 @@ mod test {
         // Now share the file with  user
         let user_id = Principal::from_slice(&[4, 5, 6, 7]);
         let file_key_encrypted_for_user = [0; 32];
-        Canister::share_file(user_id, file_id, file_key_encrypted_for_user);
+        Canister::share_file(caller, user_id, file_id, file_key_encrypted_for_user);
         // Revoke sharing
-        Canister::revoke_file_sharing(user_id, file_id);
+        Canister::revoke_file_sharing(caller, user_id, file_id);
         // Check if the user can still access the shared files
-        let shared_files = Canister::get_shared_files(user_id);
+        let shared_files = Canister::get_shared_files(caller, user_id);
         assert_eq!(shared_files.len(), 0);
         // check if file has its sharing revoked
         let file = FileDataStorage::get_file(&file_id).unwrap();
@@ -789,6 +955,15 @@ mod test {
     }
 
     #[test]
+    #[should_panic(expected = "Only the owner can revoke file sharing")]
+    fn test_only_owner_should_revoke_file_sharing() {
+        init();
+        let user_id = Principal::from_slice(&[4, 5, 6, 7]);
+        let file_id = 1;
+        Canister::revoke_file_sharing(Principal::anonymous(), user_id, file_id);
+    }
+
+    #[test]
     fn test_should_get_alias_info() {
         let file_name = "test_file.txt";
         let caller = init();
@@ -798,8 +973,10 @@ mod test {
         let alias_info = alias_info.unwrap();
         assert_eq!(alias_info.file_name, file_name);
     }
+
     #[test]
     fn test_should_get_alias_info_not_found() {
+        init();
         let alias = "non_existent_alias".to_string();
         let alias_info = Canister::get_alias_info(alias);
         assert!(alias_info.is_err());
@@ -809,7 +986,7 @@ mod test {
     #[tokio::test]
     async fn test_should_init_alias_generator_seed() {
         let caller = Principal::from_slice(&[0, 1, 2, 3]);
-        Canister::init(BackendInitArgs {
+        Canister::init(UserCanisterInitArgs {
             orchestrator: caller,
             owner: caller,
         });
@@ -824,7 +1001,7 @@ mod test {
     #[should_panic(expected = "Only the orchestrator can initialize the alias generator seed")]
     async fn test_should_not_init_alias_generator_seed_if_not_called_by_orchestrator() {
         let caller = Principal::from_slice(&[0, 1, 2, 3]);
-        Canister::init(BackendInitArgs {
+        Canister::init(UserCanisterInitArgs {
             orchestrator: caller,
             owner: caller,
         });
@@ -837,7 +1014,7 @@ mod test {
 
     fn init() -> Principal {
         let caller = Principal::from_slice(&[0, 1, 2, 3]);
-        Canister::init(BackendInitArgs {
+        Canister::init(UserCanisterInitArgs {
             orchestrator: Principal::from_slice(&[0, 1, 2, 3]),
             owner: caller,
         });

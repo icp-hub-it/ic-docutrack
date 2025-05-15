@@ -1,5 +1,4 @@
 use candid::Principal;
-use did::backend::BackendInitArgs;
 use did::orbit_station::{
     Allow, AuthScope, CanisterInstallMode, ChangeExternalCanisterOperationInput,
     CreateExternalCanisterOperationInput, CreateExternalCanisterOperationKind,
@@ -8,6 +7,7 @@ use did::orbit_station::{
     ExternalCanisterRequestPoliciesCreateInput, GetRequestInput, GetRequestResult,
     RequestExecutionSchedule, RequestOperationInput, ValidationMethodResourceTarget,
 };
+use did::user_canister::UserCanisterInitArgs;
 use ic_cdk::call::{Call, CallRejected, CallResult, Error as CallError};
 
 /// Client for the Orbit Station canister.
@@ -112,7 +112,7 @@ impl OrbitStationClient {
         canister_id: Principal,
         owner: Principal,
         wasm: &[u8],
-        arg: BackendInitArgs,
+        arg: UserCanisterInitArgs,
     ) -> CallResult<CreateRequestResult> {
         let arg = candid::encode_one(arg).map_err(|e| {
             CallError::CallRejected(CallRejected::with_rejection(

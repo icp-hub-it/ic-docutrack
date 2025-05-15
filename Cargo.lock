@@ -132,25 +132,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "ace50bade8e6234aa140d9a2f552bbee1db4d353f69b8217bc503490fc1a9f26"
 
 [[package]]
-name = "backend"
-version = "0.1.0"
-dependencies = [
- "candid",
- "ciborium",
- "did",
- "getrandom 0.3.2",
- "ic-cdk 0.18.0",
- "ic-cdk-macros 0.18.0",
- "ic-stable-structures",
- "maplit",
- "rand 0.9.1",
- "rand_chacha 0.9.0",
- "serde",
- "serde_bytes",
- "tokio",
-]
-
-[[package]]
 name = "backoff"
 version = "0.4.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -3703,6 +3684,25 @@ name = "urlencoding"
 version = "2.1.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "daf8dba3b7eb870caf1ddeed7bc9d2a049f3cfdfae7cb521b087cc33ae4c49da"
+
+[[package]]
+name = "user_canister"
+version = "0.1.0"
+dependencies = [
+ "candid",
+ "ciborium",
+ "did",
+ "getrandom 0.3.2",
+ "ic-cdk 0.18.0",
+ "ic-cdk-macros 0.18.0",
+ "ic-stable-structures",
+ "maplit",
+ "rand 0.9.1",
+ "rand_chacha 0.9.0",
+ "serde",
+ "serde_bytes",
+ "tokio",
+]
 
 [[package]]
 name = "utf8_iter"

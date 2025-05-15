@@ -9,9 +9,9 @@ pub use self::file::{
     UploadFileContinueRequest, UploadFileError, UploadFileRequest,
 };
 
-/// Backend canister init arguments.
+/// User Canister canister init arguments.
 #[derive(Debug, CandidType, Serialize, Deserialize)]
-pub struct BackendInitArgs {
+pub struct UserCanisterInitArgs {
     pub orchestrator: Principal,
     pub owner: Principal,
 }
