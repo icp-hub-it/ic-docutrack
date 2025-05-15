@@ -8,7 +8,10 @@ pub const USER_STORAGE_MEMORY_ID: MemoryId = MemoryId::new(10);
 pub const USERNAMES_MEMORY_ID: MemoryId = MemoryId::new(11);
 
 pub const USER_CANISTERS_MEMORY_ID: MemoryId = MemoryId::new(20);
-pub const USER_CANISTER_CREATE_STATES_MEMORY_ID: MemoryId = MemoryId::new(21);
+pub const USER_CANISTERS_INDEX_MEMORY_ID: MemoryId = MemoryId::new(21);
+pub const USER_CANISTER_CREATE_STATES_MEMORY_ID: MemoryId = MemoryId::new(22);
+
+pub const SHARED_FILES_MEMORY_ID: MemoryId = MemoryId::new(30);
 
 thread_local! {
     /// Memory manager

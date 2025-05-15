@@ -2,7 +2,8 @@ use std::time::Duration;
 
 use candid::Principal;
 use did::orchestrator::{
-    GetUsersResponse, PublicKey, SetUserResponse, UserCanisterResponse, WhoamiResponse,
+    GetUsersResponse, PublicKey, SetUserResponse, SharedFilesResponse, UserCanisterResponse,
+    WhoamiResponse,
 };
 
 use super::PocketIcTestEnv;
@@ -46,6 +47,14 @@ impl OrchestratorClient<'_> {
             .update::<SetUserResponse>(self.pic.orchestrator(), caller, "set_user", payload)
             .await
             .expect("Failed to set user")
+    }
+
+    pub async fn shared_files(&self, caller: Principal) -> SharedFilesResponse {
+        let payload = candid::encode_args(()).unwrap();
+        self.pic
+            .query::<SharedFilesResponse>(self.pic.orchestrator(), caller, "shared_files", payload)
+            .await
+            .expect("Failed to get shared files")
     }
 
     pub async fn who_am_i(&self, caller: Principal) -> WhoamiResponse {
