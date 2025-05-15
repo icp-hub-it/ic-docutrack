@@ -11,8 +11,9 @@ const OP_WAIT_FOR_CREATE_CANISTER_RESULT: u8 = 2;
 const OP_INSTALL_CANISTER: u8 = 3;
 const OP_WAIT_FOR_INSTALL_CANISTER_SCHEDULE: u8 = 4;
 const OP_WAIT_FOR_INSTALL_CANISTER_RESULT: u8 = 5;
-const OP_OK: u8 = 6;
-const OP_FAILED: u8 = 7;
+const OP_INIT_ALIAS_GENERATOR_SEED: u8 = 6;
+const OP_OK: u8 = 7;
+const OP_FAILED: u8 = 8;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum UserCanisterCreateState {
@@ -42,6 +43,8 @@ pub enum UserCanisterCreateState {
         user_canister: Principal,
         request_id: String,
     },
+    /// Init the alias generator seed on the user canister.
+    InitAliasGeneratorSeed { user_canister: Principal },
     /// The user canister is created and installed.
     Ok { user_canister: Principal },
     /// The user canister creation failed.
@@ -75,6 +78,7 @@ impl Storable for UserCanisterCreateState {
             OP_WAIT_FOR_INSTALL_CANISTER_RESULT => {
                 Self::decode_wait_for_install_canister_result(&bytes[1..])
             }
+            OP_INIT_ALIAS_GENERATOR_SEED => Self::decode_init_alias_generator_seed(&bytes[1..]),
             OP_OK => Self::decode_ok(&bytes[1..]),
             OP_FAILED => Self::decode_failed(&bytes[1..]),
             _ => trap("Failed to decode UserCanisterCreateState: invalid operation code"),
@@ -108,6 +112,9 @@ impl Storable for UserCanisterCreateState {
                 user_canister,
                 request_id,
             } => Self::encode_wait_for_install_canister_result(*user_canister, request_id).into(),
+            UserCanisterCreateState::InitAliasGeneratorSeed { user_canister } => {
+                Self::encode_init_alias_generator_seed(*user_canister).into()
+            }
             UserCanisterCreateState::Ok { user_canister } => Self::encode_ok(*user_canister).into(),
             UserCanisterCreateState::Failed { reason } => Self::encode_failed(reason).into(),
         }
@@ -276,6 +283,25 @@ impl UserCanisterCreateState {
         }
     }
 
+    /// Encode variant for [`UserCanisterCreateState::InitAliasGeneratorSeed`].
+    fn encode_init_alias_generator_seed(user_canister: Principal) -> Vec<u8> {
+        let mut bytes = vec![OP_INIT_ALIAS_GENERATOR_SEED];
+        // write len of user_canister
+        bytes.push(user_canister.as_slice().len() as u8);
+        // write user_canister
+        bytes.extend_from_slice(user_canister.as_slice());
+
+        bytes
+    }
+
+    /// Decode variant for [`UserCanisterCreateState::InitAliasGeneratorSeed`].
+    fn decode_init_alias_generator_seed(bytes: &[u8]) -> UserCanisterCreateState {
+        let user_canister_len = bytes[0] as usize;
+        let user_canister_bytes = &bytes[1..1 + user_canister_len];
+        let user_canister = Principal::from_slice(user_canister_bytes);
+        UserCanisterCreateState::InitAliasGeneratorSeed { user_canister }
+    }
+
     /// Encode variant for [`UserCanisterCreateState::Completed`].
     fn encode_ok(user_canister: Principal) -> Vec<u8> {
         let mut bytes = vec![OP_OK];
@@ -385,6 +411,15 @@ mod test {
             user_canister,
             request_id,
         };
+        let bytes = state.to_bytes();
+        let decoded_state = UserCanisterCreateState::from_bytes(bytes);
+        assert_eq!(state, decoded_state);
+    }
+
+    #[test]
+    fn test_storable_init_alias_generator_seed_roundtrip() {
+        let user_canister = Principal::from_slice(&[2; 29]);
+        let state = UserCanisterCreateState::InitAliasGeneratorSeed { user_canister };
         let bytes = state.to_bytes();
         let decoded_state = UserCanisterCreateState::from_bytes(bytes);
         assert_eq!(state, decoded_state);
