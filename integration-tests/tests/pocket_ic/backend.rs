@@ -90,6 +90,8 @@ async fn test_should_get_alias_info() {
     );
     assert_eq!(alias_info.clone().unwrap().file_name, request_name);
     assert_eq!(alias_info.unwrap().file_id, 1);
+
+    env.stop().await;
 }
 
 #[tokio::test]

@@ -1,4 +1,5 @@
 use candid::Principal;
+use did::backend::BackendInitArgs;
 use did::orbit_station::{
     Allow, AuthScope, CanisterInstallMode, ChangeExternalCanisterOperationInput,
     CreateExternalCanisterOperationInput, CreateExternalCanisterOperationKind,
@@ -7,7 +8,7 @@ use did::orbit_station::{
     ExternalCanisterRequestPoliciesCreateInput, GetRequestInput, GetRequestResult,
     RequestExecutionSchedule, RequestOperationInput, ValidationMethodResourceTarget,
 };
-use ic_cdk::call::{Call, CallResult, Error as CallError};
+use ic_cdk::call::{Call, CallRejected, CallResult, Error as CallError};
 
 /// Client for the Orbit Station canister.
 pub struct OrbitStationClient {
@@ -111,7 +112,15 @@ impl OrbitStationClient {
         canister_id: Principal,
         owner: Principal,
         wasm: &[u8],
+        arg: BackendInitArgs,
     ) -> CallResult<CreateRequestResult> {
+        let arg = candid::encode_one(arg).map_err(|e| {
+            CallError::CallRejected(CallRejected::with_rejection(
+                1,
+                format!("Failed to encode init arg: {}", e),
+            ))
+        })?;
+
         let request = CreateRequestInput {
             title: Some(format!("install user canister for user {owner}")),
             summary: Some(format!(
@@ -122,7 +131,7 @@ impl OrbitStationClient {
             operation: RequestOperationInput::ChangeExternalCanister(
                 ChangeExternalCanisterOperationInput {
                     canister_id,
-                    arg: None,
+                    arg: Some(arg.into()),
                     module_extra_chunks: None,
                     mode: CanisterInstallMode::Install,
                     module: wasm.to_vec().into(),

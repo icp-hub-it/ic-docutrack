@@ -50,7 +50,7 @@ pub enum UserCanisterCreateState {
 
 impl Storable for UserCanisterCreateState {
     const BOUND: Bound = Bound::Bounded {
-        max_size: 512,
+        max_size: 2048,
         is_fixed_size: false,
     };
 

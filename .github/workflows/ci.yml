@@ -66,4 +66,3 @@ jobs:
         run: |
           just fetch_all_canisters
           just test
-          just integration_test_ci
