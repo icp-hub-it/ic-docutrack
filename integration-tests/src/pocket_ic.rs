@@ -1,3 +1,4 @@
+mod backend_client;
 mod cycles;
 mod env;
 mod orchestrator_client;
@@ -6,6 +7,7 @@ use std::io::Read as _;
 use std::path::PathBuf;
 
 use candid::{CandidType, Decode, Encode, Principal};
+use did::backend::BackendInitArgs;
 use did::orbit_station::{
     AdminInitInput, HealthStatus, ListUsersInput, ListUsersResult, SystemInit, SystemInstall,
     SystemUpgraderInput,
@@ -14,9 +16,10 @@ use did::orchestrator::OrchestratorInitArgs;
 use pocket_ic::nonblocking::PocketIc;
 use serde::de::DeserializeOwned;
 
+pub use self::backend_client::BackendClient;
 pub use self::orchestrator_client::OrchestratorClient;
 use crate::TestEnv;
-use crate::actor::admin;
+use crate::actor::{admin, alice, bob};
 use crate::wasm::Canister;
 
 const DEFAULT_CYCLES: u128 = 2_000_000_000_000_000;
@@ -54,6 +57,12 @@ impl TestEnv for PocketIcTestEnv {
 
     fn station_admin(&self) -> String {
         self.station_admin.clone()
+    }
+    fn bob(&self) -> Principal {
+        bob()
+    }
+    fn alice(&self) -> Principal {
+        alice()
     }
 
     async fn query<R>(
@@ -139,8 +148,6 @@ impl PocketIcTestEnv {
 
         // install orbit station
         Self::install_orbit_station(&pic, orbit_station, orchestrator).await;
-        // install the backend canister
-        Self::install_backend(&pic, backend).await;
 
         // get station admin
         let station_admin = Self::get_station_admin(&pic, orbit_station, ADMIN_NAME).await;
@@ -159,6 +166,9 @@ impl PocketIcTestEnv {
             station_orchestrator_admin,
         )
         .await;
+
+        // install the backend canister
+        Self::install_backend(&pic, backend, orchestrator, admin()).await;
 
         Self {
             backend,
@@ -179,13 +189,21 @@ impl PocketIcTestEnv {
     }
 
     /// Install [`Canister::Backend`] canister
-    async fn install_backend(pic: &PocketIc, canister_id: Principal) {
+    async fn install_backend(
+        pic: &PocketIc,
+        canister_id: Principal,
+        orchestrator: Principal,
+        owner: Principal,
+    ) {
         pic.add_cycles(canister_id, DEFAULT_CYCLES).await;
 
         let wasm_bytes = Self::load_wasm(Canister::Backend);
 
-        //let init_arg = todo!();
-        let init_arg = vec![]; // Encode!(&init_arg).unwrap();
+        let init_arg = Encode!(&BackendInitArgs {
+            orchestrator,
+            owner
+        })
+        .expect("Failed to encode init arg for backend");
 
         pic.install_canister(canister_id, wasm_bytes, init_arg, Some(admin()))
             .await;

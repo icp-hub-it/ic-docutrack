@@ -1,8 +1,8 @@
-use std::convert::{TryFrom, TryInto};
-
 use rand::SeedableRng;
 use rand::seq::IndexedRandom;
 use rand_chacha::ChaCha20Rng;
+
+use crate::storage::alias_generator_seed::{AliasGeneratorSeed, Seed};
 
 // List of English adjective words
 const ADJECTIVES: &[&str] = &include!(concat!(env!("OUT_DIR"), "/adjectives.rs"));
@@ -10,22 +10,21 @@ const ADJECTIVES: &[&str] = &include!(concat!(env!("OUT_DIR"), "/adjectives.rs")
 const NOUNS: &[&str] = &include!(concat!(env!("OUT_DIR"), "/nouns.rs"));
 
 #[derive(Clone, Debug)]
-pub struct Randomness([u8; 32]);
+#[repr(transparent)]
+pub struct Randomness(Seed);
 
-impl TryFrom<&[u8]> for Randomness {
-    type Error = &'static str;
-
-    fn try_from(value: &[u8]) -> Result<Self, Self::Error> {
-        Ok(Randomness(
-            value[0..32]
-                .try_into()
-                .map_err(|_| "Randomness is not 32 bytes")?,
-        ))
+impl Default for Randomness {
+    fn default() -> Self {
+        Self::new()
     }
 }
 
 impl Randomness {
-    pub fn get(&self) -> [u8; 32] {
+    pub fn new() -> Self {
+        Self(AliasGeneratorSeed::new().get())
+    }
+
+    pub fn get(&self) -> Seed {
         self.0
     }
 }

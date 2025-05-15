@@ -1,4 +1,4 @@
-use std::time::Duration;
+use std::time::{Duration, Instant};
 
 use candid::Principal;
 use did::orchestrator::{
@@ -98,7 +98,9 @@ impl OrchestratorClient<'_> {
     /// - If the caller is anonymous
     /// - If the user canister is uninitialized
     pub async fn wait_for_user_canister(&self, caller: Principal) -> Principal {
-        loop {
+        let started = Instant::now();
+
+        while started.elapsed() < Duration::from_secs(60) {
             let state = self.user_canister(caller).await;
             match state {
                 UserCanisterResponse::Ok(canister_id) => return canister_id,
@@ -117,5 +119,7 @@ impl OrchestratorClient<'_> {
                 }
             }
         }
+
+        panic!("User canister creation timed out");
     }
 }

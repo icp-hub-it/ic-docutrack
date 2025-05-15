@@ -15,6 +15,7 @@ on:
 jobs:
   build:
     runs-on: ubuntu-latest
+    timeout-minutes: 10
 
     steps:
       - uses: actions/checkout@v3
@@ -64,4 +65,4 @@ jobs:
       - name: test
         run: |
           just fetch_all_canisters
-          just test_all
+          just test

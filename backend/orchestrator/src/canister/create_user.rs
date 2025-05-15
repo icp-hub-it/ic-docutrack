@@ -1,6 +1,7 @@
 use std::time::Duration;
 
 use candid::Principal;
+use did::backend::BackendInitArgs;
 use did::orbit_station::{RequestOperation, RequestStatus, TimestampRfc3339};
 use time::OffsetDateTime;
 use time::format_description::well_known::Rfc3339;
@@ -193,8 +194,18 @@ impl CreateUserStateMachine {
 
     /// Installs the user canister by sending a request to the Orbit Station canister.
     async fn install_canister(&self, user_canister: Principal) -> UserCanisterCreateState {
+        let user_canister_init_arg = BackendInitArgs {
+            owner: self.user,
+            orchestrator: ic_cdk::api::canister_self(),
+        };
+
         match OrbitStationClient::from(self.orbit_station)
-            .install_user_canister(user_canister, self.user, USER_CANISTER_WASM)
+            .install_user_canister(
+                user_canister,
+                self.user,
+                USER_CANISTER_WASM,
+                user_canister_init_arg,
+            )
             .await
         {
             Ok(Ok(request)) => UserCanisterCreateState::WaitForInstallCanisterResult {
