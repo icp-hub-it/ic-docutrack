@@ -88,7 +88,7 @@ impl OrbitStationClient {
                             subnet_selection: None,
                         },
                     ),
-                    name: "user_canister".to_string(),
+                    name: format!("user_canister_{user}"), // name must be unique
                     labels: None,
                     description: Some(format!("ic-docutrack user canister for {user}")),
                     request_policies: ExternalCanisterRequestPoliciesCreateInput {

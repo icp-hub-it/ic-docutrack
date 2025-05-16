@@ -1,10 +1,11 @@
 use candid::Principal;
+use did::orchestrator::SetUserResponse;
 use did::user_canister::{
     ENCRYPTION_KEY_SIZE, FileStatus, UploadFileAtomicRequest, UploadFileContinueRequest,
     UploadFileRequest,
 };
 use integration_tests::actor::{admin, alice};
-use integration_tests::{PocketIcTestEnv, UserCanisterClient};
+use integration_tests::{OrchestratorClient, PocketIcTestEnv, UserCanisterClient};
 
 #[tokio::test]
 async fn test_should_set_and_get_public_key() {
@@ -39,6 +40,7 @@ async fn test_should_request_file_and_get_requests() {
 
     env.stop().await;
 }
+
 #[tokio::test]
 async fn test_should_upload_file() {
     let env = PocketIcTestEnv::init().await;
@@ -244,36 +246,48 @@ async fn test_should_download_file() {
 
     env.stop().await;
 }
-// #[tokio::test]
-// async fn test_should_get_shared_files() {
-//     let env = PocketIcTestEnv::init().await;
-//     let client = BackendClient::from(&env);
-//     let external_user = alice();
-//     let owner = admin();
-//     let request_name = "test.txt".to_string();
-//     client.request_file(request_name.clone(), owner).await;
-//     client
-//         .upload_file(
-//             UploadFileRequest {
-//                 file_id: 1,
-//                 file_content: vec![1, 2, 3],
-//                 file_type: "txt".to_string(),
-//                 owner_key: [1; 32],
-//                 num_chunks: 1,
-//             },
-//             external_user,
-//         )
-//         .await;
 
-//     assert_eq!(
-//         client
-//             .get_shared_files(owner)
-//             .await.get(0).unwrap().file_name,
+#[tokio::test]
+async fn test_should_get_shared_files() {
+    let env = PocketIcTestEnv::init().await;
+    let client = UserCanisterClient::from(&env);
+    let orchestrator_client = OrchestratorClient::from(&env);
+    let external_user = alice();
+    let owner = admin();
+    let request_name = "test.txt".to_string();
 
-//         request_name
+    // register alice on orchestrator
+    let response = orchestrator_client
+        .set_user(external_user, "alice".to_string(), [1; ENCRYPTION_KEY_SIZE])
+        .await;
+    assert_eq!(response, SetUserResponse::Ok);
 
-//     );
+    let file_id = client
+        .upload_file_atomic(
+            UploadFileAtomicRequest {
+                name: request_name.clone(),
+                content: vec![1, 2, 3],
+                file_type: "txt".to_string(),
+                owner_key: [1; ENCRYPTION_KEY_SIZE],
+                num_chunks: 1,
+            },
+            owner,
+        )
+        .await;
 
-//     env.stop().await;
+    let shared_files = client.get_shared_files(owner, external_user).await;
+    assert_eq!(shared_files.len(), 0);
 
-// }
+    // share file with alice
+    assert_eq!(
+        client
+            .share_file(owner, file_id, external_user, [1; ENCRYPTION_KEY_SIZE])
+            .await,
+        did::user_canister::FileSharingResponse::Ok
+    );
+    let shared_files = client.get_shared_files(owner, external_user).await;
+    assert_eq!(shared_files.len(), 1);
+    assert_eq!(shared_files[0].file_id, file_id);
+
+    env.stop().await;
+}

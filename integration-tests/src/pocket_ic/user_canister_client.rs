@@ -49,8 +49,12 @@ impl UserCanisterClient<'_> {
             .expect("Failed to get requests")
     }
 
-    pub async fn get_shared_files(&self, caller: Principal) -> Vec<PublicFileMetadata> {
-        let payload = candid::encode_args(()).unwrap();
+    pub async fn get_shared_files(
+        &self,
+        caller: Principal,
+        user_id: Principal,
+    ) -> Vec<PublicFileMetadata> {
+        let payload = candid::encode_args((user_id,)).unwrap();
         self.pic
             .query::<Vec<PublicFileMetadata>>(
                 self.pic.user_canister(),
@@ -158,10 +162,10 @@ impl UserCanisterClient<'_> {
 
     pub async fn share_file(
         &self,
+        caller: Principal,
         file_id: u64,
         user_id: Principal,
         file_key_encrypted_for_user: OwnerKey,
-        caller: Principal,
     ) -> FileSharingResponse {
         let payload = candid::encode_args((user_id, file_id, file_key_encrypted_for_user)).unwrap();
         self.pic

@@ -1,5 +1,6 @@
 mod aliases;
 mod canister;
+mod client;
 pub mod inspect;
 mod storage;
 mod utils;
@@ -84,26 +85,27 @@ fn download_file(file_id: u64, chunk_id: u64) -> FileDownloadResponse {
 }
 
 #[update]
-fn share_file(
+async fn share_file(
     user_id: Principal,
     file_id: u64,
     file_key_encrypted_for_user: OwnerKey,
 ) -> FileSharingResponse {
-    Canister::share_file(msg_caller(), user_id, file_id, file_key_encrypted_for_user)
+    Canister::share_file(msg_caller(), user_id, file_id, file_key_encrypted_for_user).await
 }
 
 #[update]
-fn share_file_with_users(
+async fn share_file_with_users(
     user_id: Vec<Principal>,
     file_id: u64,
     file_key_encrypted_for_user: Vec<OwnerKey>,
 ) {
     Canister::share_file_with_users(msg_caller(), user_id, file_id, file_key_encrypted_for_user)
+        .await
 }
 
 #[update]
-fn revoke_share(user_id: Principal, file_id: u64) {
-    Canister::revoke_file_sharing(msg_caller(), user_id, file_id);
+async fn revoke_share(user_id: Principal, file_id: u64) {
+    Canister::revoke_file_sharing(msg_caller(), user_id, file_id).await
 }
 
 ic_cdk::export_candid!();

@@ -7,7 +7,6 @@ pub enum Canister {
     OrbitStation,
     OrbitUpgrader,
     Orchestrator,
-    User,
 }
 
 impl Canister {
@@ -19,7 +18,6 @@ impl Canister {
             Canister::OrbitStation => Path::new("../.artifact/orbit-station.wasm.gz"),
             Canister::OrbitUpgrader => Path::new("../.artifact/orbit-upgrader.wasm.gz"),
             Canister::Orchestrator => Path::new("../.artifact/orchestrator.wasm.gz"),
-            Canister::User => Path::new("../.artifact/user_canister.wasm.gz"),
         }
     }
 }
