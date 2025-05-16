@@ -8,11 +8,6 @@ pub fn inspect() {
     let method = ic_cdk::api::msg_method_name();
 
     match method.as_str() {
-        "init_alias_generator_seed" => {
-            if msg_caller() != Config::get_orchestrator() {
-                trap("Only the orchestrator can call this method");
-            }
-        }
         "request_file"
         | "get_requests"
         | "upload_file_atomic"

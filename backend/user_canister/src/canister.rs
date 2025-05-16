@@ -13,7 +13,6 @@ use did::utils::trap;
 
 use crate::aliases::{AliasGenerator, Randomness};
 use crate::client::OrchestratorClient;
-use crate::storage::alias_generator_seed::AliasGeneratorSeed;
 use crate::storage::config::Config;
 use crate::storage::files::{
     File, FileAliasIndexStorage, FileContent, FileContentsStorage, FileCountStorage,
@@ -31,29 +30,16 @@ impl Canister {
         Config::set_owner(args.owner);
     }
 
-    /// Initialize the alias generator seed
-    ///
-    /// # Panics
-    ///
-    /// - If the caller is not the orchestrator.
-    /// - If the alias generator seed is already initialized.
-    /// - If the alias generator seed cannot be initialized.
-    pub async fn init_alias_generator_seed(caller: Principal) {
-        if caller != Config::get_orchestrator() {
-            trap("Only the orchestrator can initialize the alias generator seed");
-        }
-        AliasGeneratorSeed::init().await;
-    }
-
     /// Request a file
-    pub fn request_file<S: Into<String>>(caller: Principal, request_name: S) -> String {
+    pub async fn request_file<S: Into<String>>(caller: Principal, request_name: S) -> String {
         if caller != Config::get_owner() {
             trap("Only the owner can request a file");
         }
+        let randomness = Randomness::new().await;
 
         // generate a file ID and alias
         let file_id = FileCountStorage::generate_file_id();
-        let alias = AliasGenerator::new(Randomness::default()).next();
+        let alias = AliasGenerator::new(randomness).next();
 
         // make the file
         let file = File {
@@ -496,46 +482,46 @@ mod test {
         assert_eq!(Config::get_owner(), owner);
     }
 
-    #[test]
-    fn test_should_request_file() {
+    #[tokio::test]
+    async fn test_should_request_file() {
         let file_name = "test_file.txt".to_string();
         let caller = init();
-        let alias = Canister::request_file(caller, file_name.clone());
+        let alias = Canister::request_file(caller, file_name.clone()).await;
         assert_eq!(alias, "puzzling-mountain");
     }
 
-    #[test]
+    #[tokio::test]
     #[should_panic(expected = "Only the owner can request a file")]
-    fn test_should_not_request_file_if_not_owner() {
+    async fn test_should_not_request_file_if_not_owner() {
         let file_name = "test_file.txt".to_string();
         init();
-        Canister::request_file(Principal::anonymous(), file_name);
+        Canister::request_file(Principal::anonymous(), file_name).await;
     }
 
-    #[test]
-    fn test_should_get_requests() {
+    #[tokio::test]
+    async fn test_should_get_requests() {
         let file_name = "test_file.txt";
         let caller = init();
-        Canister::request_file(caller, file_name);
+        Canister::request_file(caller, file_name).await;
         let requests = Canister::get_requests(caller);
         assert_eq!(requests.len(), 1);
         assert_eq!(requests[0].file_name, file_name);
     }
 
-    #[test]
+    #[tokio::test]
     #[should_panic(expected = "Only the owner can get requests for a file")]
-    fn test_should_not_get_requests_if_not_owner() {
+    async fn test_should_not_get_requests_if_not_owner() {
         let file_name = "test_file.txt";
         let caller = init();
-        Canister::request_file(caller, file_name);
+        Canister::request_file(caller, file_name).await;
         Canister::get_requests(Principal::anonymous());
     }
 
-    #[test]
-    fn test_should_upload_file() {
+    #[tokio::test]
+    async fn test_should_upload_file() {
         let file_name = "test_file.txt";
         let caller = init();
-        let alias = Canister::request_file(caller, file_name);
+        let alias = Canister::request_file(caller, file_name).await;
         let file_id = FileAliasIndexStorage::get_file_id(&alias).unwrap();
         let file_content = vec![1, 2, 3];
         let file_type = "text/plain".to_string();
@@ -681,7 +667,7 @@ mod test {
         let caller = init();
         let owner = init();
         let file_name = "test_file.txt";
-        let alias = Canister::request_file(owner, file_name);
+        let alias = Canister::request_file(owner, file_name).await;
         let file_id = FileAliasIndexStorage::get_file_id(&alias).unwrap();
         let file_content = vec![1, 2, 3];
         let file_type = "text/plain".to_string();
@@ -726,7 +712,7 @@ mod test {
         let caller = init();
         let owner = init();
         let file_name = "test_file.txt";
-        let alias = Canister::request_file(owner, file_name);
+        let alias = Canister::request_file(owner, file_name).await;
         let file_id = FileAliasIndexStorage::get_file_id(&alias).unwrap();
         let file_content = vec![1, 2, 3];
         let file_type = "text/plain".to_string();
@@ -752,7 +738,7 @@ mod test {
     async fn test_should_share_a_file() {
         let file_name = "test_file.txt";
         let caller = init();
-        let alias = Canister::request_file(caller, file_name);
+        let alias = Canister::request_file(caller, file_name).await;
         let file_id = FileAliasIndexStorage::get_file_id(&alias).unwrap();
         let user_id = Principal::from_slice(&[4, 5, 6, 7]);
         let file_key_encrypted_for_user = [0; 32];
@@ -801,7 +787,7 @@ mod test {
         let user_id = Principal::from_slice(&[4, 5, 6, 7]);
         let mut file_ids = vec![];
         for _ in 0..3 {
-            let alias = Canister::request_file(caller, file_name);
+            let alias = Canister::request_file(caller, file_name).await;
             let file_id = FileAliasIndexStorage::get_file_id(&alias).unwrap();
             let file_key_encrypted_for_user = [0; 32];
             let result =
@@ -851,7 +837,7 @@ mod test {
     async fn should_share_file_with_users() {
         let file_name = "test_file.txt";
         let caller = init();
-        let alias = Canister::request_file(caller, file_name);
+        let alias = Canister::request_file(caller, file_name).await;
         let file_id = FileAliasIndexStorage::get_file_id(&alias).unwrap();
         //upload the file first
         let file_content = vec![1, 2, 3];
@@ -907,7 +893,7 @@ mod test {
     async fn test_should_revoke_file_sharing() {
         let file_name = "test_file.txt";
         let caller = init();
-        let alias = Canister::request_file(caller, file_name);
+        let alias = Canister::request_file(caller, file_name).await;
         let file_id = FileAliasIndexStorage::get_file_id(&alias).unwrap();
         //upload the file first
         let file_content = vec![1, 2, 3];
@@ -956,7 +942,7 @@ mod test {
         let num_chunks = 1;
 
         for _ in 0..5 {
-            let alias = Canister::request_file(caller, file_name);
+            let alias = Canister::request_file(caller, file_name).await;
             let file_id = FileAliasIndexStorage::get_file_id(&alias).unwrap();
             //upload the file first
             let file_content = vec![1, 2, 3];
@@ -1003,11 +989,11 @@ mod test {
         Canister::revoke_file_sharing(Principal::anonymous(), user_id, file_id).await;
     }
 
-    #[test]
-    fn test_should_get_alias_info() {
+    #[tokio::test]
+    async fn test_should_get_alias_info() {
         let file_name = "test_file.txt";
         let caller = init();
-        let alias = Canister::request_file(caller, file_name);
+        let alias = Canister::request_file(caller, file_name).await;
         let alias_info = Canister::get_alias_info(alias.clone());
         assert!(alias_info.is_ok());
         let alias_info = alias_info.unwrap();
@@ -1021,35 +1007,6 @@ mod test {
         let alias_info = Canister::get_alias_info(alias);
         assert!(alias_info.is_err());
         assert_eq!(alias_info.unwrap_err(), GetAliasInfoError::NotFound);
-    }
-
-    #[tokio::test]
-    async fn test_should_init_alias_generator_seed() {
-        let caller = Principal::from_slice(&[0, 1, 2, 3]);
-        Canister::init(UserCanisterInitArgs {
-            orchestrator: caller,
-            owner: caller,
-        });
-        Canister::init_alias_generator_seed(caller).await;
-
-        // Check if the alias generator seed is initialized
-        let alias_generator_seed = AliasGeneratorSeed::new().get();
-        assert_ne!(alias_generator_seed, [0; 32]);
-    }
-
-    #[tokio::test]
-    #[should_panic(expected = "Only the orchestrator can initialize the alias generator seed")]
-    async fn test_should_not_init_alias_generator_seed_if_not_called_by_orchestrator() {
-        let caller = Principal::from_slice(&[0, 1, 2, 3]);
-        Canister::init(UserCanisterInitArgs {
-            orchestrator: caller,
-            owner: caller,
-        });
-        Canister::init_alias_generator_seed(Principal::anonymous()).await;
-
-        // Check if the alias generator seed is initialized
-        let alias_generator_seed = AliasGeneratorSeed::new().get();
-        assert_ne!(alias_generator_seed, [0; 32]);
     }
 
     fn init() -> Principal {

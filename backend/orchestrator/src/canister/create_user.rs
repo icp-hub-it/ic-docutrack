@@ -6,7 +6,7 @@ use did::user_canister::UserCanisterInitArgs;
 use time::OffsetDateTime;
 use time::format_description::well_known::Rfc3339;
 
-use crate::client::{OrbitStationClient, UserCanisterClient};
+use crate::client::OrbitStationClient;
 use crate::storage::config::Config;
 use crate::storage::user_canister::{UserCanisterCreateState, UserCanisterStorage};
 use crate::utils::{datetime, trap};
@@ -82,9 +82,6 @@ impl CreateUserStateMachine {
             } => {
                 self.check_install_canister_result(request_id, user_canister)
                     .await
-            }
-            UserCanisterCreateState::InitAliasGeneratorSeed { user_canister } => {
-                self.init_alias_generator_seed(user_canister).await
             }
             UserCanisterCreateState::Ok { user_canister } => {
                 self.complete(user_canister);
@@ -254,9 +251,7 @@ impl CreateUserStateMachine {
 
         let status = response.request.status;
         match status {
-            RequestStatus::Completed { .. } => {
-                UserCanisterCreateState::InitAliasGeneratorSeed { user_canister }
-            }
+            RequestStatus::Completed { .. } => UserCanisterCreateState::Ok { user_canister },
             RequestStatus::Failed { reason } => UserCanisterCreateState::Failed {
                 reason: format!("failed to install canister: {}", reason.unwrap_or_default()),
             },
@@ -287,17 +282,6 @@ impl CreateUserStateMachine {
         }
     }
 
-    /// Initializes the alias generator seed in the user canister.
-    async fn init_alias_generator_seed(&self, user_canister: Principal) -> UserCanisterCreateState {
-        let user_canister_client = UserCanisterClient::from(user_canister);
-        match user_canister_client.init_alias_generator_seed().await {
-            Ok(_) => UserCanisterCreateState::Ok { user_canister },
-            Err(err) => UserCanisterCreateState::Failed {
-                reason: format!("failed to init alias generator seed: {err}"),
-            },
-        }
-    }
-
     /// Complete user canister creation by setting the user canister ID in storage.
     fn complete(&self, user_canister: Principal) {
         UserCanisterStorage::set_user_canister(self.user, user_canister);
@@ -321,7 +305,6 @@ impl CreateUserStateMachine {
             UserCanisterCreateState::WaitForInstallCanisterResult { .. } => {
                 ORBIT_STATION_REQUEST_INTERVAL
             }
-            UserCanisterCreateState::InitAliasGeneratorSeed { .. } => DEFAULT_INTERVAL,
             UserCanisterCreateState::Ok { .. } => Duration::ZERO,
             UserCanisterCreateState::Failed { .. } => Duration::ZERO,
         }
