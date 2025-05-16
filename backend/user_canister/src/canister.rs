@@ -1,6 +1,9 @@
+mod share;
+
 use std::collections::BTreeMap;
 
 use candid::Principal;
+use did::orchestrator::ShareFileResponse;
 use did::user_canister::{
     AliasInfo, FileData, FileDownloadResponse, FileSharingResponse, FileStatus, GetAliasInfoError,
     OwnerKey, PublicFileMetadata, UploadFileAtomicRequest, UploadFileContinueRequest,
@@ -9,6 +12,7 @@ use did::user_canister::{
 use did::utils::trap;
 
 use crate::aliases::{AliasGenerator, Randomness};
+use crate::client::OrchestratorClient;
 use crate::storage::alias_generator_seed::AliasGeneratorSeed;
 use crate::storage::config::Config;
 use crate::storage::files::{
@@ -231,7 +235,7 @@ impl Canister {
     }
 
     /// Share file with user
-    pub fn share_file(
+    pub async fn share_file(
         caller: Principal,
         user_id: Principal,
         file_id: FileId,
@@ -241,63 +245,38 @@ impl Canister {
             trap("Only the owner can share a file");
         }
 
-        let mut file = FileDataStorage::get_file(&file_id).unwrap();
-
-        // If uploaded or partially uploaded, Modify File content, add user's decryption key to map
-        match &file.content {
-            FileContent::Pending { .. } => {
-                return FileSharingResponse::PendingError;
+        match share::CanisterShareFile::share_file(user_id, file_id, file_key_encrypted_for_user) {
+            FileSharingResponse::Ok => {}
+            err => {
+                return err;
             }
-            FileContent::Uploaded {
-                shared_keys,
-                num_chunks,
-                owner_key,
-                file_type,
-            } => {
-                if !shared_keys.contains_key(&user_id) {
-                    let mut shared_keys = shared_keys.clone();
-                    shared_keys.insert(user_id, file_key_encrypted_for_user);
-                    file.content = FileContent::Uploaded {
-                        num_chunks: *num_chunks,
-                        file_type: file_type.clone(),
-                        owner_key: *owner_key,
-                        shared_keys,
-                    };
+        }
+
+        // Index Share file on the orchestrator
+        if cfg!(target_family = "wasm") {
+            match OrchestratorClient::from(Config::get_orchestrator())
+                .share_file(user_id, file_id)
+                .await
+            {
+                Err(err) => {
+                    trap(
+                        format!("Error indexing sharing file on orchestrator: {:?}", err).as_str(),
+                    );
+                }
+                Ok(ShareFileResponse::Ok) => {}
+                Ok(share_err) => {
+                    trap(format!("Error sharing file on orchestrator: {:?}", share_err).as_str());
                 }
             }
-            FileContent::PartiallyUploaded {
-                shared_keys,
-                num_chunks,
-                owner_key,
-                file_type,
-            } => {
-                if !shared_keys.contains_key(&user_id) {
-                    let mut shared_keys = shared_keys.clone();
-                    shared_keys.insert(user_id, file_key_encrypted_for_user);
-                    file.content = FileContent::Uploaded {
-                        num_chunks: *num_chunks,
-                        file_type: file_type.clone(),
-                        owner_key: *owner_key,
-                        shared_keys,
-                    };
-                }
-            }
-        };
+        }
 
-        // TODO: index file on the orchestrator
-
-        //persist file
-        FileDataStorage::set_file(&file_id, file);
-
-        //add to file shares storage
-        FileSharesStorage::set_file_shares(&user_id, vec![file_id]);
         FileSharingResponse::Ok
     }
 
     /// Share file with users
-    pub fn share_file_with_users(
+    pub async fn share_file_with_users(
         caller: Principal,
-        user_id: Vec<Principal>,
+        users: Vec<Principal>,
         file_id: FileId,
         file_key_encrypted_for_user: Vec<OwnerKey>,
     ) {
@@ -305,15 +284,36 @@ impl Canister {
             trap("Only the owner can share a file");
         }
 
-        for (user, decryption_key) in user_id.iter().zip(file_key_encrypted_for_user.iter()) {
-            Self::share_file(caller, *user, file_id, *decryption_key);
+        for (user, decryption_key) in users.iter().zip(file_key_encrypted_for_user.iter()) {
+            match share::CanisterShareFile::share_file(*user, file_id, *decryption_key) {
+                FileSharingResponse::Ok => {}
+                err => {
+                    trap(format!("Error sharing file: {:?}", err).as_str());
+                }
+            }
         }
 
-        // TODO: index files on the orchestrator
+        // Index files on the orchestrator
+        if cfg!(target_family = "wasm") {
+            match OrchestratorClient::from(Config::get_orchestrator())
+                .share_file_with_users(users, file_id)
+                .await
+            {
+                Err(err) => {
+                    trap(
+                        format!("Error indexing sharing file on orchestrator: {:?}", err).as_str(),
+                    );
+                }
+                Ok(ShareFileResponse::Ok) => {}
+                Ok(share_err) => {
+                    trap(format!("Error sharing file on orchestrator: {:?}", share_err).as_str());
+                }
+            }
+        }
     }
 
     /// Revoke file sharing
-    pub fn revoke_file_sharing(caller: Principal, user_id: Principal, file_id: FileId) {
+    pub async fn revoke_file_sharing(caller: Principal, user_id: Principal, file_id: FileId) {
         if caller != Config::get_owner() {
             trap("Only the owner can revoke file sharing");
         }
@@ -334,7 +334,15 @@ impl Canister {
         // persist file
         FileDataStorage::set_file(&file_id, file);
 
-        // TODO: revoke files on the orchestrator
+        if cfg!(target_family = "wasm") {
+            // Revoke files on the orchestrator
+            if let Err(err) = OrchestratorClient::from(Config::get_orchestrator())
+                .revoke_share_file(user_id, file_id)
+                .await
+            {
+                trap(format!("Error revoking shared file on orchestrator: {:?}", err).as_str());
+            }
+        }
     }
 
     /// Download file
@@ -660,8 +668,8 @@ mod test {
         );
     }
 
-    #[test]
-    fn test_should_download_file() {
+    #[tokio::test]
+    async fn test_should_download_file() {
         let caller = init();
         let owner = init();
         let file_name = "test_file.txt";
@@ -692,7 +700,7 @@ mod test {
         // Download the file as a shared user
         let user_id = Principal::from_slice(&[4, 5, 6, 7]);
         let file_key_encrypted_for_user = [6; 32];
-        Canister::share_file(caller, user_id, file_id, file_key_encrypted_for_user);
+        Canister::share_file(caller, user_id, file_id, file_key_encrypted_for_user).await;
         let result = Canister::download_file(user_id, file_id, 0);
         assert_eq!(
             result,
@@ -705,8 +713,8 @@ mod test {
         );
     }
 
-    #[test]
-    fn test_should_not_download_file_if_not_owner() {
+    #[tokio::test]
+    async fn test_should_not_download_file_if_not_owner() {
         let caller = init();
         let owner = init();
         let file_name = "test_file.txt";
@@ -726,21 +734,22 @@ mod test {
 
         let user_id = Principal::from_slice(&[4, 5, 6, 7]);
         let file_key_encrypted_for_user = [6; 32];
-        Canister::share_file(caller, user_id, file_id, file_key_encrypted_for_user);
+        Canister::share_file(caller, user_id, file_id, file_key_encrypted_for_user).await;
 
         let res = Canister::download_file(Principal::anonymous(), file_id, 0);
         assert_eq!(res, FileDownloadResponse::PermissionError);
     }
 
-    #[test]
-    fn test_should_share_a_file() {
+    #[tokio::test]
+    async fn test_should_share_a_file() {
         let file_name = "test_file.txt";
         let caller = init();
         let alias = Canister::request_file(caller, file_name);
         let file_id = FileAliasIndexStorage::get_file_id(&alias).unwrap();
         let user_id = Principal::from_slice(&[4, 5, 6, 7]);
         let file_key_encrypted_for_user = [0; 32];
-        let result = Canister::share_file(caller, user_id, file_id, file_key_encrypted_for_user);
+        let result =
+            Canister::share_file(caller, user_id, file_id, file_key_encrypted_for_user).await;
         assert_eq!(result, FileSharingResponse::PendingError);
         // Upload the file first
         let file_content = vec![1, 2, 3];
@@ -756,7 +765,8 @@ mod test {
         );
         assert!(res.is_ok());
         // Now share the file
-        let result = Canister::share_file(caller, user_id, file_id, file_key_encrypted_for_user);
+        let result =
+            Canister::share_file(caller, user_id, file_id, file_key_encrypted_for_user).await;
         assert_eq!(result, FileSharingResponse::Ok);
         let file = FileDataStorage::get_file(&file_id).unwrap();
 
@@ -775,8 +785,8 @@ mod test {
         assert_eq!(shared_files[0].file_id, file_id);
     }
 
-    #[test]
-    fn should_share_file_with_users() {
+    #[tokio::test]
+    async fn should_share_file_with_users() {
         let file_name = "test_file.txt";
         let caller = init();
         let alias = Canister::request_file(caller, file_name);
@@ -806,7 +816,8 @@ mod test {
             user_ids.clone(),
             file_id,
             file_key_encrypted_for_user,
-        );
+        )
+        .await;
         for user_id in user_ids {
             let shared_files = Canister::get_shared_files(caller, user_id);
             assert_eq!(shared_files.len(), 1);
@@ -814,9 +825,9 @@ mod test {
         }
     }
 
-    #[test]
+    #[tokio::test]
     #[should_panic(expected = "Only the owner can share a file")]
-    fn test_only_owner_should_share_file() {
+    async fn test_only_owner_should_share_file() {
         init();
         let user_id = Principal::from_slice(&[4, 5, 6, 7]);
         let file_id = 1;
@@ -826,11 +837,12 @@ mod test {
             user_id,
             file_id,
             file_key_encrypted_for_user,
-        );
+        )
+        .await;
     }
 
-    #[test]
-    fn test_should_revoke_file_sharing() {
+    #[tokio::test]
+    async fn test_should_revoke_file_sharing() {
         let file_name = "test_file.txt";
         let caller = init();
         let alias = Canister::request_file(caller, file_name);
@@ -851,9 +863,9 @@ mod test {
         // Now share the file with  user
         let user_id = Principal::from_slice(&[4, 5, 6, 7]);
         let file_key_encrypted_for_user = [0; 32];
-        Canister::share_file(caller, user_id, file_id, file_key_encrypted_for_user);
+        Canister::share_file(caller, user_id, file_id, file_key_encrypted_for_user).await;
         // Revoke sharing
-        Canister::revoke_file_sharing(caller, user_id, file_id);
+        Canister::revoke_file_sharing(caller, user_id, file_id).await;
         // Check if the user can still access the shared files
         let shared_files = Canister::get_shared_files(caller, user_id);
         assert_eq!(shared_files.len(), 0);
@@ -870,13 +882,13 @@ mod test {
         );
     }
 
-    #[test]
+    #[tokio::test]
     #[should_panic(expected = "Only the owner can revoke file sharing")]
-    fn test_only_owner_should_revoke_file_sharing() {
+    async fn test_only_owner_should_revoke_file_sharing() {
         init();
         let user_id = Principal::from_slice(&[4, 5, 6, 7]);
         let file_id = 1;
-        Canister::revoke_file_sharing(Principal::anonymous(), user_id, file_id);
+        Canister::revoke_file_sharing(Principal::anonymous(), user_id, file_id).await;
     }
 
     #[test]

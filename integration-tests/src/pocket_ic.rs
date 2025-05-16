@@ -11,8 +11,7 @@ use did::orbit_station::{
     AdminInitInput, HealthStatus, ListUsersInput, ListUsersResult, SystemInit, SystemInstall,
     SystemUpgraderInput,
 };
-use did::orchestrator::OrchestratorInitArgs;
-use did::user_canister::UserCanisterInitArgs;
+use did::orchestrator::{OrchestratorInitArgs, PUBKEY_SIZE, SetUserResponse};
 use pocket_ic::nonblocking::PocketIc;
 use serde::de::DeserializeOwned;
 
@@ -131,8 +130,6 @@ impl PocketIcTestEnv {
             .await;
 
         // create canisters
-        let user_canister = pic.create_canister_with_settings(Some(admin()), None).await;
-        println!("User Canister: {user_canister}",);
         let orbit_station = pic.create_canister_with_settings(Some(admin()), None).await;
         println!("Orbit station: {orbit_station}",);
         let orchestrator = pic.create_canister_with_settings(Some(admin()), None).await;
@@ -167,16 +164,29 @@ impl PocketIcTestEnv {
         )
         .await;
 
-        // install the backend canister
-        Self::install_user_canister(&pic, user_canister, orchestrator, admin()).await;
-
-        Self {
-            user_canister,
+        let mut pic = Self {
+            user_canister: Principal::anonymous(), // to be set later
             pic,
             orbit_station,
             orchestrator,
             station_admin,
-        }
+        };
+
+        // install the user canister for admin
+        let orchestrator_client = OrchestratorClient::from(&pic);
+        // create user canister
+        let response = orchestrator_client
+            .set_user(admin(), "admin".to_string(), [1; PUBKEY_SIZE])
+            .await;
+        assert_eq!(response, SetUserResponse::Ok);
+
+        // wait for user canister to be created
+        let user_canister = orchestrator_client.wait_for_user_canister(admin()).await;
+
+        pic.user_canister = user_canister;
+        println!("User canister: {user_canister}",);
+
+        pic
     }
 
     /// Stop instance -  Should be called after each test
@@ -186,27 +196,6 @@ impl PocketIcTestEnv {
 
     fn is_live(&self) -> bool {
         self.pic.url().is_some()
-    }
-
-    /// Install [`Canister::UserCanister`] canister
-    async fn install_user_canister(
-        pic: &PocketIc,
-        canister_id: Principal,
-        orchestrator: Principal,
-        owner: Principal,
-    ) {
-        pic.add_cycles(canister_id, DEFAULT_CYCLES).await;
-
-        let wasm_bytes = Self::load_wasm(Canister::User);
-
-        let init_arg = Encode!(&UserCanisterInitArgs {
-            orchestrator,
-            owner
-        })
-        .expect("Failed to encode init arg for user_canister");
-
-        pic.install_canister(canister_id, wasm_bytes, init_arg, Some(admin()))
-            .await;
     }
 
     /// Install [`Canister::Orchestrator`] canister
