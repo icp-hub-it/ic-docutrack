@@ -47,11 +47,16 @@ async fn test_should_upload_file() {
     let client = UserCanisterClient::from(&env);
     let owner = admin();
     let request_name = "test.txt".to_string();
-    client.request_file(request_name.clone(), owner).await;
+    let alias = client.request_file(request_name.clone(), owner).await;
+    let alias_info = client
+        .get_alias_info(alias.clone(), owner)
+        .await
+        .expect("alias info");
+
     let r = client
         .upload_file(
             UploadFileRequest {
-                file_id: 1,
+                file_id: alias_info.file_id,
                 file_content: vec![1, 2, 3],
                 file_type: "txt".to_string(),
                 owner_key: [1; 32],
@@ -90,7 +95,7 @@ async fn test_should_get_alias_info() {
         Err(did::user_canister::GetAliasInfoError::NotFound)
     );
     assert_eq!(alias_info.clone().unwrap().file_name, request_name);
-    assert_eq!(alias_info.unwrap().file_id, 1);
+    assert_eq!(alias_info.unwrap().file_id, 0);
 
     env.stop().await;
 }
@@ -113,7 +118,7 @@ async fn test_should_upload_file_atomic() {
             owner,
         )
         .await;
-    assert_eq!(file_id, 1);
+    assert_eq!(file_id, 0);
     let public_metadata = client.get_requests(owner).await.first().unwrap().clone();
 
     match public_metadata.file_status {
@@ -122,7 +127,7 @@ async fn test_should_upload_file_atomic() {
         }
         _ => panic!("File status is not uploaded"),
     }
-    assert_eq!(public_metadata.file_id, 1);
+    assert_eq!(public_metadata.file_id, file_id);
     env.stop().await;
 }
 
@@ -145,7 +150,7 @@ async fn test_should_upload_file_continue() {
             owner,
         )
         .await;
-    assert_eq!(file_id, 1);
+    assert_eq!(file_id, 0);
     client
         .upload_file_continue(
             UploadFileContinueRequest {
@@ -160,7 +165,7 @@ async fn test_should_upload_file_continue() {
     let public_metadata = client.get_requests(owner).await.first().unwrap().clone();
     match public_metadata.file_status {
         FileStatus::PartiallyUploaded => {
-            assert_eq!(public_metadata.file_id, 1);
+            assert_eq!(public_metadata.file_id, file_id);
         }
         _ => panic!("File status is not partially uploaded"),
     }
@@ -205,7 +210,7 @@ async fn test_should_download_file() {
             owner,
         )
         .await;
-    assert_eq!(file_id, 1);
+    assert_eq!(file_id, 0);
     client
         .upload_file_continue(
             UploadFileContinueRequest {
