@@ -94,17 +94,12 @@ impl Canister {
     ///
     /// to be triggered by requested file uploads
     pub fn upload_file(
-        caller: Principal,
         file_id: FileId,
         file_content: Vec<u8>,
         file_type: String,
         owner_key: OwnerKey,
         num_chunks: u64,
     ) -> Result<(), UploadFileError> {
-        if caller != Config::get_owner() {
-            trap("Only the owner can upload a file");
-        }
-
         let file = FileDataStorage::get_file(&file_id);
         if file.is_none() {
             return Err(UploadFileError::NotRequested);
@@ -195,11 +190,7 @@ impl Canister {
     }
 
     /// Upload file continue
-    pub fn upload_file_continue(caller: Principal, request: UploadFileContinueRequest) {
-        if caller != Config::get_owner() {
-            trap("Only the owner can upload a file");
-        }
-
+    pub fn upload_file_continue(request: UploadFileContinueRequest) {
         let file = FileDataStorage::get_file(&request.file_id);
         if file.is_none() {
             return;
@@ -535,7 +526,6 @@ mod test {
         let owner_key = [0; 32];
         let num_chunks = 1;
         let result = Canister::upload_file(
-            caller,
             file_id,
             file_content.clone(),
             file_type.clone(),
@@ -552,28 +542,6 @@ mod test {
                 shared_keys: BTreeMap::new(),
                 num_chunks,
             }
-        );
-    }
-
-    #[test]
-    #[should_panic(expected = "Only the owner can upload a file")]
-    fn test_should_not_upload_file_if_not_owner() {
-        let caller = init();
-        let file_name = "test_file.txt";
-        let file_content = vec![1, 2, 3];
-        let file_type = "text/plain".to_string();
-        let owner_key = [0; 32];
-        let num_chunks = 1;
-        let alias = Canister::request_file(caller, file_name);
-        let file_id = FileAliasIndexStorage::get_file_id(&alias).unwrap();
-
-        let _ = Canister::upload_file(
-            Principal::anonymous(),
-            file_id,
-            file_content.clone(),
-            file_type.clone(),
-            owner_key,
-            num_chunks,
         );
     }
 
@@ -667,14 +635,11 @@ mod test {
         );
 
         // Upload the second chunk
-        Canister::upload_file_continue(
-            caller,
-            UploadFileContinueRequest {
-                file_id,
-                chunk_id: 1,
-                contents: vec![4, 5, 6],
-            },
-        );
+        Canister::upload_file_continue(UploadFileContinueRequest {
+            file_id,
+            chunk_id: 1,
+            contents: vec![4, 5, 6],
+        });
 
         // Check if the file content was stored correctly
         let file_content_stored_0 = FileContentsStorage::get_file_contents(&file_id, &0).unwrap();
@@ -696,50 +661,6 @@ mod test {
     }
 
     #[test]
-    #[should_panic(expected = "Only the owner can upload a file")]
-    fn test_should_not_upload_file_continue_if_not_owner() {
-        let caller = init();
-        let file_name = "test_file.txt";
-        let file_content = vec![1, 2, 3];
-        let file_type = "text/plain".to_string();
-        let owner_key = [0; 32];
-        let num_chunks = 2;
-        let file_id = Canister::upload_file_atomic(
-            caller,
-            UploadFileAtomicRequest {
-                name: file_name.to_string(),
-                content: file_content.clone(),
-                file_type,
-                owner_key,
-                num_chunks,
-            },
-        );
-        assert_eq!(file_id, 1);
-
-        // Check if the file was uploaded correctly
-        let file = FileDataStorage::get_file(&file_id).unwrap();
-        assert_eq!(
-            file.content,
-            FileContent::PartiallyUploaded {
-                file_type: "text/plain".to_string(),
-                owner_key,
-                shared_keys: BTreeMap::new(),
-                num_chunks,
-            }
-        );
-
-        // Upload the second chunk
-        Canister::upload_file_continue(
-            Principal::anonymous(),
-            UploadFileContinueRequest {
-                file_id,
-                chunk_id: 1,
-                contents: vec![4, 5, 6],
-            },
-        );
-    }
-
-    #[test]
     fn test_should_download_file() {
         let caller = init();
         let owner = init();
@@ -751,7 +672,6 @@ mod test {
         let owner_key = [0; 32];
         let num_chunks = 1;
         let _ = Canister::upload_file(
-            caller,
             file_id,
             file_content.clone(),
             file_type.clone(),
@@ -797,7 +717,6 @@ mod test {
         let owner_key = [0; 32];
         let num_chunks = 1;
         let _ = Canister::upload_file(
-            caller,
             file_id,
             file_content.clone(),
             file_type.clone(),
@@ -829,7 +748,6 @@ mod test {
         let owner_key = [0; 32];
         let num_chunks = 1;
         let res = Canister::upload_file(
-            caller,
             file_id,
             file_content,
             file_type.clone(),
@@ -869,7 +787,6 @@ mod test {
         let owner_key = [0; 32];
         let num_chunks = 1;
         let res = Canister::upload_file(
-            caller,
             file_id,
             file_content,
             file_type.clone(),
@@ -924,7 +841,6 @@ mod test {
         let owner_key = [0; 32];
         let num_chunks = 1;
         let res = Canister::upload_file(
-            caller,
             file_id,
             file_content,
             file_type.clone(),

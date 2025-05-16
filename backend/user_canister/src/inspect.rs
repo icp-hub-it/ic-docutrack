@@ -15,9 +15,7 @@ pub fn inspect() {
         }
         "request_file"
         | "get_requests"
-        | "upload_file"
         | "upload_file_atomic"
-        | "upload_file_continue"
         | "share_file"
         | "share_file_with_users"
         | "revoke_file_sharing"

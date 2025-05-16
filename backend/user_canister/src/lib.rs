@@ -55,7 +55,6 @@ fn get_alias_info(alias: String) -> Result<AliasInfo, GetAliasInfoError> {
 #[update]
 fn upload_file(request: UploadFileRequest) -> Result<(), UploadFileError> {
     Canister::upload_file(
-        msg_caller(),
         request.file_id,
         request.file_content,
         request.file_type,
@@ -71,7 +70,7 @@ fn upload_file_atomic(request: UploadFileAtomicRequest) -> u64 {
 
 #[update]
 fn upload_file_continue(request: UploadFileContinueRequest) {
-    Canister::upload_file_continue(msg_caller(), request)
+    Canister::upload_file_continue(request)
 }
 
 #[update]
