@@ -50,8 +50,12 @@ impl Canister {
         if caller != Config::get_owner() {
             trap("Only the owner can request a file");
         }
+
+        // generate a file ID and alias
         let file_id = FileCountStorage::generate_file_id();
         let alias = AliasGenerator::new(Randomness::default()).next();
+
+        // make the file
         let file = File {
             metadata: FileMetadata {
                 file_name: request_name.into(),
@@ -64,8 +68,12 @@ impl Canister {
                 alias: alias.clone(),
             },
         };
+
+        // associate the file ID with its data
         FileDataStorage::set_file(&file_id, file);
+        // associate the alias with the file ID
         FileAliasIndexStorage::set_file_id(&alias, &file_id);
+        // associate
         OwnedFilesStorage::add_owned_file(&file_id);
 
         alias
@@ -319,7 +327,7 @@ impl Canister {
         }
 
         // remove file from user shares
-        FileSharesStorage::remove_file_shares(&user_id, &file_id);
+        FileSharesStorage::revoke(&user_id, &file_id);
         // remove user from file shares
         let mut file = FileDataStorage::get_file(&file_id).unwrap();
         match &mut file.content {
@@ -571,7 +579,7 @@ mod test {
                 num_chunks,
             },
         );
-        assert_eq!(file_id, 1);
+        assert_eq!(file_id, 0);
 
         // Check if the file was uploaded correctly
         let file = FileDataStorage::get_file(&file_id).unwrap();
@@ -628,7 +636,7 @@ mod test {
                 num_chunks,
             },
         );
-        assert_eq!(file_id, 1);
+        assert_eq!(file_id, 0);
 
         // Check if the file was uploaded correctly
         let file = FileDataStorage::get_file(&file_id).unwrap();
@@ -786,6 +794,60 @@ mod test {
     }
 
     #[tokio::test]
+    async fn test_should_share_more_than_a_file() {
+        let file_name = "test_file.txt";
+        let caller = init();
+
+        let user_id = Principal::from_slice(&[4, 5, 6, 7]);
+        let mut file_ids = vec![];
+        for _ in 0..3 {
+            let alias = Canister::request_file(caller, file_name);
+            let file_id = FileAliasIndexStorage::get_file_id(&alias).unwrap();
+            let file_key_encrypted_for_user = [0; 32];
+            let result =
+                Canister::share_file(caller, user_id, file_id, file_key_encrypted_for_user).await;
+            assert_eq!(result, FileSharingResponse::PendingError);
+            // Upload the file first
+            let file_content = vec![1, 2, 3];
+            let file_type = "text/plain".to_string();
+            let owner_key = [0; 32];
+            let num_chunks = 1;
+            let res = Canister::upload_file(
+                file_id,
+                file_content,
+                file_type.clone(),
+                owner_key,
+                num_chunks,
+            );
+            assert!(res.is_ok());
+            // Now share the file
+            let result =
+                Canister::share_file(caller, user_id, file_id, file_key_encrypted_for_user).await;
+            assert_eq!(result, FileSharingResponse::Ok);
+            let file = FileDataStorage::get_file(&file_id).unwrap();
+
+            assert_eq!(
+                file.content,
+                FileContent::Uploaded {
+                    file_type: file_type.clone(),
+                    owner_key,
+                    shared_keys: BTreeMap::from([(user_id, file_key_encrypted_for_user)]),
+                    num_chunks,
+                }
+            );
+
+            file_ids.push(file_id);
+        }
+
+        // Check if the file is shared with the user
+        let shared_files = Canister::get_shared_files(caller, user_id);
+        assert_eq!(shared_files.len(), 3);
+        assert!(file_ids.contains(&shared_files[0].file_id));
+        assert!(file_ids.contains(&shared_files[1].file_id));
+        assert!(file_ids.contains(&shared_files[2].file_id));
+    }
+
+    #[tokio::test]
     async fn should_share_file_with_users() {
         let file_name = "test_file.txt";
         let caller = init();
@@ -869,6 +931,56 @@ mod test {
         // Check if the user can still access the shared files
         let shared_files = Canister::get_shared_files(caller, user_id);
         assert_eq!(shared_files.len(), 0);
+        // check if file has its sharing revoked
+        let file = FileDataStorage::get_file(&file_id).unwrap();
+        assert_eq!(
+            file.content,
+            FileContent::Uploaded {
+                file_type: file_type.clone(),
+                owner_key,
+                shared_keys: BTreeMap::new(),
+                num_chunks,
+            }
+        );
+    }
+
+    #[tokio::test]
+    async fn test_should_revoke_file_sharing_when_more_files_are_shared() {
+        let file_name = "test_file.txt";
+        let caller = init();
+        let mut file_ids = vec![];
+        let user_id = Principal::from_slice(&[4, 5, 6, 7]);
+        let file_key_encrypted_for_user = [0; 32];
+        let file_type = "text/plain".to_string();
+        let owner_key = [0; 32];
+        let num_chunks = 1;
+
+        for _ in 0..5 {
+            let alias = Canister::request_file(caller, file_name);
+            let file_id = FileAliasIndexStorage::get_file_id(&alias).unwrap();
+            //upload the file first
+            let file_content = vec![1, 2, 3];
+
+            let res = Canister::upload_file(
+                file_id,
+                file_content,
+                file_type.clone(),
+                owner_key,
+                num_chunks,
+            );
+            assert!(res.is_ok());
+            // Now share the file with  user
+            Canister::share_file(caller, user_id, file_id, file_key_encrypted_for_user).await;
+
+            file_ids.push(file_id);
+        }
+
+        let file_id = file_ids[1];
+        // Revoke sharing
+        Canister::revoke_file_sharing(caller, user_id, file_id).await;
+        // Check if the user can still access the shared files
+        let shared_files = Canister::get_shared_files(caller, user_id);
+        assert_eq!(shared_files.len(), file_ids.len() - 1);
         // check if file has its sharing revoked
         let file = FileDataStorage::get_file(&file_id).unwrap();
         assert_eq!(

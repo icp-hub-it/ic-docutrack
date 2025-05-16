@@ -7,11 +7,9 @@
 #[allow(clippy::all)]
 #[allow(deprecated)]
 pub mod orbit_station;
-mod file_id_vec;
 pub mod orchestrator;
 mod principal;
 pub mod user_canister;
 pub mod utils;
 
-pub use self::file_id_vec::StorableFileIdVec;
 pub use self::principal::StorablePrincipal;

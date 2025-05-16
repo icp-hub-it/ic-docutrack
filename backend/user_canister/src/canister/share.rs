@@ -61,7 +61,7 @@ impl CanisterShareFile {
         FileDataStorage::set_file(&file_id, file);
 
         //add to file shares storage
-        FileSharesStorage::set_file_shares(&user_id, vec![file_id]);
+        FileSharesStorage::share(&user_id, vec![file_id]);
 
         FileSharingResponse::Ok
     }
