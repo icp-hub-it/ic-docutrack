@@ -23,11 +23,6 @@ pub fn init(args: UserCanisterInitArgs) {
     Canister::init(args);
 }
 
-#[update]
-pub async fn init_alias_generator_seed() {
-    Canister::init_alias_generator_seed(msg_caller()).await;
-}
-
 #[query]
 fn public_key() -> PublicKey {
     Config::get_owner_public_key()
@@ -75,8 +70,8 @@ fn upload_file_continue(request: UploadFileContinueRequest) {
 }
 
 #[update]
-fn request_file(request_name: String) -> String {
-    Canister::request_file(msg_caller(), request_name)
+async fn request_file(request_name: String) -> String {
+    Canister::request_file(msg_caller(), request_name).await
 }
 
 #[query]
