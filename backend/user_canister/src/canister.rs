@@ -378,7 +378,7 @@ impl Canister {
         let file = file.unwrap();
         // Check if the file is shared with the caller or if the caller is the owner
         let file_c = match &file.content {
-            FileContent::Pending { .. } => {
+            FileContent::Pending { .. } | FileContent::PartiallyUploaded { .. } => {
                 return FileDownloadResponse::NotUploadedFile;
             }
             FileContent::Uploaded {
@@ -401,9 +401,6 @@ impl Canister {
                 };
 
                 (num_chunks, file_type, owner_key)
-            }
-            FileContent::PartiallyUploaded { .. } => {
-                return FileDownloadResponse::NotUploadedFile;
             }
         };
         let contents = FileContentsStorage::get_file_contents(&file_id, &chunk_id);
@@ -735,6 +732,33 @@ mod test {
                 num_chunks
             })
         );
+    }
+
+    #[tokio::test]
+    async fn test_should_not_download_file_if_not_uploaded() {
+        let caller = init();
+        let owner = init();
+        let file_name = "test_file.txt";
+        let alias = Canister::request_file(owner, file_name).await;
+        let file_id = FileAliasIndexStorage::get_file_id(&alias).unwrap();
+        // Attempt to download the file on pending state
+        let result = Canister::download_file(caller, file_id, 0);
+        assert_eq!(result, FileDownloadResponse::NotUploadedFile);
+
+        // Attempt to download the file on partially uploaded state
+        let file_content = vec![1, 2, 3];
+        let file_type = "text/plain".to_string();
+        let owner_key = [0; 32];
+        let num_chunks = 2;
+        let _ = Canister::upload_file(
+            file_id,
+            file_content.clone(),
+            file_type.clone(),
+            owner_key,
+            num_chunks,
+        );
+        let result = Canister::download_file(caller, file_id, 0);
+        assert_eq!(result, FileDownloadResponse::NotUploadedFile);
     }
 
     #[tokio::test]
