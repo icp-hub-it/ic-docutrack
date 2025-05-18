@@ -16,7 +16,7 @@ use crate::client::OrchestratorClient;
 use crate::storage::config::Config;
 use crate::storage::files::{
     File, FileAliasIndexStorage, FileContent, FileContentsStorage, FileCountStorage,
-    FileDataStorage, FileId, FileMetadata, FileSharesStorage, OwnedFilesStorage,
+    FileDataStorage, FileId, FileMetadata, FileSharesStorage, OwnedFilesStorage, UploadedChunks,
 };
 use crate::utils::time;
 
@@ -108,6 +108,7 @@ impl Canister {
         }
         let mut file = file.unwrap();
         let shared_keys = BTreeMap::new();
+        let chunk_id = 0;
 
         let alias = match &file.content {
             FileContent::Pending { alias } => {
@@ -120,11 +121,14 @@ impl Canister {
                         num_chunks,
                     };
                 } else {
+                    let mut uploaded_chunks = UploadedChunks::default();
+                    uploaded_chunks.insert(chunk_id);
                     file.content = FileContent::PartiallyUploaded {
+                        num_chunks,
+                        uploaded_chunks,
                         file_type,
                         owner_key,
                         shared_keys,
-                        num_chunks,
                     };
                 }
                 file.metadata.uploaded_at = Some(time());
@@ -132,7 +136,6 @@ impl Canister {
                 FileDataStorage::set_file(&file_id, file);
 
                 //add file to the storage
-                let chunk_id = 0;
                 FileContentsStorage::set_file_contents(&file_id, &chunk_id, file_content);
                 alias
             }
@@ -154,6 +157,7 @@ impl Canister {
             trap("Only the owner can upload a file");
         }
         let file_id = FileCountStorage::generate_file_id();
+        let chunk_id = 0;
         let content = if request.num_chunks == 1 {
             FileContent::Uploaded {
                 file_type: request.file_type,
@@ -162,16 +166,19 @@ impl Canister {
                 num_chunks: request.num_chunks,
             }
         } else {
+            let mut uploaded_chunks = UploadedChunks::default();
+            uploaded_chunks.insert(chunk_id);
+
             FileContent::PartiallyUploaded {
+                num_chunks: request.num_chunks,
+                uploaded_chunks,
                 file_type: request.file_type,
                 owner_key: request.owner_key,
                 shared_keys: BTreeMap::new(),
-                num_chunks: request.num_chunks,
             }
         };
 
         // Aff File to content storage
-        let chunk_id = 0;
         FileContentsStorage::set_file_contents(&file_id, &chunk_id, request.content);
         // Add file to the file storage
         let file = File {
@@ -201,25 +208,40 @@ impl Canister {
         let chunk_id = request.chunk_id;
 
         // Update file content
-        //TODO CONSIDER PARTIAL: UPLOAD IN DISORDER
-        //TODO maybe add a check to verify all chunks are uploaded before marking as uploaded
-        //FIXME: mmm dont like it much. packet order is not guaranteed
         match &file.content {
             FileContent::Uploaded { .. } => {
                 return;
             }
             FileContent::PartiallyUploaded {
                 num_chunks,
+                uploaded_chunks,
                 file_type,
                 owner_key,
                 shared_keys,
             } => {
-                if chunk_id == *num_chunks - 1 {
+                // Check if the chunk is already uploaded
+                if uploaded_chunks.contains(&chunk_id) {
+                    return;
+                }
+                // Add the chunk to the uploaded chunks
+                let mut uploaded_chunks = uploaded_chunks.clone();
+                uploaded_chunks.insert(chunk_id);
+                // Check if all chunks are uploaded
+                if uploaded_chunks.len() == *num_chunks as usize {
                     file.content = FileContent::Uploaded {
                         file_type: file_type.clone(),
                         owner_key: *owner_key,
                         shared_keys: shared_keys.clone(),
                         num_chunks: *num_chunks,
+                    };
+                } else {
+                    // If not all chunks are uploaded, update the file content
+                    file.content = FileContent::PartiallyUploaded {
+                        num_chunks: *num_chunks,
+                        uploaded_chunks: uploaded_chunks.clone(),
+                        file_type: file_type.clone(),
+                        owner_key: *owner_key,
+                        shared_keys: shared_keys.clone(),
                     };
                 }
             }
@@ -631,13 +653,16 @@ mod test {
 
         // Check if the file was uploaded correctly
         let file = FileDataStorage::get_file(&file_id).unwrap();
+        let mut uploaded_chunks = UploadedChunks::default();
+        uploaded_chunks.insert(0);
         assert_eq!(
             file.content,
             FileContent::PartiallyUploaded {
+                num_chunks,
+                uploaded_chunks,
                 file_type: "text/plain".to_string(),
                 owner_key,
                 shared_keys: BTreeMap::new(),
-                num_chunks,
             }
         );
 

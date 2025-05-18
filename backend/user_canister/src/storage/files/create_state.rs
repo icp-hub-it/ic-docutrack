@@ -1,5 +1,5 @@
 use std::borrow::Cow;
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, HashSet};
 
 use candid::Principal;
 use did::orchestrator::{PUBKEY_SIZE, PublicKey};
@@ -95,6 +95,7 @@ pub enum FileContent {
     },
     PartiallyUploaded {
         num_chunks: u64,
+        uploaded_chunks: UploadedChunks,
         file_type: String,
         owner_key: OwnerKey,
         shared_keys: BTreeMap<Principal, OwnerKey>,
@@ -130,11 +131,18 @@ impl Storable for FileContent {
             } => Self::encode_uploaded(num_chunks, file_type, owner_key, shared_keys).into(),
             FileContent::PartiallyUploaded {
                 num_chunks,
+                uploaded_chunks,
                 file_type,
                 owner_key,
                 shared_keys,
-            } => Self::encode_partially_uploaded(num_chunks, file_type, owner_key, shared_keys)
-                .into(),
+            } => Self::encode_partially_uploaded(
+                num_chunks,
+                uploaded_chunks,
+                file_type,
+                owner_key,
+                shared_keys,
+            )
+            .into(),
         }
     }
 }
@@ -283,7 +291,7 @@ impl FileContent {
         bytes
     }
 
-    // Decode Variant for [`PartiallyUploaded::{num_chunks, file_type, owner_key, shared_keys}`]
+    // Decode Variant for [`PartiallyUploaded::{num_chunks,uploaded_chunks, file_type, owner_key, shared_keys}`]
     fn decode_partially_uploaded(bytes: &[u8]) -> FileContent {
         let mut offset = 0;
         if bytes.is_empty() {
@@ -301,6 +309,32 @@ impl FileContent {
                 .expect("Failed to decode num_chunks"),
         );
         offset += num_chunks_len;
+
+        // Read uploaded_chunks len
+        if offset + 8 > bytes.len() {
+            trap("Not enough bytes for uploaded_chunks");
+        }
+        let uploaded_chunks_len = u64::from_le_bytes(
+            bytes[offset..offset + 8]
+                .try_into()
+                .expect("Failed to decode uploaded_chunks"),
+        ) as usize;
+        offset += 8;
+        if offset + uploaded_chunks_len * 8 > bytes.len() {
+            trap("Not enough bytes for uploaded_chunks");
+        }
+
+        let mut uploaded_chunks = UploadedChunks::default();
+        for _ in 0..uploaded_chunks_len {
+            // Read each chunk ID (u64)
+            let chunk_id = u64::from_le_bytes(
+                bytes[offset..offset + 8]
+                    .try_into()
+                    .expect("Failed to decode chunk_id"),
+            );
+            uploaded_chunks.insert(chunk_id);
+            offset += 8;
+        }
 
         // Read file_type
         // one byte
@@ -368,6 +402,7 @@ impl FileContent {
 
         FileContent::PartiallyUploaded {
             num_chunks,
+            uploaded_chunks,
             file_type,
             owner_key,
             shared_keys,
@@ -377,6 +412,7 @@ impl FileContent {
     //Encode Variant for [`PartiallyUploaded::{num_chunks, file_type, owner_key, shared_keys}`]
     fn encode_partially_uploaded(
         num_chunks: &u64,
+        uploaded_chunks: &UploadedChunks,
         file_type: &String,
         owner_key: &OwnerKey,
         shared_keys: &BTreeMap<Principal, OwnerKey>,
@@ -387,6 +423,13 @@ impl FileContent {
         let num_chunks_bytes = num_chunks.to_le_bytes();
         bytes.push(num_chunks_bytes.len() as u8);
         bytes.extend_from_slice(&num_chunks_bytes);
+
+        // Write uploaded_chunks (first 8 bytes are num_chunk_entries)
+        let num_chunk_entries = uploaded_chunks.len() as u64;
+        bytes.extend_from_slice(&num_chunk_entries.to_le_bytes());
+        for chunk_id in uploaded_chunks.to_hashset() {
+            bytes.extend_from_slice(&chunk_id.to_le_bytes());
+        }
 
         // Write file_type (one byte for length)
         bytes.push(file_type.len() as u8);
@@ -409,6 +452,90 @@ impl FileContent {
         }
 
         bytes
+    }
+}
+
+/// The uploaded chunks of a file.
+/// This is a HashSet of chunk IDs.
+#[derive(Debug, Default, Clone, PartialEq, Eq)]
+pub struct UploadedChunks(HashSet<ChunkId>);
+impl UploadedChunks {
+    /// Returns the inner HashSet.
+    pub fn to_hashset(&self) -> HashSet<ChunkId> {
+        self.0.clone()
+    }
+
+    /// Inserts a chunk ID into the set.
+    pub fn insert(&mut self, chunk_id: ChunkId) {
+        self.0.insert(chunk_id);
+    }
+
+    /// Verify if a chunk ID is in the set.
+    pub fn contains(&self, chunk_id: &ChunkId) -> bool {
+        self.0.contains(chunk_id)
+    }
+    /// Returns the number of chunks in the set.
+    pub fn len(&self) -> usize {
+        self.0.len()
+    }
+}
+
+impl From<Vec<ChunkId>> for UploadedChunks {
+    fn from(vec: Vec<ChunkId>) -> Self {
+        UploadedChunks(vec.into_iter().collect())
+    }
+}
+
+impl Storable for UploadedChunks {
+    const BOUND: Bound = Bound::Unbounded; // No fixed size limit
+
+    fn to_bytes(&self) -> std::borrow::Cow<[u8]> {
+        // Create a buffer to hold the serialized data
+        let mut buf = Vec::new();
+
+        // Serialize the length of the vector as a 64
+        buf.extend_from_slice(&(self.len() as u64).to_le_bytes());
+
+        // Serialize each Chunk (u64) in little-endian format
+        for chunk in self.0.iter() {
+            buf.extend_from_slice(&chunk.to_le_bytes());
+        }
+
+        Cow::Owned(buf)
+    }
+    fn from_bytes(bytes: std::borrow::Cow<[u8]>) -> Self {
+        let mut offset = 0;
+
+        // Read the length of the vector
+        if offset + 8 > bytes.len() {
+            trap("Not enough bytes for length");
+        }
+        let len = u64::from_le_bytes(
+            bytes[offset..offset + 8]
+                .try_into()
+                .expect("Failed to decode length"),
+        ) as usize;
+        offset += 8;
+
+        // Check if there are enough bytes for the chunks
+        if offset + len * 8 > bytes.len() {
+            trap("Not enough bytes for chunks");
+        }
+
+        // Create a HashSet to store the chunks
+        // Allocate the HashSet with the expected capacity
+        let mut chunks = HashSet::with_capacity(len);
+
+        for _ in 0..len {
+            // Read each chunk ID (u64)
+            let chunk_id = u64::from_le_bytes(
+                bytes[offset..offset + 8].try_into().unwrap(), // 8 bytes for u64
+            );
+            chunks.insert(chunk_id);
+            offset += 8;
+        }
+
+        UploadedChunks(chunks)
     }
 }
 /// File metadata.
@@ -580,6 +707,28 @@ mod tests {
         let bytes = file_content.to_bytes();
         let deserialized = FileContent::from_bytes(bytes);
         assert_eq!(file_content, deserialized);
+    }
+
+    #[test]
+    fn test_storable_uploaded_chunks_roundtrip() {
+        let mut uploaded_chunks = UploadedChunks::default();
+        uploaded_chunks.insert(1);
+        uploaded_chunks.insert(2);
+        uploaded_chunks.insert(7);
+        uploaded_chunks.insert(5);
+
+        assert_eq!(uploaded_chunks.len(), 4);
+        assert!(uploaded_chunks.0.contains(&1));
+        assert!(uploaded_chunks.0.contains(&2));
+        assert!(uploaded_chunks.0.contains(&7));
+        assert!(uploaded_chunks.0.contains(&5));
+        assert!(!uploaded_chunks.0.contains(&3));
+
+        // Serialize and deserialize
+        let serialized = uploaded_chunks.to_bytes();
+        let deserialized = UploadedChunks::from_bytes(serialized);
+        assert_eq!(uploaded_chunks.len(), deserialized.len());
+        assert_eq!(uploaded_chunks.0, deserialized.0);
     }
 
     #[test]

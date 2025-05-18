@@ -13,7 +13,7 @@ use did::StorablePrincipal;
 use ic_stable_structures::memory_manager::VirtualMemory;
 use ic_stable_structures::{DefaultMemoryImpl, StableBTreeMap, StableCell};
 
-pub use self::create_state::{ChunkId, File, FileContent, FileId, FileMetadata};
+pub use self::create_state::{ChunkId, File, FileContent, FileId, FileMetadata, UploadedChunks};
 pub use self::data_storage::FileDataStorage;
 pub use self::file_alias_index::FileAliasIndexStorage;
 pub use self::file_contents::FileContentsStorage;
