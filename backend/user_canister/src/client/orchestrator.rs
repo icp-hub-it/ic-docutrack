@@ -35,6 +35,23 @@ impl OrchestratorClient {
             .map_err(CallError::CandidDecodeFailed)
     }
 
+    /// Revoke share file for multiple users.
+    ///
+    /// If successful, returns [`RevokeShareFileResponse`], which means that the call was successful, but it's not
+    /// guaranteed that the operation was successful and so it should be checked.
+    pub async fn revoke_share_file_for_users(
+        &self,
+        users: &[Principal],
+        file_id: FileId,
+    ) -> CallResult<RevokeShareFileResponse> {
+        Call::unbounded_wait(self.principal, "revoke_share_file_for_users")
+            .with_args(&(users, file_id))
+            .await
+            .map_err(CallError::from)?
+            .candid::<RevokeShareFileResponse>()
+            .map_err(CallError::CandidDecodeFailed)
+    }
+
     /// Share file with user.
     pub async fn share_file(
         &self,
@@ -52,7 +69,7 @@ impl OrchestratorClient {
     /// Share file with multiple users.
     pub async fn share_file_with_users(
         &self,
-        users: Vec<Principal>,
+        users: &[Principal],
         file_id: FileId,
     ) -> CallResult<ShareFileResponse> {
         Call::unbounded_wait(self.principal, "share_file_with_users")

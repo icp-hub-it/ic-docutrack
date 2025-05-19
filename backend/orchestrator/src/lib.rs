@@ -40,6 +40,14 @@ pub fn revoke_share_file(user: Principal, file_id: FileId) -> RevokeShareFileRes
 }
 
 #[update]
+pub fn revoke_share_file_for_users(
+    users: Vec<Principal>,
+    file_id: FileId,
+) -> RevokeShareFileResponse {
+    Canister::revoke_share_file_for_users(users, file_id)
+}
+
+#[update]
 pub fn set_user(username: String, public_key: PublicKey) -> SetUserResponse {
     Canister::set_user(username, public_key)
 }
