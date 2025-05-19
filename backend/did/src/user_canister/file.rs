@@ -82,6 +82,7 @@ pub enum UploadFileError {
 /// File upload response
 /// - `pending_error`: The file is pending upload.
 /// - `permission_error`: The file is not shared with the user.
+/// - `file_not_found`: The file is not found.
 /// - `ok`: The file is uploaded successfully.
 #[derive(CandidType, Serialize, Deserialize, Debug, PartialEq)]
 pub enum FileSharingResponse {
@@ -89,6 +90,8 @@ pub enum FileSharingResponse {
     PendingError,
     #[serde(rename = "permission_error")]
     PermissionError,
+    #[serde(rename = "file_not_found")]
+    FileNotFound,
     #[serde(rename = "ok")]
     Ok,
 }
