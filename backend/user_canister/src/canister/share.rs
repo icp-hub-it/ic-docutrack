@@ -8,13 +8,27 @@ use crate::storage::files::{FileContent, FileDataStorage, FileSharesStorage};
 pub struct CanisterShareFile;
 
 impl CanisterShareFile {
+    /// Check whether a file can be shared with a user.
+    pub fn check_shareable(file_id: FileId) -> FileSharingResponse {
+        let Some(file) = FileDataStorage::get_file(&file_id) else {
+            return FileSharingResponse::FileNotFound;
+        };
+
+        match file.content {
+            FileContent::Pending { .. } => FileSharingResponse::PendingError,
+            _ => FileSharingResponse::Ok,
+        }
+    }
+
     /// Do share a file on the canister storage.
     pub fn share_file(
         user_id: Principal,
         file_id: FileId,
         file_key_encrypted_for_user: OwnerKey,
     ) -> FileSharingResponse {
-        let mut file = FileDataStorage::get_file(&file_id).unwrap();
+        let Some(mut file) = FileDataStorage::get_file(&file_id) else {
+            return FileSharingResponse::FileNotFound;
+        };
 
         // If uploaded or partially uploaded, Modify File content, add user's decryption key to map
         match &file.content {

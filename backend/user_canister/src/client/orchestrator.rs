@@ -69,7 +69,7 @@ impl OrchestratorClient {
     /// Share file with multiple users.
     pub async fn share_file_with_users(
         &self,
-        users: Vec<Principal>,
+        users: &[Principal],
         file_id: FileId,
     ) -> CallResult<ShareFileResponse> {
         Call::unbounded_wait(self.principal, "share_file_with_users")

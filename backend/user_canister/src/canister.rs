@@ -245,7 +245,8 @@ impl Canister {
             trap("Only the owner can share a file");
         }
 
-        match share::CanisterShareFile::share_file(user_id, file_id, file_key_encrypted_for_user) {
+        // check whether we can share the file
+        match share::CanisterShareFile::check_shareable(file_id) {
             FileSharingResponse::Ok => {}
             err => {
                 return err;
@@ -270,7 +271,7 @@ impl Canister {
             }
         }
 
-        FileSharingResponse::Ok
+        share::CanisterShareFile::share_file(user_id, file_id, file_key_encrypted_for_user)
     }
 
     /// Share file with users
@@ -284,19 +285,18 @@ impl Canister {
             trap("Only the owner can share a file");
         }
 
-        for (user, decryption_key) in users.iter().zip(file_key_encrypted_for_user.iter()) {
-            match share::CanisterShareFile::share_file(*user, file_id, *decryption_key) {
-                FileSharingResponse::Ok => {}
-                err => {
-                    trap(format!("Error sharing file: {:?}", err).as_str());
-                }
+        // check whether we can share the file
+        match share::CanisterShareFile::check_shareable(file_id) {
+            FileSharingResponse::Ok => {}
+            err => {
+                trap(format!("Error sharing file: {:?}", err).as_str());
             }
         }
 
         // Index files on the orchestrator
         if cfg!(target_family = "wasm") {
             match OrchestratorClient::from(Config::get_orchestrator())
-                .share_file_with_users(users, file_id)
+                .share_file_with_users(&users, file_id)
                 .await
             {
                 Err(err) => {
@@ -310,6 +310,16 @@ impl Canister {
                 }
             }
         }
+
+        // commit changes to the canister storage
+        for (user, decryption_key) in users.iter().zip(file_key_encrypted_for_user.iter()) {
+            match share::CanisterShareFile::share_file(*user, file_id, *decryption_key) {
+                FileSharingResponse::Ok => {}
+                err => {
+                    trap(format!("Error sharing file: {:?}", err).as_str());
+                }
+            }
+        }
     }
 
     /// Revoke file sharing
@@ -318,20 +328,12 @@ impl Canister {
             trap("Only the owner can revoke file sharing");
         }
 
-        // remove file from user shares
-        FileSharesStorage::revoke(&user_id, &file_id);
-        // remove user from file shares
-        let mut file = FileDataStorage::get_file(&file_id).unwrap();
-        match &mut file.content {
-            FileContent::Uploaded { shared_keys, .. }
-            | FileContent::PartiallyUploaded { shared_keys, .. } => {
-                shared_keys.remove(&user_id);
-            }
-            _ => {}
-        }
-        // persist file
-        FileDataStorage::set_file(&file_id, file);
+        // get file first checking if it exists
+        let Some(mut file) = FileDataStorage::get_file(&file_id) else {
+            trap("File not found");
+        };
 
+        // first call the orchestrator to revoke the file, since this can fail
         if cfg!(target_family = "wasm") {
             // Revoke files on the orchestrator
             if let Err(err) = OrchestratorClient::from(Config::get_orchestrator())
@@ -341,6 +343,21 @@ impl Canister {
                 trap(format!("Error revoking shared file on orchestrator: {:?}", err).as_str());
             }
         }
+
+        // remove user from file shares (cannot fail)
+        match &mut file.content {
+            FileContent::Uploaded { shared_keys, .. }
+            | FileContent::PartiallyUploaded { shared_keys, .. } => {
+                shared_keys.remove(&user_id);
+            }
+            _ => {}
+        }
+
+        // persist file (cannot fail)
+        FileDataStorage::set_file(&file_id, file);
+
+        // remove file from user shares (cannot fail)
+        FileSharesStorage::revoke(&user_id, &file_id);
     }
 
     /// Download file
