@@ -1,9 +1,10 @@
 use candid::Principal;
+use did::FileId;
 use did::orchestrator::PublicKey;
 use did::user_canister::{
-    AliasInfo, FileDownloadResponse, FileSharingResponse, GetAliasInfoError, OwnerKey,
-    PublicFileMetadata, UploadFileAtomicRequest, UploadFileContinueRequest, UploadFileError,
-    UploadFileRequest,
+    AliasInfo, DeleteFileResponse, FileDownloadResponse, FileSharingResponse, GetAliasInfoError,
+    OwnerKey, PublicFileMetadata, UploadFileAtomicRequest, UploadFileContinueRequest,
+    UploadFileError, UploadFileRequest,
 };
 
 use super::PocketIcTestEnv;
@@ -144,7 +145,7 @@ impl UserCanisterClient<'_> {
 
     pub async fn download_file(
         &self,
-        file_id: u64,
+        file_id: FileId,
         chunk_id: u64,
         caller: Principal,
     ) -> FileDownloadResponse {
@@ -163,7 +164,7 @@ impl UserCanisterClient<'_> {
     pub async fn share_file(
         &self,
         caller: Principal,
-        file_id: u64,
+        file_id: FileId,
         user_id: Principal,
         file_key_encrypted_for_user: OwnerKey,
     ) -> FileSharingResponse {
@@ -177,7 +178,7 @@ impl UserCanisterClient<'_> {
     pub async fn share_file_with_users(
         &self,
         user_id: Vec<Principal>,
-        file_id: u64,
+        file_id: FileId,
         file_key_encrypted_for_user: Vec<OwnerKey>,
         caller: Principal,
     ) {
@@ -193,11 +194,19 @@ impl UserCanisterClient<'_> {
             .expect("Failed to share file with users")
     }
 
-    pub async fn revoke_share(&self, user_id: Principal, file_id: u64, caller: Principal) {
+    pub async fn revoke_share(&self, user_id: Principal, file_id: FileId, caller: Principal) {
         let payload = candid::encode_args((user_id, file_id)).unwrap();
         self.pic
             .update::<()>(self.pic.user_canister(), caller, "revoke_share", payload)
             .await
             .expect("Failed to revoke share")
+    }
+
+    pub async fn delete_file(&self, caller: Principal, file_id: FileId) -> DeleteFileResponse {
+        let payload = candid::encode_args((file_id,)).unwrap();
+        self.pic
+            .update::<DeleteFileResponse>(self.pic.user_canister(), caller, "delete_file", payload)
+            .await
+            .expect("Failed to delete file")
     }
 }

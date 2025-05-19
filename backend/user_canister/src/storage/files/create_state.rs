@@ -13,7 +13,7 @@ pub const MAX_FILE_NAME_SIZE: usize = 255;
 pub const MAX_PRINCIPAL_SIZE: usize = 29;
 
 pub type ChunkId = u64;
-pub type FileId = u64;
+pub type FileId = did::FileId;
 
 /// A file is composed of its metadata [`FileMetadata`] and its content [`FileContent`], which is a blob.
 #[derive(Debug, PartialEq, Eq, Clone)]

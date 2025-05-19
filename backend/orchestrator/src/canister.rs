@@ -108,6 +108,31 @@ impl Canister {
         RevokeShareFileResponse::Ok
     }
 
+    /// Revoke the share of a file for a list of users.
+    ///
+    /// # Returns
+    ///
+    /// - [`RevokeShareFileResponse::Ok`] if the file was unshared successfully.
+    /// - [`RevokeShareFileResponse::NoSuchUser`] if the user doesn't exist.
+    /// - [`RevokeShareFileResponse::Unauthorized`] if the caller is not a user canister.
+    pub fn revoke_share_file_for_users(
+        users: Vec<Principal>,
+        file_id: FileId,
+    ) -> RevokeShareFileResponse {
+        let user_canister = msg_caller();
+        // check if the caller is a user canister
+        if !UserCanisterStorage::is_user_canister(user_canister) {
+            return RevokeShareFileResponse::Unauthorized;
+        }
+
+        // Revoke share for the user
+        for user in users {
+            SharedFilesStorage::revoke_share(user, user_canister, file_id);
+        }
+
+        RevokeShareFileResponse::Ok
+    }
+
     /// Set a new user in the storage.
     ///
     /// # Returns
@@ -586,6 +611,36 @@ mod test {
 
         // check if the file is NOT revoked
         let shared_files = SharedFilesStorage::get_shared_files(user);
+        assert_eq!(shared_files.len(), 1);
+    }
+
+    #[test]
+    fn test_should_revoke_shared_file_with_users() {
+        init_canister();
+
+        // insert user canister
+        let user_canister = msg_caller();
+        let user = Principal::from_text("rwlgt-iiaaa-aaaaa-aaaaa-cai").unwrap();
+        let user_2 = Principal::from_slice(&[2; 6]);
+        let user_3 = Principal::from_slice(&[3; 6]);
+        UserCanisterStorage::set_user_canister(user, user_canister);
+        UserCanisterStorage::set_user_canister(user_2, user_canister);
+        UserCanisterStorage::set_user_canister(user_3, user_canister);
+
+        // revoke share
+        let file_id = 1;
+        SharedFilesStorage::share_file(user, user_canister, file_id);
+        SharedFilesStorage::share_file(user_2, user_canister, file_id);
+        SharedFilesStorage::share_file(user_3, user_canister, file_id);
+        let response = Canister::revoke_share_file_for_users(vec![user, user_2], file_id);
+        assert_eq!(response, RevokeShareFileResponse::Ok);
+
+        // check if the file is revoked
+        let shared_files = SharedFilesStorage::get_shared_files(user);
+        assert_eq!(shared_files.len(), 0);
+        let shared_files = SharedFilesStorage::get_shared_files(user_2);
+        assert_eq!(shared_files.len(), 0);
+        let shared_files = SharedFilesStorage::get_shared_files(user_3);
         assert_eq!(shared_files.len(), 1);
     }
 

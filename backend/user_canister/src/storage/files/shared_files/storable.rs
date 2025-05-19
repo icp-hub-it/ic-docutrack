@@ -16,6 +16,10 @@ impl SharedFiles {
         self.0.clone()
     }
 
+    pub fn contains(&self, file_id: &FileId) -> bool {
+        self.0.contains(file_id)
+    }
+
     pub fn insert(&mut self, file_id: FileId) {
         self.0.insert(file_id);
     }

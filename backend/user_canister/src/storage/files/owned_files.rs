@@ -15,6 +15,11 @@ impl OwnedFilesStorage {
     pub fn add_owned_file(file_id: &FileId) {
         let _ = with_owned_files_storage(|owned_files| owned_files.insert(*file_id, ()));
     }
+
+    /// Remove a file ID from the owned files storage
+    pub fn remove_owned_file(file_id: &FileId) {
+        let _ = with_owned_files_storage(|owned_files| owned_files.remove(file_id));
+    }
 }
 
 #[cfg(test)]
@@ -36,5 +41,18 @@ mod test {
             OwnedFilesStorage::get_owned_files(),
             vec![1, 2].into_iter().collect::<HashSet<_>>()
         );
+    }
+
+    #[test]
+    fn test_remove_owned_file() {
+        let file_id = 1;
+        OwnedFilesStorage::add_owned_file(&file_id);
+        assert_eq!(
+            OwnedFilesStorage::get_owned_files(),
+            vec![file_id].into_iter().collect::<HashSet<_>>()
+        );
+
+        OwnedFilesStorage::remove_owned_file(&file_id);
+        assert_eq!(OwnedFilesStorage::get_owned_files(), HashSet::new());
     }
 }

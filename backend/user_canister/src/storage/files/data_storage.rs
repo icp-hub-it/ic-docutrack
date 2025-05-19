@@ -15,6 +15,13 @@ impl FileDataStorage {
             file_data.insert(*file_id, file);
         });
     }
+
+    /// Remove a file by its ID
+    pub fn remove_file(file_id: &FileId) {
+        FILE_DATA_STORAGE.with_borrow_mut(|file_data| {
+            file_data.remove(file_id);
+        });
+    }
 }
 
 #[cfg(test)]
@@ -44,5 +51,27 @@ mod test {
         assert_eq!(FileDataStorage::get_file(&file_id), Some(file));
 
         assert!(FileDataStorage::get_file(&2).is_none());
+    }
+
+    #[test]
+    fn test_remove_file() {
+        let file_id = 1;
+        let file = File {
+            metadata: FileMetadata {
+                file_name: "test_file".to_string(),
+                user_public_key: [1; 32],
+                requester_principal: Principal::from_slice(&[1; 29]),
+                requested_at: 0,
+                uploaded_at: None,
+            },
+            content: FileContent::Pending {
+                alias: "test_alias".to_string(),
+            },
+        };
+        FileDataStorage::set_file(&file_id, file.clone());
+        assert_eq!(FileDataStorage::get_file(&file_id), Some(file));
+
+        FileDataStorage::remove_file(&file_id);
+        assert!(FileDataStorage::get_file(&file_id).is_none());
     }
 }

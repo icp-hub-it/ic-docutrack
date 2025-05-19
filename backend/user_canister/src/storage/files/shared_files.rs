@@ -32,6 +32,22 @@ impl FileSharesStorage {
         })
     }
 
+    /// Get a list of all principals that have access to a specific file ID
+    pub fn get_users_with_file_shares(file_id: &FileId) -> Vec<Principal> {
+        FILE_SHARES_STORAGE.with_borrow(|file_shares| {
+            file_shares
+                .iter()
+                .filter_map(|(principal, file_ids)| {
+                    if file_ids.contains(file_id) {
+                        Some(*principal.as_principal())
+                    } else {
+                        None
+                    }
+                })
+                .collect()
+        })
+    }
+
     /// Insert a list of file IDs shared with a principal
     pub fn share(principal: &Principal, file_ids: Vec<FileId>) {
         let principal = StorablePrincipal::from(*principal);
@@ -117,5 +133,20 @@ mod test {
             FileSharesStorage::get_file_shares(&principal),
             Some(vec![1, 2, 4, 5, 6].into_iter().collect::<HashSet<FileId>>())
         );
+    }
+
+    #[test]
+    fn test_get_users_with_file_shares() {
+        let principal1 = Principal::from_slice(&[1; 6]);
+        let principal2 = Principal::from_slice(&[2; 6]);
+        let file_id = 1;
+
+        FileSharesStorage::share(&principal1, vec![file_id]);
+        FileSharesStorage::share(&principal2, vec![file_id]);
+
+        let users_with_file_shares = FileSharesStorage::get_users_with_file_shares(&file_id);
+        assert_eq!(users_with_file_shares.len(), 2);
+        assert!(users_with_file_shares.contains(&principal1));
+        assert!(users_with_file_shares.contains(&principal2));
     }
 }
