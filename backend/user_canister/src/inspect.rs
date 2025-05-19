@@ -10,6 +10,7 @@ pub fn inspect() {
     match method.as_str() {
         "request_file"
         | "get_requests"
+        | "delete_file"
         | "upload_file_atomic"
         | "share_file"
         | "share_file_with_users"

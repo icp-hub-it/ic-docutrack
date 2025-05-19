@@ -12,4 +12,5 @@ mod principal;
 pub mod user_canister;
 pub mod utils;
 
+pub use self::orchestrator::FileId;
 pub use self::principal::StorablePrincipal;

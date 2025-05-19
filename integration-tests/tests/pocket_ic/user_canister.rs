@@ -296,3 +296,88 @@ async fn test_should_get_shared_files() {
 
     env.stop().await;
 }
+
+#[tokio::test]
+async fn test_should_delete_file() {
+    let env = PocketIcTestEnv::init().await;
+    let client = UserCanisterClient::from(&env);
+    let owner = admin();
+    let request_name = "test.txt".to_string();
+
+    let file_id = client
+        .upload_file_atomic(
+            UploadFileAtomicRequest {
+                name: request_name.clone(),
+                content: vec![1, 2, 3],
+                file_type: "txt".to_string(),
+                owner_key: [1; ENCRYPTION_KEY_SIZE],
+                num_chunks: 1,
+            },
+            owner,
+        )
+        .await;
+    assert_eq!(file_id, 0);
+    client
+        .delete_file(owner, file_id)
+        .await
+        .expect("delete file");
+
+    assert_eq!(
+        client.get_requests(owner).await.len(),
+        0,
+        "file should be deleted"
+    );
+
+    env.stop().await;
+}
+
+#[tokio::test]
+async fn test_should_delete_shared_file() {
+    let env = PocketIcTestEnv::init().await;
+    let client = UserCanisterClient::from(&env);
+    let orchestrator_client = OrchestratorClient::from(&env);
+    let external_user = alice();
+    let owner = admin();
+    let request_name = "test.txt".to_string();
+
+    // register alice on orchestrator
+    let response = orchestrator_client
+        .set_user(external_user, "alice".to_string(), [1; ENCRYPTION_KEY_SIZE])
+        .await;
+    assert_eq!(response, SetUserResponse::Ok);
+
+    let file_id = client
+        .upload_file_atomic(
+            UploadFileAtomicRequest {
+                name: request_name.clone(),
+                content: vec![1, 2, 3],
+                file_type: "txt".to_string(),
+                owner_key: [1; ENCRYPTION_KEY_SIZE],
+                num_chunks: 1,
+            },
+            owner,
+        )
+        .await;
+
+    // share file with alice
+    assert_eq!(
+        client
+            .share_file(owner, file_id, external_user, [1; ENCRYPTION_KEY_SIZE])
+            .await,
+        did::user_canister::FileSharingResponse::Ok
+    );
+
+    // delete shared file
+    client
+        .delete_file(owner, file_id)
+        .await
+        .expect("delete file");
+
+    assert_eq!(
+        client.get_requests(owner).await.len(),
+        0,
+        "file should be deleted"
+    );
+
+    env.stop().await;
+}

@@ -5,9 +5,9 @@ use std::collections::BTreeMap;
 use candid::Principal;
 use did::orchestrator::ShareFileResponse;
 use did::user_canister::{
-    AliasInfo, FileData, FileDownloadResponse, FileSharingResponse, FileStatus, GetAliasInfoError,
-    OwnerKey, PublicFileMetadata, UploadFileAtomicRequest, UploadFileContinueRequest,
-    UploadFileError, UserCanisterInstallArgs,
+    AliasInfo, DeleteFileResponse, FileData, FileDownloadResponse, FileSharingResponse, FileStatus,
+    GetAliasInfoError, OwnerKey, PublicFileMetadata, UploadFileAtomicRequest,
+    UploadFileContinueRequest, UploadFileError, UserCanisterInstallArgs,
 };
 use did::utils::trap;
 
@@ -106,7 +106,9 @@ impl Canister {
         if file.is_none() {
             return Err(UploadFileError::NotRequested);
         }
-        let mut file = file.unwrap();
+        let Some(mut file) = file else {
+            return Err(UploadFileError::NotRequested);
+        };
         let shared_keys = BTreeMap::new();
 
         let alias = match &file.content {
@@ -141,7 +143,7 @@ impl Canister {
             }
         };
 
-        //removing alias from the index
+        // removing alias from the index
         FileAliasIndexStorage::remove_file_id(&alias);
 
         Ok(())
@@ -344,10 +346,8 @@ impl Canister {
 
         // remove user from file shares (cannot fail)
         match &mut file.content {
-            FileContent::Uploaded { shared_keys, .. } => {
-                shared_keys.remove(&user_id);
-            }
-            FileContent::PartiallyUploaded { shared_keys, .. } => {
+            FileContent::Uploaded { shared_keys, .. }
+            | FileContent::PartiallyUploaded { shared_keys, .. } => {
                 shared_keys.remove(&user_id);
             }
             _ => {}
@@ -481,6 +481,61 @@ impl Canister {
             file_id,
             file_name: file.metadata.file_name.clone(),
         })
+    }
+
+    /// Delete a file by its [`FileId`].
+    ///
+    /// The process of deleting a file is as follows:
+    ///
+    /// 1. Check whether the file exists in the storage.
+    /// 2. Check if the file is shared with any users.
+    /// 3. If the file is shared, remove the sharing information from the storage and revoke the sharing on the orchestrator.
+    /// 4. If the file is being uploaded, remove the file request
+    /// 5. Remove the file from the storage.
+    pub async fn delete_file(caller: Principal, file_id: FileId) -> DeleteFileResponse {
+        if caller != Config::get_owner() {
+            trap("Only the owner can delete files");
+        }
+
+        // 1. Check whether the file exists in the storage.
+        let Some(file) = FileDataStorage::get_file(&file_id) else {
+            return DeleteFileResponse::FileNotFound;
+        };
+
+        // 2. Check if the file is shared with any users.
+        let users_with_access = FileSharesStorage::get_users_with_file_shares(&file_id);
+        // revoke share on orchestrator
+        if cfg!(target_family = "wasm") {
+            if let Err(err) = OrchestratorClient::from(Config::get_orchestrator())
+                .revoke_share_file_for_users(&users_with_access, file_id)
+                .await
+            {
+                return DeleteFileResponse::FailedToRevokeShare(err.to_string());
+            }
+        }
+
+        // 3. If the file is shared, remove the sharing information from the storage
+        for user_id in users_with_access {
+            // remove file from user shares
+            FileSharesStorage::revoke(&user_id, &file_id);
+        }
+        // remove file
+        FileDataStorage::remove_file(&file_id);
+        OwnedFilesStorage::remove_owned_file(&file_id);
+        // remove file content / alias
+        match file.content {
+            FileContent::PartiallyUploaded { num_chunks, .. }
+            | FileContent::Uploaded { num_chunks, .. } => {
+                for chunk_id in 0..num_chunks {
+                    FileContentsStorage::remove_file_contents(&file_id, &chunk_id);
+                }
+            }
+            FileContent::Pending { alias } => {
+                FileAliasIndexStorage::remove_file_id(&alias);
+            }
+        }
+
+        DeleteFileResponse::Ok
     }
 }
 
@@ -1029,6 +1084,103 @@ mod test {
         let alias_info = Canister::get_alias_info(alias);
         assert!(alias_info.is_err());
         assert_eq!(alias_info.unwrap_err(), GetAliasInfoError::NotFound);
+    }
+
+    #[tokio::test]
+    async fn test_should_delete_file() {
+        let user = init();
+
+        let file_name = "test_file.txt";
+        let file_content = vec![1, 2, 3];
+        let file_type = "text/plain".to_string();
+        let owner_key = [0; 32];
+        let num_chunks = 1;
+        let file_id = Canister::upload_file_atomic(
+            user,
+            UploadFileAtomicRequest {
+                name: file_name.to_string(),
+                content: file_content,
+                file_type,
+                owner_key,
+                num_chunks,
+            },
+        );
+
+        // share file with alice
+        let alice = Principal::from_slice(&[4, 5, 6, 7]);
+        let file_key_encrypted_for_user = [0; 32];
+        let result = Canister::share_file(user, alice, file_id, file_key_encrypted_for_user).await;
+        assert_eq!(result, FileSharingResponse::Ok);
+
+        // delete file
+        let resp = Canister::delete_file(user, file_id).await;
+        assert_eq!(resp, DeleteFileResponse::Ok);
+
+        // check if the file is deleted
+        let file = FileDataStorage::get_file(&file_id);
+        assert!(file.is_none());
+        // check if the file is deleted from the alias index
+        let resp_file_id = FileAliasIndexStorage::get_file_id(&file_name.to_string());
+        assert!(resp_file_id.is_none());
+        // check if the file is deleted from the content storage
+        let file_content = FileContentsStorage::get_file_contents(&file_id, &0);
+        assert!(file_content.is_none());
+        // check if the file is deleted from the shares storage
+        let shares = FileSharesStorage::get_file_shares(&alice);
+        assert!(shares.is_none());
+    }
+
+    #[tokio::test]
+    async fn test_should_delete_file_when_pending() {
+        let user = init();
+
+        let file_name = "test_file.txt";
+        let file_content = vec![1, 2, 3];
+        let file_type = "text/plain".to_string();
+        let owner_key = [0; 32];
+        let num_chunks = 4;
+        let request_id = Canister::request_file(user, file_name.to_string()).await;
+        // upload the file first
+        let file_id = FileAliasIndexStorage::get_file_id(&request_id).unwrap();
+        let res = Canister::upload_file(
+            file_id,
+            file_content,
+            file_type.clone(),
+            owner_key,
+            num_chunks,
+        );
+        assert!(res.is_ok());
+
+        // share file with alice
+        let alice = Principal::from_slice(&[4, 5, 6, 7]);
+        let file_key_encrypted_for_user = [0; 32];
+        let result = Canister::share_file(user, alice, file_id, file_key_encrypted_for_user).await;
+        assert_eq!(result, FileSharingResponse::Ok);
+
+        // delete file
+        let resp = Canister::delete_file(user, file_id).await;
+        assert_eq!(resp, DeleteFileResponse::Ok);
+
+        // check if the file is deleted
+        let file = FileDataStorage::get_file(&file_id);
+        assert!(file.is_none());
+        // check if the file is deleted from the alias index
+        let resp_file_id = FileAliasIndexStorage::get_file_id(&file_name.to_string());
+        assert!(resp_file_id.is_none());
+        // check if the file is deleted from the content storage
+        let file_content = FileContentsStorage::get_file_contents(&file_id, &0);
+        assert!(file_content.is_none());
+        // check if the file is deleted from the shares storage
+        let shares = FileSharesStorage::get_file_shares(&alice);
+        assert!(shares.is_none());
+    }
+
+    #[tokio::test]
+    #[should_panic(expected = "Only the owner can delete files")]
+    async fn test_only_owner_should_delete_file() {
+        init();
+        let file_id = 1;
+        Canister::delete_file(Principal::anonymous(), file_id).await;
     }
 
     fn init() -> Principal {
