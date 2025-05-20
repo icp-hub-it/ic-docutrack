@@ -7,7 +7,8 @@ use did::orchestrator::ShareFileResponse;
 use did::user_canister::{
     AliasInfo, DeleteFileResponse, FileData, FileDownloadResponse, FileSharingResponse, FileStatus,
     GetAliasInfoError, OwnerKey, PublicFileMetadata, UploadFileAtomicRequest,
-    UploadFileContinueRequest, UploadFileError, UserCanisterInstallArgs,
+    UploadFileContinueRequest, UploadFileContinueResponse, UploadFileError,
+    UserCanisterInstallArgs,
 };
 use did::utils::trap;
 
@@ -201,10 +202,10 @@ impl Canister {
     }
 
     /// Upload file continue
-    pub fn upload_file_continue(request: UploadFileContinueRequest) {
+    pub fn upload_file_continue(request: UploadFileContinueRequest) -> UploadFileContinueResponse {
         let file = FileDataStorage::get_file(&request.file_id);
         if file.is_none() {
-            return;
+            return UploadFileContinueResponse::FileNotFound;
         }
         let mut file = file.unwrap();
         let chunk_id = request.chunk_id;
@@ -212,7 +213,7 @@ impl Canister {
         // Update file content
         match &file.content {
             FileContent::Uploaded { .. } => {
-                return;
+                return UploadFileContinueResponse::FileAlreadyUploaded;
             }
             FileContent::PartiallyUploaded {
                 num_chunks,
@@ -223,7 +224,11 @@ impl Canister {
             } => {
                 // Check if the chunk is already uploaded
                 if uploaded_chunks.contains(&chunk_id) {
-                    return;
+                    return UploadFileContinueResponse::ChunkAlreadyUploaded;
+                }
+                // Check if the chunk ID is valid
+                if chunk_id >= *num_chunks {
+                    return UploadFileContinueResponse::ChunkOutOfBounds;
                 }
                 // Add the chunk to the uploaded chunks
                 let mut uploaded_chunks = uploaded_chunks.clone();
@@ -254,6 +259,8 @@ impl Canister {
 
         // Persist file
         FileDataStorage::set_file(&request.file_id, file);
+
+        UploadFileContinueResponse::Ok
     }
 
     /// Share file with user
@@ -736,11 +743,12 @@ mod test {
         );
 
         // Upload the second chunk
-        Canister::upload_file_continue(UploadFileContinueRequest {
+        let result = Canister::upload_file_continue(UploadFileContinueRequest {
             file_id,
             chunk_id: 1,
             contents: vec![4, 5, 6],
         });
+        assert_eq!(result, UploadFileContinueResponse::Ok);
 
         // Check if the file content was stored correctly
         let file_content_stored_0 = FileContentsStorage::get_file_contents(&file_id, &0).unwrap();
@@ -759,6 +767,109 @@ mod test {
                 num_chunks,
             }
         );
+    }
+
+    #[test]
+    fn test_should_upload_file_continue_arbitrary_order_and_eval_responses() {
+        let caller = init();
+        let file_name = "test_file.txt";
+        let file_content = vec![1, 2, 3];
+        let file_type = "text/plain".to_string();
+        let owner_key = [0; 32];
+        let num_chunks = 6;
+
+        // Check response for unknown file
+        let result = Canister::upload_file_continue(UploadFileContinueRequest {
+            file_id: 0,
+            chunk_id: 1,
+            contents: vec![4, 5, 6],
+        });
+        assert_eq!(result, UploadFileContinueResponse::FileNotFound);
+
+        let file_id = Canister::upload_file_atomic(
+            caller,
+            UploadFileAtomicRequest {
+                name: file_name.to_string(),
+                content: file_content.clone(),
+                file_type,
+                owner_key,
+                num_chunks,
+            },
+        );
+        assert_eq!(file_id, 0);
+
+        // Upload chunks in arbitrary order
+        Canister::upload_file_continue(UploadFileContinueRequest {
+            file_id,
+            chunk_id: 3,
+            contents: vec![10, 11, 12],
+        });
+        Canister::upload_file_continue(UploadFileContinueRequest {
+            file_id,
+            chunk_id: 1,
+            contents: vec![4, 5, 6],
+        });
+
+        // Upload a duplicate chunk
+        let result = Canister::upload_file_continue(UploadFileContinueRequest {
+            file_id,
+            chunk_id: 1,
+            contents: vec![4, 5, 6],
+        });
+        assert_eq!(result, UploadFileContinueResponse::ChunkAlreadyUploaded);
+
+        //Check out of bounds chunk
+        let result = Canister::upload_file_continue(UploadFileContinueRequest {
+            file_id,
+            chunk_id: 6,
+            contents: vec![19, 20, 21],
+        });
+        assert_eq!(result, UploadFileContinueResponse::ChunkOutOfBounds);
+
+        // Upload the remaining chunks
+        Canister::upload_file_continue(UploadFileContinueRequest {
+            file_id,
+            chunk_id: 5,
+            contents: vec![16, 17, 18],
+        });
+        Canister::upload_file_continue(UploadFileContinueRequest {
+            file_id,
+            chunk_id: 4,
+            contents: vec![13, 14, 15],
+        });
+        Canister::upload_file_continue(UploadFileContinueRequest {
+            file_id,
+            chunk_id: 2,
+            contents: vec![7, 8, 9],
+        });
+
+        // Check if the file content was stored correctly
+        for i in 0..num_chunks {
+            let file_content_stored = FileContentsStorage::get_file_contents(&file_id, &i).unwrap();
+            assert_eq!(
+                file_content_stored,
+                vec![i as u8 * 3 + 1, i as u8 * 3 + 2, i as u8 * 3 + 3]
+            );
+        }
+        // Check if the file content was updated correctly
+        let file = FileDataStorage::get_file(&file_id).unwrap();
+        assert_eq!(
+            file.content,
+            FileContent::Uploaded {
+                file_type: "text/plain".to_string(),
+                owner_key,
+                shared_keys: BTreeMap::new(),
+                num_chunks,
+            }
+        );
+
+        // Check already uploaded file
+        let result = Canister::upload_file_continue(UploadFileContinueRequest {
+            file_id,
+            chunk_id: 1,
+            contents: vec![4, 5, 6],
+        });
+        assert_eq!(result, UploadFileContinueResponse::FileAlreadyUploaded);
     }
 
     #[tokio::test]

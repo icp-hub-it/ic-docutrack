@@ -8,7 +8,7 @@ pub use self::delete_file::DeleteFileResponse;
 pub use self::file::{
     AliasInfo, ENCRYPTION_KEY_SIZE, FileData, FileDownloadResponse, FileSharingResponse,
     FileStatus, GetAliasInfoError, OwnerKey, PublicFileMetadata, UploadFileAtomicRequest,
-    UploadFileContinueRequest, UploadFileError, UploadFileRequest,
+    UploadFileContinueRequest, UploadFileContinueResponse, UploadFileError, UploadFileRequest,
 };
 
 /// User Canister canister install arguments.

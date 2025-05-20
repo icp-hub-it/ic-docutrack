@@ -124,3 +124,23 @@ pub struct UploadFileContinueRequest {
     pub chunk_id: u64,
     pub contents: Vec<u8>,
 }
+
+/// Upload file continue response
+/// - `file_already_uploaded`: The file is already uploaded.
+/// - `chunk_already_uploaded`: The file is not shared with the user.
+/// - `chunk_out_of_bounds`: The chunk is out of bounds (chunk_id >= num_chunks).
+/// - `file_not_found`: The file is not found.
+/// - `ok`: The chunk is uploaded successfully.
+#[derive(CandidType, Serialize, Deserialize, Debug, PartialEq)]
+pub enum UploadFileContinueResponse {
+    #[serde(rename = "file_already_uploaded")]
+    FileAlreadyUploaded,
+    #[serde(rename = "chunk_already_uploaded")]
+    ChunkAlreadyUploaded,
+    #[serde(rename = "chunk_out_of_bounds")]
+    ChunkOutOfBounds,
+    #[serde(rename = "file_not_found")]
+    FileNotFound,
+    #[serde(rename = "ok")]
+    Ok,
+}
