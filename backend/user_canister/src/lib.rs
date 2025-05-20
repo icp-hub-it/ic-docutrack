@@ -11,7 +11,7 @@ use did::orchestrator::PublicKey;
 use did::user_canister::{
     AliasInfo, DeleteFileResponse, FileDownloadResponse, FileSharingResponse, GetAliasInfoError,
     OwnerKey, PublicFileMetadata, UploadFileAtomicRequest, UploadFileContinueRequest,
-    UploadFileError, UploadFileRequest, UserCanisterInstallArgs,
+    UploadFileContinueResponse, UploadFileError, UploadFileRequest, UserCanisterInstallArgs,
 };
 use ic_cdk_macros::{init, query, update};
 use storage::config::Config;
@@ -71,7 +71,7 @@ fn upload_file_atomic(request: UploadFileAtomicRequest) -> u64 {
 }
 
 #[update]
-fn upload_file_continue(request: UploadFileContinueRequest) {
+fn upload_file_continue(request: UploadFileContinueRequest) -> UploadFileContinueResponse {
     Canister::upload_file_continue(request)
 }
 

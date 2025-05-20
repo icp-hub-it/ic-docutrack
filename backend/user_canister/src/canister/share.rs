@@ -55,14 +55,16 @@ impl CanisterShareFile {
             FileContent::PartiallyUploaded {
                 shared_keys,
                 num_chunks,
+                uploaded_chunks,
                 owner_key,
                 file_type,
             } => {
                 if !shared_keys.contains_key(&user_id) {
                     let mut shared_keys = shared_keys.clone();
                     shared_keys.insert(user_id, file_key_encrypted_for_user);
-                    file.content = FileContent::Uploaded {
+                    file.content = FileContent::PartiallyUploaded {
                         num_chunks: *num_chunks,
+                        uploaded_chunks: uploaded_chunks.clone(),
                         file_type: file_type.clone(),
                         owner_key: *owner_key,
                         shared_keys,

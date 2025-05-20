@@ -7,7 +7,8 @@ use did::orchestrator::ShareFileResponse;
 use did::user_canister::{
     AliasInfo, DeleteFileResponse, FileData, FileDownloadResponse, FileSharingResponse, FileStatus,
     GetAliasInfoError, OwnerKey, PublicFileMetadata, UploadFileAtomicRequest,
-    UploadFileContinueRequest, UploadFileError, UserCanisterInstallArgs,
+    UploadFileContinueRequest, UploadFileContinueResponse, UploadFileError,
+    UserCanisterInstallArgs,
 };
 use did::utils::trap;
 
@@ -16,7 +17,7 @@ use crate::client::OrchestratorClient;
 use crate::storage::config::Config;
 use crate::storage::files::{
     File, FileAliasIndexStorage, FileContent, FileContentsStorage, FileCountStorage,
-    FileDataStorage, FileId, FileMetadata, FileSharesStorage, OwnedFilesStorage,
+    FileDataStorage, FileId, FileMetadata, FileSharesStorage, OwnedFilesStorage, UploadedChunks,
 };
 use crate::utils::time;
 
@@ -110,6 +111,7 @@ impl Canister {
             return Err(UploadFileError::NotRequested);
         };
         let shared_keys = BTreeMap::new();
+        let chunk_id = 0;
 
         let alias = match &file.content {
             FileContent::Pending { alias } => {
@@ -122,11 +124,14 @@ impl Canister {
                         num_chunks,
                     };
                 } else {
+                    let mut uploaded_chunks = UploadedChunks::default();
+                    uploaded_chunks.insert(chunk_id);
                     file.content = FileContent::PartiallyUploaded {
+                        num_chunks,
+                        uploaded_chunks,
                         file_type,
                         owner_key,
                         shared_keys,
-                        num_chunks,
                     };
                 }
                 file.metadata.uploaded_at = Some(time());
@@ -134,7 +139,6 @@ impl Canister {
                 FileDataStorage::set_file(&file_id, file);
 
                 //add file to the storage
-                let chunk_id = 0;
                 FileContentsStorage::set_file_contents(&file_id, &chunk_id, file_content);
                 alias
             }
@@ -156,6 +160,7 @@ impl Canister {
             trap("Only the owner can upload a file");
         }
         let file_id = FileCountStorage::generate_file_id();
+        let chunk_id = 0;
         let content = if request.num_chunks == 1 {
             FileContent::Uploaded {
                 file_type: request.file_type,
@@ -164,16 +169,19 @@ impl Canister {
                 num_chunks: request.num_chunks,
             }
         } else {
+            let mut uploaded_chunks = UploadedChunks::default();
+            uploaded_chunks.insert(chunk_id);
+
             FileContent::PartiallyUploaded {
+                num_chunks: request.num_chunks,
+                uploaded_chunks,
                 file_type: request.file_type,
                 owner_key: request.owner_key,
                 shared_keys: BTreeMap::new(),
-                num_chunks: request.num_chunks,
             }
         };
 
         // Aff File to content storage
-        let chunk_id = 0;
         FileContentsStorage::set_file_contents(&file_id, &chunk_id, request.content);
         // Add file to the file storage
         let file = File {
@@ -194,34 +202,52 @@ impl Canister {
     }
 
     /// Upload file continue
-    pub fn upload_file_continue(request: UploadFileContinueRequest) {
-        let file = FileDataStorage::get_file(&request.file_id);
-        if file.is_none() {
-            return;
-        }
-        let mut file = file.unwrap();
+    pub fn upload_file_continue(request: UploadFileContinueRequest) -> UploadFileContinueResponse {
+        let Some(mut file) = FileDataStorage::get_file(&request.file_id) else {
+            return UploadFileContinueResponse::FileNotFound;
+        };
+
         let chunk_id = request.chunk_id;
 
         // Update file content
-        //TODO CONSIDER PARTIAL: UPLOAD IN DISORDER
-        //TODO maybe add a check to verify all chunks are uploaded before marking as uploaded
-        //FIXME: mmm dont like it much. packet order is not guaranteed
         match &file.content {
             FileContent::Uploaded { .. } => {
-                return;
+                return UploadFileContinueResponse::FileAlreadyUploaded;
             }
             FileContent::PartiallyUploaded {
                 num_chunks,
+                uploaded_chunks,
                 file_type,
                 owner_key,
                 shared_keys,
             } => {
-                if chunk_id == *num_chunks - 1 {
+                // Check if the chunk is already uploaded
+                if uploaded_chunks.contains(&chunk_id) {
+                    return UploadFileContinueResponse::ChunkAlreadyUploaded;
+                }
+                // Check if the chunk ID is valid
+                if chunk_id >= *num_chunks {
+                    return UploadFileContinueResponse::ChunkOutOfBounds;
+                }
+                // Add the chunk to the uploaded chunks
+                let mut uploaded_chunks = uploaded_chunks.clone();
+                uploaded_chunks.insert(chunk_id);
+                // Check if all chunks are uploaded
+                if uploaded_chunks.len() == *num_chunks as usize {
                     file.content = FileContent::Uploaded {
                         file_type: file_type.clone(),
                         owner_key: *owner_key,
                         shared_keys: shared_keys.clone(),
                         num_chunks: *num_chunks,
+                    };
+                } else {
+                    // If not all chunks are uploaded, update the file content
+                    file.content = FileContent::PartiallyUploaded {
+                        num_chunks: *num_chunks,
+                        uploaded_chunks: uploaded_chunks.clone(),
+                        file_type: file_type.clone(),
+                        owner_key: *owner_key,
+                        shared_keys: shared_keys.clone(),
                     };
                 }
             }
@@ -232,6 +258,8 @@ impl Canister {
 
         // Persist file
         FileDataStorage::set_file(&request.file_id, file);
+
+        UploadFileContinueResponse::Ok
     }
 
     /// Share file with user
@@ -373,7 +401,7 @@ impl Canister {
         let file = file.unwrap();
         // Check if the file is shared with the caller or if the caller is the owner
         let file_c = match &file.content {
-            FileContent::Pending { .. } => {
+            FileContent::Pending { .. } | FileContent::PartiallyUploaded { .. } => {
                 return FileDownloadResponse::NotUploadedFile;
             }
             FileContent::Uploaded {
@@ -396,9 +424,6 @@ impl Canister {
                 };
 
                 (num_chunks, file_type, owner_key)
-            }
-            FileContent::PartiallyUploaded { .. } => {
-                return FileDownloadResponse::NotUploadedFile;
             }
         };
         let contents = FileContentsStorage::get_file_contents(&file_id, &chunk_id);
@@ -703,22 +728,26 @@ mod test {
 
         // Check if the file was uploaded correctly
         let file = FileDataStorage::get_file(&file_id).unwrap();
+        let mut uploaded_chunks = UploadedChunks::default();
+        uploaded_chunks.insert(0);
         assert_eq!(
             file.content,
             FileContent::PartiallyUploaded {
+                num_chunks,
+                uploaded_chunks,
                 file_type: "text/plain".to_string(),
                 owner_key,
                 shared_keys: BTreeMap::new(),
-                num_chunks,
             }
         );
 
         // Upload the second chunk
-        Canister::upload_file_continue(UploadFileContinueRequest {
+        let result = Canister::upload_file_continue(UploadFileContinueRequest {
             file_id,
             chunk_id: 1,
             contents: vec![4, 5, 6],
         });
+        assert_eq!(result, UploadFileContinueResponse::Ok);
 
         // Check if the file content was stored correctly
         let file_content_stored_0 = FileContentsStorage::get_file_contents(&file_id, &0).unwrap();
@@ -737,6 +766,109 @@ mod test {
                 num_chunks,
             }
         );
+    }
+
+    #[test]
+    fn test_should_upload_file_continue_arbitrary_order_and_eval_responses() {
+        let caller = init();
+        let file_name = "test_file.txt";
+        let file_content = vec![1, 2, 3];
+        let file_type = "text/plain".to_string();
+        let owner_key = [0; 32];
+        let num_chunks = 6;
+
+        // Check response for unknown file
+        let result = Canister::upload_file_continue(UploadFileContinueRequest {
+            file_id: 0,
+            chunk_id: 1,
+            contents: vec![4, 5, 6],
+        });
+        assert_eq!(result, UploadFileContinueResponse::FileNotFound);
+
+        let file_id = Canister::upload_file_atomic(
+            caller,
+            UploadFileAtomicRequest {
+                name: file_name.to_string(),
+                content: file_content.clone(),
+                file_type,
+                owner_key,
+                num_chunks,
+            },
+        );
+        assert_eq!(file_id, 0);
+
+        // Upload chunks in arbitrary order
+        Canister::upload_file_continue(UploadFileContinueRequest {
+            file_id,
+            chunk_id: 3,
+            contents: vec![10, 11, 12],
+        });
+        Canister::upload_file_continue(UploadFileContinueRequest {
+            file_id,
+            chunk_id: 1,
+            contents: vec![4, 5, 6],
+        });
+
+        // Upload a duplicate chunk
+        let result = Canister::upload_file_continue(UploadFileContinueRequest {
+            file_id,
+            chunk_id: 1,
+            contents: vec![4, 5, 6],
+        });
+        assert_eq!(result, UploadFileContinueResponse::ChunkAlreadyUploaded);
+
+        //Check out of bounds chunk
+        let result = Canister::upload_file_continue(UploadFileContinueRequest {
+            file_id,
+            chunk_id: 6,
+            contents: vec![19, 20, 21],
+        });
+        assert_eq!(result, UploadFileContinueResponse::ChunkOutOfBounds);
+
+        // Upload the remaining chunks
+        Canister::upload_file_continue(UploadFileContinueRequest {
+            file_id,
+            chunk_id: 5,
+            contents: vec![16, 17, 18],
+        });
+        Canister::upload_file_continue(UploadFileContinueRequest {
+            file_id,
+            chunk_id: 4,
+            contents: vec![13, 14, 15],
+        });
+        Canister::upload_file_continue(UploadFileContinueRequest {
+            file_id,
+            chunk_id: 2,
+            contents: vec![7, 8, 9],
+        });
+
+        // Check if the file content was stored correctly
+        for i in 0..num_chunks {
+            let file_content_stored = FileContentsStorage::get_file_contents(&file_id, &i).unwrap();
+            assert_eq!(
+                file_content_stored,
+                vec![i as u8 * 3 + 1, i as u8 * 3 + 2, i as u8 * 3 + 3]
+            );
+        }
+        // Check if the file content was updated correctly
+        let file = FileDataStorage::get_file(&file_id).unwrap();
+        assert_eq!(
+            file.content,
+            FileContent::Uploaded {
+                file_type: "text/plain".to_string(),
+                owner_key,
+                shared_keys: BTreeMap::new(),
+                num_chunks,
+            }
+        );
+
+        // Check already uploaded file
+        let result = Canister::upload_file_continue(UploadFileContinueRequest {
+            file_id,
+            chunk_id: 1,
+            contents: vec![4, 5, 6],
+        });
+        assert_eq!(result, UploadFileContinueResponse::FileAlreadyUploaded);
     }
 
     #[tokio::test]
@@ -782,6 +914,33 @@ mod test {
                 num_chunks
             })
         );
+    }
+
+    #[tokio::test]
+    async fn test_should_not_download_file_if_not_uploaded() {
+        let caller = init();
+        let owner = init();
+        let file_name = "test_file.txt";
+        let alias = Canister::request_file(owner, file_name).await;
+        let file_id = FileAliasIndexStorage::get_file_id(&alias).unwrap();
+        // Attempt to download the file on pending state
+        let result = Canister::download_file(caller, file_id, 0);
+        assert_eq!(result, FileDownloadResponse::NotUploadedFile);
+
+        // Attempt to download the file on partially uploaded state
+        let file_content = vec![1, 2, 3];
+        let file_type = "text/plain".to_string();
+        let owner_key = [0; 32];
+        let num_chunks = 2;
+        let _ = Canister::upload_file(
+            file_id,
+            file_content.clone(),
+            file_type.clone(),
+            owner_key,
+            num_chunks,
+        );
+        let result = Canister::download_file(caller, file_id, 0);
+        assert_eq!(result, FileDownloadResponse::NotUploadedFile);
     }
 
     #[tokio::test]

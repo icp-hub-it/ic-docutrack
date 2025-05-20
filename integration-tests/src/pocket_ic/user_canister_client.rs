@@ -4,7 +4,7 @@ use did::orchestrator::PublicKey;
 use did::user_canister::{
     AliasInfo, DeleteFileResponse, FileDownloadResponse, FileSharingResponse, GetAliasInfoError,
     OwnerKey, PublicFileMetadata, UploadFileAtomicRequest, UploadFileContinueRequest,
-    UploadFileError, UploadFileRequest,
+    UploadFileContinueResponse, UploadFileError, UploadFileRequest,
 };
 
 use super::PocketIcTestEnv;
@@ -122,10 +122,10 @@ impl UserCanisterClient<'_> {
         &self,
         request: UploadFileContinueRequest,
         caller: Principal,
-    ) {
+    ) -> UploadFileContinueResponse {
         let payload = candid::encode_args((request,)).unwrap();
         self.pic
-            .update::<()>(
+            .update::<UploadFileContinueResponse>(
                 self.pic.user_canister(),
                 caller,
                 "upload_file_continue",
