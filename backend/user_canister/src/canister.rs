@@ -203,11 +203,11 @@ impl Canister {
 
     /// Upload file continue
     pub fn upload_file_continue(request: UploadFileContinueRequest) -> UploadFileContinueResponse {
-        let file = FileDataStorage::get_file(&request.file_id);
-        if file.is_none() {
+
+        let Some(mut file) = FileDataStorage::get_file(&request.file_id) else {
             return UploadFileContinueResponse::FileNotFound;
-        }
-        let mut file = file.unwrap();
+        };
+   
         let chunk_id = request.chunk_id;
 
         // Update file content
