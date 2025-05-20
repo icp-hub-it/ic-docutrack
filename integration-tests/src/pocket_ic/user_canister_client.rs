@@ -3,8 +3,8 @@ use did::FileId;
 use did::orchestrator::PublicKey;
 use did::user_canister::{
     AliasInfo, DeleteFileResponse, FileDownloadResponse, FileSharingResponse, GetAliasInfoError,
-    OwnerKey, PublicFileMetadata, UploadFileAtomicRequest, UploadFileContinueRequest, UploadFileContinueResponse,
-    UploadFileError, UploadFileRequest,
+    OwnerKey, PublicFileMetadata, UploadFileAtomicRequest, UploadFileContinueRequest,
+    UploadFileContinueResponse, UploadFileError, UploadFileRequest,
 };
 
 use super::PocketIcTestEnv;
