@@ -15,6 +15,9 @@ use crate::storage::user_canister::{UserCanisterCreateState, UserCanisterStorage
 use crate::storage::users::UserStorage;
 use crate::utils::{msg_caller, trap};
 
+/// Maximum number of users to retrieve at once.
+const MAX_GET_USERS_LIMIT: u64 = 128;
+
 /// API for Business Logic
 pub struct Canister;
 
@@ -33,14 +36,18 @@ impl Canister {
     ///
     /// If the caller is anonymous, it returns [`GetUsersResponse::PermissionError`].
     ///
+    /// Up to 128 users can be retrieved at once.
+    ///
     /// FIXME: this function should be protected.
-    pub fn get_users(pagination: Pagination) -> GetUsersResponse {
+    pub fn get_users(Pagination { offset, limit }: Pagination) -> GetUsersResponse {
+        let limit = limit.min(MAX_GET_USERS_LIMIT);
+
         let caller = msg_caller();
         if caller == Principal::anonymous() {
             return GetUsersResponse::PermissionError;
         }
 
-        let users = UserStorage::get_users_in_range(pagination.offset, pagination.limit)
+        let users = UserStorage::get_users_in_range(offset, limit)
             .into_iter()
             .map(|(principal, user)| PublicUser::new(user, principal))
             .collect::<Vec<_>>();
@@ -388,6 +395,34 @@ mod test {
         };
         assert_eq!(total, 9);
         assert_eq!(users.len(), 4);
+    }
+
+    #[test]
+    fn test_should_get_capped_paginated_users() {
+        init_canister();
+
+        // setup users
+        for i in 0..150 {
+            UserStorage::add_user(
+                Principal::from_slice(&[i; 6]),
+                User {
+                    username: format!("test_user_{i}",),
+                    public_key: [1; 32],
+                },
+            );
+        }
+
+        // get users
+        let response = Canister::get_users(Pagination {
+            offset: 0,
+            limit: 150,
+        });
+
+        let GetUsersResponse::Users(GetUsersResponseUsers { total, users }) = response else {
+            panic!("Expected GetUsersResponse::Users");
+        };
+        assert_eq!(users.len() as u64, MAX_GET_USERS_LIMIT);
+        assert_eq!(total, 150);
     }
 
     #[test]
