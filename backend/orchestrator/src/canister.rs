@@ -61,7 +61,7 @@ impl Canister {
 
         GetUsersResponse::Users(GetUsersResponseUsers {
             users,
-            total: UserStorage::len(),
+            total: max_users,
             next,
         })
     }
