@@ -3,9 +3,10 @@ mod create_user;
 use candid::Principal;
 use create_user::CreateUserStateMachine;
 use did::orchestrator::{
-    FileId, GetUsersResponse, MAX_USERNAME_SIZE, OrchestratorInstallArgs, PublicKey, PublicUser,
-    RetryUserCanisterCreationResponse, RevokeShareFileResponse, SetUserResponse, ShareFileResponse,
-    SharedFilesResponse, User, UserCanisterResponse, WhoamiResponse,
+    FileId, GetUsersResponse, GetUsersResponseUsers, MAX_USERNAME_SIZE, OrchestratorInstallArgs,
+    Pagination, PublicKey, PublicUser, RetryUserCanisterCreationResponse, RevokeShareFileResponse,
+    SetUserResponse, ShareFileResponse, SharedFilesResponse, User, UserCanisterResponse,
+    WhoamiResponse,
 };
 
 use crate::storage::config::Config;
@@ -32,20 +33,22 @@ impl Canister {
     ///
     /// If the caller is anonymous, it returns [`GetUsersResponse::PermissionError`].
     ///
-    /// FIXME: this function is going to exhaust memory when called if we don't introduce pagination.
-    /// There is already a task for it in the backlog.
     /// FIXME: this function should be protected.
-    pub fn get_users() -> GetUsersResponse {
+    pub fn get_users(pagination: Pagination) -> GetUsersResponse {
         let caller = msg_caller();
         if caller == Principal::anonymous() {
             return GetUsersResponse::PermissionError;
         }
 
-        UserStorage::get_users()
+        let users = UserStorage::get_users_in_range(pagination.offset, pagination.limit)
             .into_iter()
             .map(|(principal, user)| PublicUser::new(user, principal))
-            .collect::<Vec<_>>()
-            .into()
+            .collect::<Vec<_>>();
+
+        GetUsersResponse::Users(GetUsersResponseUsers {
+            users,
+            total: UserStorage::len(),
+        })
     }
 
     /// Retry the user canister creation for the current caller.
@@ -331,15 +334,60 @@ mod test {
         );
 
         // get users
-        let response = Canister::get_users();
+        let response = Canister::get_users(Pagination {
+            offset: 0,
+            limit: 10,
+        });
         assert_eq!(
             response,
-            GetUsersResponse::Users(vec![PublicUser {
-                username: "test_user".to_string(),
-                public_key: [1; 32],
-                ic_principal: principal,
-            }])
+            GetUsersResponse::Users(GetUsersResponseUsers {
+                users: vec![PublicUser {
+                    username: "test_user".to_string(),
+                    public_key: [1; 32],
+                    ic_principal: principal,
+                }],
+                total: 1
+            })
         );
+    }
+
+    #[test]
+    fn test_should_get_paginated_users() {
+        init_canister();
+
+        // setup users
+        for i in 0..9 {
+            UserStorage::add_user(
+                Principal::from_slice(&[i; 6]),
+                User {
+                    username: format!("test_user_{i}",),
+                    public_key: [1; 32],
+                },
+            );
+        }
+
+        // get users
+        let response = Canister::get_users(Pagination {
+            offset: 0,
+            limit: 5,
+        });
+
+        let GetUsersResponse::Users(GetUsersResponseUsers { total, users }) = response else {
+            panic!("Expected GetUsersResponse::Users");
+        };
+        assert_eq!(users.len(), 5);
+        assert_eq!(total, 9);
+
+        let response = Canister::get_users(Pagination {
+            offset: 5,
+            limit: 8,
+        });
+
+        let GetUsersResponse::Users(GetUsersResponseUsers { total, users }) = response else {
+            panic!("Expected GetUsersResponse::Users");
+        };
+        assert_eq!(total, 9);
+        assert_eq!(users.len(), 4);
     }
 
     #[test]

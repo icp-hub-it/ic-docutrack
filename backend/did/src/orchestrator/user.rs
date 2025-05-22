@@ -97,13 +97,16 @@ pub enum GetUsersResponse {
     #[serde(rename = "permission_error")]
     PermissionError,
     #[serde(rename = "users")]
-    Users(Vec<PublicUser>),
+    Users(GetUsersResponseUsers),
 }
 
-impl From<Vec<PublicUser>> for GetUsersResponse {
-    fn from(users: Vec<PublicUser>) -> Self {
-        GetUsersResponse::Users(users)
-    }
+/// Response for the get_users method with pagination
+#[derive(CandidType, Serialize, Deserialize, Clone, Debug, PartialEq)]
+pub struct GetUsersResponseUsers {
+    /// Returned users
+    pub users: Vec<PublicUser>,
+    /// Total number of users
+    pub total: u64,
 }
 
 #[cfg(test)]
