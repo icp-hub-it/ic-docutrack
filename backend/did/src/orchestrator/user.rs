@@ -105,6 +105,8 @@ pub enum GetUsersResponse {
 pub struct GetUsersResponseUsers {
     /// Returned users
     pub users: Vec<PublicUser>,
+    /// The next page offset. If None, there are no more users to fetch
+    pub next: Option<u64>,
     /// Total number of users
     pub total: u64,
 }

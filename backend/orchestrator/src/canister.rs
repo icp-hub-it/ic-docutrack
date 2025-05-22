@@ -52,9 +52,17 @@ impl Canister {
             .map(|(principal, user)| PublicUser::new(user, principal))
             .collect::<Vec<_>>();
 
+        let max_users = UserStorage::len();
+        let next = if offset + limit < max_users {
+            Some(offset + limit)
+        } else {
+            None
+        };
+
         GetUsersResponse::Users(GetUsersResponseUsers {
             users,
             total: UserStorage::len(),
+            next,
         })
     }
 
@@ -353,7 +361,8 @@ mod test {
                     public_key: [1; 32],
                     ic_principal: principal,
                 }],
-                total: 1
+                total: 1,
+                next: None,
             })
         );
     }
@@ -379,22 +388,24 @@ mod test {
             limit: 5,
         });
 
-        let GetUsersResponse::Users(GetUsersResponseUsers { total, users }) = response else {
+        let GetUsersResponse::Users(GetUsersResponseUsers { total, users, next }) = response else {
             panic!("Expected GetUsersResponse::Users");
         };
         assert_eq!(users.len(), 5);
         assert_eq!(total, 9);
+        assert_eq!(next, Some(5));
 
         let response = Canister::get_users(Pagination {
             offset: 5,
             limit: 8,
         });
 
-        let GetUsersResponse::Users(GetUsersResponseUsers { total, users }) = response else {
+        let GetUsersResponse::Users(GetUsersResponseUsers { total, users, next }) = response else {
             panic!("Expected GetUsersResponse::Users");
         };
         assert_eq!(total, 9);
         assert_eq!(users.len(), 4);
+        assert!(next.is_none());
     }
 
     #[test]
@@ -418,11 +429,12 @@ mod test {
             limit: 150,
         });
 
-        let GetUsersResponse::Users(GetUsersResponseUsers { total, users }) = response else {
+        let GetUsersResponse::Users(GetUsersResponseUsers { total, users, next }) = response else {
             panic!("Expected GetUsersResponse::Users");
         };
         assert_eq!(users.len() as u64, MAX_GET_USERS_LIMIT);
         assert_eq!(total, 150);
+        assert_eq!(next, Some(MAX_GET_USERS_LIMIT));
     }
 
     #[test]
