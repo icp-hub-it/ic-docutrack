@@ -31,7 +31,15 @@ async fn test_should_request_file_and_get_requests() {
     let owner = admin();
 
     let request_name = "test.txt".to_string();
-    client.request_file(request_name.clone(), owner).await;
+    let request_id = client.request_file(request_name.clone(), owner).await;
+    // check randomness is working uuidv7
+    // 0196f279-a899-7000-8000-000000000000
+    // │        │     │    │    └───── 48 bit randomness
+    // │        │     │    └────────── variant (RFC 4122)
+    // │        │     └─────────────── version (7)
+    // │        └───────────────────── milliseconds since Unix epoch (48 bit)
+    // └────────────────────────────── (timestamp)
+    assert!(!request_id.ends_with("000000000000"));
 
     assert_eq!(
         client.get_requests(owner).await.first().unwrap().file_name,

@@ -44,7 +44,7 @@ impl Canister {
 
         // generate a file ID and alias
         let file_id = FileCountStorage::generate_file_id();
-        let alias = AliasGenerator::new(randomness).next();
+        let alias = AliasGenerator::new(randomness).generate_uuidv7();
 
         // make the file
         let file = File {
@@ -589,7 +589,8 @@ mod test {
         let file_name = "test_file.txt".to_string();
         let caller = init();
         let alias = Canister::request_file(caller, file_name.clone()).await;
-        assert_eq!(alias, "puzzling-mountain");
+        // NOTE: we expect it to end with 0 because on unit tests the randomness is just zero.
+        assert!(alias.ends_with("7000-8000-000000000000"));
     }
 
     #[tokio::test]
