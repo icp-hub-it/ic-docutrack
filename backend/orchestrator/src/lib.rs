@@ -5,7 +5,7 @@ mod utils;
 
 use candid::Principal;
 use did::orchestrator::{
-    FileId, GetUsersResponse, OrchestratorInstallArgs, PublicKey,
+    FileId, GetUsersResponse, OrchestratorInstallArgs, Pagination, PublicKey,
     RetryUserCanisterCreationResponse, RevokeShareFileResponse, SetUserResponse, ShareFileResponse,
     SharedFilesResponse, UserCanisterResponse, WhoamiResponse,
 };
@@ -20,8 +20,8 @@ pub fn init(args: OrchestratorInstallArgs) {
 }
 
 #[query]
-pub fn get_users() -> GetUsersResponse {
-    Canister::get_users()
+pub fn get_users(pagination: Pagination) -> GetUsersResponse {
+    Canister::get_users(pagination)
 }
 
 #[query]

@@ -2,8 +2,8 @@ use std::time::{Duration, Instant};
 
 use candid::Principal;
 use did::orchestrator::{
-    GetUsersResponse, PublicKey, SetUserResponse, SharedFilesResponse, UserCanisterResponse,
-    WhoamiResponse,
+    GetUsersResponse, Pagination, PublicKey, SetUserResponse, SharedFilesResponse,
+    UserCanisterResponse, WhoamiResponse,
 };
 
 use super::PocketIcTestEnv;
@@ -28,8 +28,8 @@ impl OrchestratorClient<'_> {
             .expect("Failed to get orbit station")
     }
 
-    pub async fn get_users(&self, caller: Principal) -> GetUsersResponse {
-        let payload = candid::encode_args(()).unwrap();
+    pub async fn get_users(&self, caller: Principal, pagination: Pagination) -> GetUsersResponse {
+        let payload = candid::encode_args((&pagination,)).unwrap();
         self.pic
             .query::<GetUsersResponse>(self.pic.orchestrator(), caller, "get_users", payload)
             .await

@@ -1,6 +1,7 @@
 use candid::Principal;
 use did::orchestrator::{
-    GetUsersResponse, PUBKEY_SIZE, PublicUser, SetUserResponse, SharedFilesResponse, WhoamiResponse,
+    GetUsersResponse, PUBKEY_SIZE, Pagination, PublicUser, SetUserResponse, SharedFilesResponse,
+    WhoamiResponse,
 };
 use did::user_canister::{ENCRYPTION_KEY_SIZE, FileSharingResponse, UploadFileAtomicRequest};
 use integration_tests::actor::{admin, alice};
@@ -70,7 +71,15 @@ async fn test_should_not_get_users_if_anonymous() {
     let env = PocketIcTestEnv::init().await;
     let client = OrchestratorClient::from(&env);
 
-    let users = client.get_users(Principal::anonymous()).await;
+    let users = client
+        .get_users(
+            Principal::anonymous(),
+            Pagination {
+                offset: 0,
+                limit: 10,
+            },
+        )
+        .await;
     assert_eq!(users, GetUsersResponse::PermissionError);
 
     env.stop().await;

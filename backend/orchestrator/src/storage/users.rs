@@ -51,14 +51,21 @@ impl UserStorage {
         with_user(principal, |user| user)
     }
 
-    /// Get all users by their principal
-    pub fn get_users() -> HashMap<Principal, User> {
+    /// Get all users in a range
+    pub fn get_users_in_range(offset: u64, limit: u64) -> HashMap<Principal, User> {
         with_users_storage(|users| {
             users
                 .iter()
+                .skip(offset as usize)
+                .take(limit as usize)
                 .map(|(principal, user)| (principal.0, user.clone()))
                 .collect()
         })
+    }
+
+    /// Get the number of users in the storage
+    pub fn len() -> u64 {
+        USERS_STORAGE.with_borrow(|users| users.len())
     }
 
     /// Add a user to the storage.
@@ -119,7 +126,7 @@ mod test {
         UserStorage::add_user(principal2, user2.clone());
 
         // Get all users
-        let all_users = UserStorage::get_users();
+        let all_users = UserStorage::get_users_in_range(0, u64::MAX);
         // Check if the length of all users is 2
         assert_eq!(all_users.len(), 2);
         // Check if the retrieved user is in the list of all users
