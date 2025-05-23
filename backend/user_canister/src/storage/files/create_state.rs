@@ -2,7 +2,7 @@ use std::borrow::Cow;
 use std::collections::{BTreeMap, HashSet};
 
 use candid::Principal;
-use did::user_canister::{OWNER_KEY_SIZE, OwnerKey, PublicKey};
+use did::user_canister::{OwnerKey, PublicKey};
 use ic_stable_structures::Storable;
 use ic_stable_structures::storable::Bound;
 
@@ -196,16 +196,15 @@ impl FileContent {
         offset += file_type_len;
 
         // Read owner_key
-        // one byte
-        let owner_key_len = bytes[offset] as usize;
-        offset += 1;
-        if offset + owner_key_len > bytes.len() {
+        if offset + OwnerKey::KEY_SIZE > bytes.len() {
             trap("Not enough bytes for owner_key");
         }
-        let owner_key = bytes[offset..offset + owner_key_len]
-            .try_into()
-            .expect("Failed to decode owner_key");
-        offset += owner_key_len;
+        let owner_key = OwnerKey::new(
+            bytes[offset..offset + OwnerKey::KEY_SIZE]
+                .try_into()
+                .expect("Failed to decode owner_key"),
+        );
+        offset += OwnerKey::KEY_SIZE;
 
         // Read shared_keys (no length prefix, first 8 bytes are num_entries)
         let mut shared_keys = BTreeMap::new();
@@ -234,13 +233,15 @@ impl FileContent {
                 .expect("Failed to decode principal");
             offset += principal_len;
 
-            if offset + OWNER_KEY_SIZE > bytes.len() {
+            if offset + OwnerKey::KEY_SIZE > bytes.len() {
                 trap("Not enough bytes for encryption key");
             }
-            let encryption_key = bytes[offset..offset + OWNER_KEY_SIZE]
-                .try_into()
-                .expect("Failed to decode encryption key");
-            offset += OWNER_KEY_SIZE;
+            let encryption_key = OwnerKey::new(
+                bytes[offset..offset + OwnerKey::KEY_SIZE]
+                    .try_into()
+                    .expect("Failed to decode encryption key"),
+            );
+            offset += OwnerKey::KEY_SIZE;
 
             shared_keys.insert(principal, encryption_key);
         }
@@ -272,8 +273,7 @@ impl FileContent {
         bytes.extend_from_slice(file_type.as_bytes());
 
         // Write owner_key
-        bytes.push(owner_key.len() as u8);
-        bytes.extend_from_slice(owner_key);
+        bytes.extend_from_slice(owner_key.as_bytes());
 
         // Write shared_keys (no length prefix , first 8 bytes are num_entries)
         let num_entries = shared_keys.len() as u64;
@@ -284,7 +284,7 @@ impl FileContent {
 
             bytes.push(principal_len as u8);
             bytes.extend_from_slice(principal_bytes);
-            bytes.extend_from_slice(encryption_key);
+            bytes.extend_from_slice(encryption_key.as_bytes());
         }
 
         bytes
@@ -347,16 +347,15 @@ impl FileContent {
         offset += file_type_len;
 
         // Read owner_key
-        // one byte
-        let owner_key_len = bytes[offset] as usize;
-        offset += 1;
-        if offset + owner_key_len > bytes.len() {
+        if offset + OwnerKey::KEY_SIZE > bytes.len() {
             trap("Not enough bytes for owner_key");
         }
-        let owner_key = bytes[offset..offset + owner_key_len]
-            .try_into()
-            .expect("Failed to decode owner_key");
-        offset += owner_key_len;
+        let owner_key = OwnerKey::new(
+            bytes[offset..offset + OwnerKey::KEY_SIZE]
+                .try_into()
+                .expect("Failed to decode owner_key"),
+        );
+        offset += OwnerKey::KEY_SIZE;
 
         // Read shared_keys (no length prefix, first 8 bytes are num_entries)
         let mut shared_keys = BTreeMap::new();
@@ -388,13 +387,15 @@ impl FileContent {
                 .expect("Failed to decode principal");
             offset += principal_len;
 
-            if offset + OWNER_KEY_SIZE > bytes.len() {
+            if offset + OwnerKey::KEY_SIZE > bytes.len() {
                 trap("Not enough bytes for encryption key");
             }
-            let encryption_key = bytes[offset..offset + OWNER_KEY_SIZE]
-                .try_into()
-                .expect("Failed to decode encryption key");
-            offset += OWNER_KEY_SIZE;
+            let encryption_key = OwnerKey::new(
+                bytes[offset..offset + OwnerKey::KEY_SIZE]
+                    .try_into()
+                    .expect("Failed to decode encryption key"),
+            );
+            offset += OwnerKey::KEY_SIZE;
 
             shared_keys.insert(principal, encryption_key);
         }
@@ -435,8 +436,7 @@ impl FileContent {
         bytes.extend_from_slice(file_type.as_bytes());
 
         // Write owner_key
-        bytes.push(owner_key.len() as u8);
-        bytes.extend_from_slice(owner_key);
+        bytes.extend_from_slice(owner_key.as_bytes());
 
         // Write shared_keys (no length prefix , first 8 bytes are num_entries)
         let num_entries = shared_keys.len() as u64;
@@ -447,7 +447,7 @@ impl FileContent {
 
             bytes.push(principal_len as u8);
             bytes.extend_from_slice(principal_bytes);
-            bytes.extend_from_slice(encryption_key);
+            bytes.extend_from_slice(encryption_key.as_bytes());
         }
 
         bytes
@@ -702,7 +702,7 @@ mod tests {
         let file_content = FileContent::Uploaded {
             num_chunks: 5,
             file_type: "text/plain".to_string(),
-            owner_key: [1; OWNER_KEY_SIZE],
+            owner_key: [1; OwnerKey::KEY_SIZE].into(),
             shared_keys: BTreeMap::new(),
         };
         let bytes = file_content.to_bytes();
@@ -745,7 +745,7 @@ mod tests {
             content: FileContent::Uploaded {
                 num_chunks: 5,
                 file_type: "text/plain".to_string(),
-                owner_key: [1; OWNER_KEY_SIZE],
+                owner_key: [1; OwnerKey::KEY_SIZE].into(),
                 shared_keys: BTreeMap::new(),
             },
         };

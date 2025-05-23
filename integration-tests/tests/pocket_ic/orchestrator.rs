@@ -3,7 +3,7 @@ use did::orchestrator::{
     GetUsersResponse, Pagination, PublicKey, PublicUser, SetUserResponse, SharedFilesResponse,
     WhoamiResponse,
 };
-use did::user_canister::{FileSharingResponse, OWNER_KEY_SIZE, UploadFileAtomicRequest};
+use did::user_canister::{FileSharingResponse, OwnerKey, UploadFileAtomicRequest};
 use integration_tests::actor::{admin, alice};
 use integration_tests::{OrchestratorClient, PocketIcTestEnv, TestEnv, UserCanisterClient};
 
@@ -138,7 +138,7 @@ async fn test_should_return_shared_files() {
                 name: request_name.clone(),
                 content: vec![1, 2, 3],
                 file_type: "txt".to_string(),
-                owner_key: [1; OWNER_KEY_SIZE],
+                owner_key: [1; OwnerKey::KEY_SIZE].into(),
                 num_chunks: 1,
             },
             owner,
@@ -148,7 +148,7 @@ async fn test_should_return_shared_files() {
     // share file with alice
     assert_eq!(
         user_canister_client
-            .share_file(owner, file_id, shared_with, [1; OWNER_KEY_SIZE])
+            .share_file(owner, file_id, shared_with, [1; OwnerKey::KEY_SIZE].into())
             .await,
         FileSharingResponse::Ok
     );
