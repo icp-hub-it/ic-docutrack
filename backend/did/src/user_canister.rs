@@ -6,10 +6,11 @@ use serde::{Deserialize, Serialize};
 
 pub use self::delete_file::DeleteFileResponse;
 pub use self::file::{
-    AliasInfo, ENCRYPTION_KEY_SIZE, FileData, FileDownloadResponse, FileSharingResponse,
-    FileStatus, GetAliasInfoError, OwnerKey, PublicFileMetadata, UploadFileAtomicRequest,
+    AliasInfo, FileData, FileDownloadResponse, FileSharingResponse, FileStatus, GetAliasInfoError,
+    OWNER_KEY_SIZE, OwnerKey, PublicFileMetadata, UploadFileAtomicRequest,
     UploadFileContinueRequest, UploadFileContinueResponse, UploadFileError, UploadFileRequest,
 };
+pub use crate::public_key::PublicKey;
 
 /// User Canister canister install arguments.
 #[derive(Debug, CandidType, Serialize, Deserialize)]
