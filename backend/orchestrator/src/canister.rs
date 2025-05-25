@@ -3,9 +3,10 @@ mod create_user;
 use candid::Principal;
 use create_user::CreateUserStateMachine;
 use did::orchestrator::{
-    FileId, GetUsersResponse, MAX_USERNAME_SIZE, OrchestratorInstallArgs, PublicKey, PublicUser,
-    RetryUserCanisterCreationResponse, RevokeShareFileResponse, SetUserResponse, ShareFileResponse,
-    SharedFilesResponse, User, UserCanisterResponse, WhoamiResponse,
+    FileId, GetUsersResponse, GetUsersResponseUsers, MAX_USERNAME_SIZE, OrchestratorInstallArgs,
+    Pagination, PublicKey, PublicUser, RetryUserCanisterCreationResponse, RevokeShareFileResponse,
+    SetUserResponse, ShareFileResponse, SharedFilesResponse, User, UserCanisterResponse,
+    WhoamiResponse,
 };
 
 use crate::storage::config::Config;
@@ -13,6 +14,9 @@ use crate::storage::shared_files::SharedFilesStorage;
 use crate::storage::user_canister::{UserCanisterCreateState, UserCanisterStorage};
 use crate::storage::users::UserStorage;
 use crate::utils::{msg_caller, trap};
+
+/// Maximum number of users to retrieve at once.
+const MAX_GET_USERS_LIMIT: u64 = 128;
 
 /// API for Business Logic
 pub struct Canister;
@@ -32,20 +36,39 @@ impl Canister {
     ///
     /// If the caller is anonymous, it returns [`GetUsersResponse::PermissionError`].
     ///
-    /// FIXME: this function is going to exhaust memory when called if we don't introduce pagination.
-    /// There is already a task for it in the backlog.
+    /// Up to 128 users can be retrieved at once.
+    ///
     /// FIXME: this function should be protected.
-    pub fn get_users() -> GetUsersResponse {
+    pub fn get_users(Pagination { offset, limit }: Pagination) -> GetUsersResponse {
+        let limit = limit.min(MAX_GET_USERS_LIMIT);
+
         let caller = msg_caller();
         if caller == Principal::anonymous() {
             return GetUsersResponse::PermissionError;
         }
 
-        UserStorage::get_users()
+        let users = UserStorage::get_users_in_range(offset, limit)
             .into_iter()
             .map(|(principal, user)| PublicUser::new(user, principal))
-            .collect::<Vec<_>>()
-            .into()
+            .collect::<Vec<_>>();
+
+        let max_users = UserStorage::len();
+        let next = if offset + limit < max_users {
+            Some(offset + limit)
+        } else {
+            None
+        };
+
+        GetUsersResponse::Users(GetUsersResponseUsers {
+            users,
+            total: max_users,
+            next,
+        })
+    }
+
+    /// Get a user from the storage as [`PublicUser`].
+    pub fn get_user(principal: Principal) -> Option<PublicUser> {
+        UserStorage::get_user(&principal).map(|user| PublicUser::new(user, principal))
     }
 
     /// Retry the user canister creation for the current caller.
@@ -317,6 +340,37 @@ mod test {
     }
 
     #[test]
+    fn test_should_get_user() {
+        init_canister();
+
+        // setup user
+        let principal = msg_caller();
+        UserStorage::add_user(
+            principal,
+            User {
+                username: "test_user".to_string(),
+                public_key: vec![1; 32].try_into().unwrap(),
+            },
+        );
+
+        // get user
+        let response = Canister::get_user(principal);
+        assert_eq!(
+            response,
+            Some(PublicUser {
+                username: "test_user".to_string(),
+                public_key: vec![1; 32].try_into().unwrap(),
+                ic_principal: principal,
+            })
+        );
+
+        // get user with a different principal
+        let principal = Principal::from_slice(&[1; 6]);
+        let response = Canister::get_user(principal);
+        assert!(response.is_none());
+    }
+
+    #[test]
     fn test_should_get_users() {
         init_canister();
 
@@ -326,20 +380,97 @@ mod test {
             principal,
             User {
                 username: "test_user".to_string(),
-                public_key: [1; 32],
+                public_key: PublicKey::try_from(vec![1; 32]).expect("invalid public key"),
             },
         );
 
         // get users
-        let response = Canister::get_users();
+        let response = Canister::get_users(Pagination {
+            offset: 0,
+            limit: 10,
+        });
         assert_eq!(
             response,
-            GetUsersResponse::Users(vec![PublicUser {
-                username: "test_user".to_string(),
-                public_key: [1; 32],
-                ic_principal: principal,
-            }])
+            GetUsersResponse::Users(GetUsersResponseUsers {
+                users: vec![PublicUser {
+                    username: "test_user".to_string(),
+                    public_key: PublicKey::try_from(vec![1; 32]).expect("invalid public key"),
+                    ic_principal: principal,
+                }],
+                total: 1,
+                next: None,
+            })
         );
+    }
+
+    #[test]
+    fn test_should_get_paginated_users() {
+        init_canister();
+
+        // setup users
+        for i in 0..9 {
+            UserStorage::add_user(
+                Principal::from_slice(&[i; 6]),
+                User {
+                    username: format!("test_user_{i}",),
+                    public_key: PublicKey::try_from(vec![1; 32]).expect("invalid public key"),
+                },
+            );
+        }
+
+        // get users
+        let response = Canister::get_users(Pagination {
+            offset: 0,
+            limit: 5,
+        });
+
+        let GetUsersResponse::Users(GetUsersResponseUsers { total, users, next }) = response else {
+            panic!("Expected GetUsersResponse::Users");
+        };
+        assert_eq!(users.len(), 5);
+        assert_eq!(total, 9);
+        assert_eq!(next, Some(5));
+
+        let response = Canister::get_users(Pagination {
+            offset: 5,
+            limit: 8,
+        });
+
+        let GetUsersResponse::Users(GetUsersResponseUsers { total, users, next }) = response else {
+            panic!("Expected GetUsersResponse::Users");
+        };
+        assert_eq!(total, 9);
+        assert_eq!(users.len(), 4);
+        assert!(next.is_none());
+    }
+
+    #[test]
+    fn test_should_get_capped_paginated_users() {
+        init_canister();
+
+        // setup users
+        for i in 0..150 {
+            UserStorage::add_user(
+                Principal::from_slice(&[i; 6]),
+                User {
+                    username: format!("test_user_{i}",),
+                    public_key: PublicKey::try_from(vec![1; 32]).expect("invalid public key"),
+                },
+            );
+        }
+
+        // get users
+        let response = Canister::get_users(Pagination {
+            offset: 0,
+            limit: 150,
+        });
+
+        let GetUsersResponse::Users(GetUsersResponseUsers { total, users, next }) = response else {
+            panic!("Expected GetUsersResponse::Users");
+        };
+        assert_eq!(users.len() as u64, MAX_GET_USERS_LIMIT);
+        assert_eq!(total, 150);
+        assert_eq!(next, Some(MAX_GET_USERS_LIMIT));
     }
 
     #[test]
@@ -352,7 +483,7 @@ mod test {
             principal,
             User {
                 username: "test_user".to_string(),
-                public_key: [1; 32],
+                public_key: PublicKey::try_from(vec![1; 32]).expect("invalid public key"),
             },
         );
 
@@ -378,7 +509,7 @@ mod test {
             Principal::management_canister(),
             User {
                 username: "test_user".to_string(),
-                public_key: [1; 32],
+                public_key: PublicKey::try_from(vec![1; 32]).expect("invalid public key"),
             },
         );
 
@@ -397,7 +528,7 @@ mod test {
             principal,
             User {
                 username: "test_user".to_string(),
-                public_key: [1; 32],
+                public_key: PublicKey::try_from(vec![1; 32]).expect("invalid public key"),
             },
         );
 
@@ -423,7 +554,7 @@ mod test {
             principal,
             User {
                 username: "test_user".to_string(),
-                public_key: [1; 32],
+                public_key: PublicKey::try_from(vec![1; 32]).expect("invalid public key"),
             },
         );
 
@@ -442,7 +573,7 @@ mod test {
         // setup user
         let principal = msg_caller();
         let username = "test_user".to_string();
-        let public_key = [1; 32];
+        let public_key = PublicKey::try_from(vec![1; 32]).expect("invalid public key");
 
         // register user
         let response = Canister::set_user(username.clone(), public_key);
@@ -461,7 +592,7 @@ mod test {
         // setup user
         let principal = msg_caller();
         let username = "a".repeat(MAX_USERNAME_SIZE + 1);
-        let public_key = [1; 32];
+        let public_key = PublicKey::try_from(vec![1; 32]).expect("invalid public key");
 
         // register user
         let response = Canister::set_user(username.clone(), public_key);
@@ -478,7 +609,7 @@ mod test {
 
         // setup user
         let username = "test_user".to_string();
-        let public_key = [1; 32];
+        let public_key = PublicKey::try_from(vec![1; 32]).expect("invalid public key");
 
         // register user
         let response = Canister::set_user(username.clone(), public_key);
@@ -499,7 +630,7 @@ mod test {
             principal,
             User {
                 username: "test_user".to_string(),
-                public_key: [1; 32],
+                public_key: PublicKey::try_from(vec![1; 32]).expect("invalid public key"),
             },
         );
 
@@ -522,7 +653,7 @@ mod test {
             principal,
             User {
                 username: "test_user".to_string(),
-                public_key: [1; 32],
+                public_key: PublicKey::try_from(vec![1; 32]).expect("invalid public key"),
             },
         );
 
@@ -532,7 +663,7 @@ mod test {
             whoami,
             WhoamiResponse::KnownUser(PublicUser {
                 username: "test_user".to_string(),
-                public_key: [1; 32],
+                public_key: PublicKey::try_from(vec![1; 32]).expect("invalid public key"),
                 ic_principal: principal,
             })
         );
@@ -548,7 +679,7 @@ mod test {
             principal,
             User {
                 username: "test_user".to_string(),
-                public_key: [1; 32],
+                public_key: PublicKey::try_from(vec![1; 32]).expect("invalid public key"),
             },
         );
 
@@ -661,7 +792,7 @@ mod test {
             alice,
             User {
                 username: "test_user".to_string(),
-                public_key: [1; 32],
+                public_key: PublicKey::try_from(vec![1; 32]).expect("invalid public key"),
             },
         );
 

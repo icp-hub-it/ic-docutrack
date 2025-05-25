@@ -12,16 +12,15 @@ crate-type = ["cdylib", "rlib"]
 
 [dependencies]
 candid = { workspace = true }
-ciborium = { workspace = true }
 did = { path = "../did" }
 getrandom = { workspace = true }
 ic-cdk = { workspace = true }
 ic-cdk-macros = { workspace = true }
 ic-stable-structures = { workspace = true }
 rand = { workspace = true }
-rand_chacha = { workspace = true }
 serde = { workspace = true }
 serde_bytes = { workspace = true }
+uuid = { workspace = true }
 
 [dev-dependencies]
 maplit = "1.0.2"

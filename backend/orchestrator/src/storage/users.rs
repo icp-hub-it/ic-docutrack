@@ -51,14 +51,21 @@ impl UserStorage {
         with_user(principal, |user| user)
     }
 
-    /// Get all users by their principal
-    pub fn get_users() -> HashMap<Principal, User> {
+    /// Get all users in a range
+    pub fn get_users_in_range(offset: u64, limit: u64) -> HashMap<Principal, User> {
         with_users_storage(|users| {
             users
                 .iter()
+                .skip(offset as usize)
+                .take(limit as usize)
                 .map(|(principal, user)| (principal.0, user.clone()))
                 .collect()
         })
+    }
+
+    /// Get the number of users in the storage
+    pub fn len() -> u64 {
+        USERS_STORAGE.with_borrow(|users| users.len())
     }
 
     /// Add a user to the storage.
@@ -91,7 +98,7 @@ impl UserStorage {
 #[cfg(test)]
 mod test {
 
-    use did::orchestrator::PUBKEY_SIZE;
+    use did::orchestrator::PublicKey;
 
     use super::*;
 
@@ -99,7 +106,7 @@ mod test {
     fn test_should_insert_and_read_users() {
         let user = User {
             username: "test_user".to_string(),
-            public_key: [1; PUBKEY_SIZE],
+            public_key: PublicKey::try_from(vec![1; 32]).expect("invalid public key"),
         };
         let principal = Principal::from_slice(&[1; 29]);
 
@@ -113,13 +120,13 @@ mod test {
         // add another user
         let user2 = User {
             username: "test_user2".to_string(),
-            public_key: [2; PUBKEY_SIZE],
+            public_key: PublicKey::try_from(vec![2; 32]).expect("invalid public key"),
         };
         let principal2 = Principal::from_slice(&[2; 29]);
         UserStorage::add_user(principal2, user2.clone());
 
         // Get all users
-        let all_users = UserStorage::get_users();
+        let all_users = UserStorage::get_users_in_range(0, u64::MAX);
         // Check if the length of all users is 2
         assert_eq!(all_users.len(), 2);
         // Check if the retrieved user is in the list of all users
@@ -132,7 +139,7 @@ mod test {
     fn test_should_panic_when_adding_anonymous_user() {
         let user = User {
             username: "test_user".to_string(),
-            public_key: [1; PUBKEY_SIZE],
+            public_key: PublicKey::try_from(vec![1; 32]).expect("invalid public key"),
         };
         let principal = Principal::anonymous();
 
@@ -144,7 +151,7 @@ mod test {
     fn test_should_tell_whether_username_exists() {
         let user = User {
             username: "test_user".to_string(),
-            public_key: [1; PUBKEY_SIZE],
+            public_key: PublicKey::try_from(vec![1; 32]).expect("invalid public key"),
         };
         let principal = Principal::from_slice(&[1; 29]);
 

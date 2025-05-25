@@ -44,7 +44,7 @@ impl Canister {
 
         // generate a file ID and alias
         let file_id = FileCountStorage::generate_file_id();
-        let alias = AliasGenerator::new(randomness).next();
+        let alias = AliasGenerator::new(randomness).generate_uuidv7();
 
         // make the file
         let file = File {
@@ -589,7 +589,8 @@ mod test {
         let file_name = "test_file.txt".to_string();
         let caller = init();
         let alias = Canister::request_file(caller, file_name.clone()).await;
-        assert_eq!(alias, "puzzling-mountain");
+        // NOTE: we expect it to end with 0 because on unit tests the randomness is just zero.
+        assert!(alias.ends_with("7000-8000-000000000000"));
     }
 
     #[tokio::test]
@@ -627,7 +628,7 @@ mod test {
         let file_id = FileAliasIndexStorage::get_file_id(&alias).unwrap();
         let file_content = vec![1, 2, 3];
         let file_type = "text/plain".to_string();
-        let owner_key = [0; 32];
+        let owner_key = [0; OwnerKey::KEY_SIZE].into();
         let num_chunks = 1;
         let result = Canister::upload_file(
             file_id,
@@ -655,7 +656,7 @@ mod test {
         let file_name = "test_file.txt";
         let file_content = vec![1, 2, 3];
         let file_type = "text/plain".to_string();
-        let owner_key = [0; 32];
+        let owner_key = [0; OwnerKey::KEY_SIZE].into();
         let num_chunks = 1;
         let file_id = Canister::upload_file_atomic(
             caller,
@@ -692,7 +693,7 @@ mod test {
         let file_name = "test_file.txt";
         let file_content = vec![1, 2, 3];
         let file_type = "text/plain".to_string();
-        let owner_key = [0; 32];
+        let owner_key = [0; OwnerKey::KEY_SIZE].into();
         let num_chunks = 1;
         Canister::upload_file_atomic(
             Principal::anonymous(),
@@ -712,7 +713,7 @@ mod test {
         let file_name = "test_file.txt";
         let file_content = vec![1, 2, 3];
         let file_type = "text/plain".to_string();
-        let owner_key = [0; 32];
+        let owner_key = [0; OwnerKey::KEY_SIZE].into();
         let num_chunks = 2;
         let file_id = Canister::upload_file_atomic(
             caller,
@@ -774,7 +775,7 @@ mod test {
         let file_name = "test_file.txt";
         let file_content = vec![1, 2, 3];
         let file_type = "text/plain".to_string();
-        let owner_key = [0; 32];
+        let owner_key = [0; OwnerKey::KEY_SIZE].into();
         let num_chunks = 6;
 
         // Check response for unknown file
@@ -880,7 +881,7 @@ mod test {
         let file_id = FileAliasIndexStorage::get_file_id(&alias).unwrap();
         let file_content = vec![1, 2, 3];
         let file_type = "text/plain".to_string();
-        let owner_key = [0; 32];
+        let owner_key = [0; OwnerKey::KEY_SIZE].into();
         let num_chunks = 1;
         let _ = Canister::upload_file(
             file_id,
@@ -902,7 +903,7 @@ mod test {
         );
         // Download the file as a shared user
         let user_id = Principal::from_slice(&[4, 5, 6, 7]);
-        let file_key_encrypted_for_user = [6; 32];
+        let file_key_encrypted_for_user = [6; OwnerKey::KEY_SIZE].into();
         Canister::share_file(caller, user_id, file_id, file_key_encrypted_for_user).await;
         let result = Canister::download_file(user_id, file_id, 0);
         assert_eq!(
@@ -910,7 +911,7 @@ mod test {
             FileDownloadResponse::FoundFile(FileData {
                 contents: file_content,
                 file_type,
-                owner_key: [6; 32],
+                owner_key: [6; OwnerKey::KEY_SIZE].into(),
                 num_chunks
             })
         );
@@ -930,7 +931,7 @@ mod test {
         // Attempt to download the file on partially uploaded state
         let file_content = vec![1, 2, 3];
         let file_type = "text/plain".to_string();
-        let owner_key = [0; 32];
+        let owner_key = [0; OwnerKey::KEY_SIZE].into();
         let num_chunks = 2;
         let _ = Canister::upload_file(
             file_id,
@@ -952,7 +953,7 @@ mod test {
         let file_id = FileAliasIndexStorage::get_file_id(&alias).unwrap();
         let file_content = vec![1, 2, 3];
         let file_type = "text/plain".to_string();
-        let owner_key = [0; 32];
+        let owner_key = [0; OwnerKey::KEY_SIZE].into();
         let num_chunks = 1;
         let _ = Canister::upload_file(
             file_id,
@@ -963,7 +964,7 @@ mod test {
         );
 
         let user_id = Principal::from_slice(&[4, 5, 6, 7]);
-        let file_key_encrypted_for_user = [6; 32];
+        let file_key_encrypted_for_user = [6; OwnerKey::KEY_SIZE].into();
         Canister::share_file(caller, user_id, file_id, file_key_encrypted_for_user).await;
 
         let res = Canister::download_file(Principal::anonymous(), file_id, 0);
@@ -977,14 +978,14 @@ mod test {
         let alias = Canister::request_file(caller, file_name).await;
         let file_id = FileAliasIndexStorage::get_file_id(&alias).unwrap();
         let user_id = Principal::from_slice(&[4, 5, 6, 7]);
-        let file_key_encrypted_for_user = [0; 32];
+        let file_key_encrypted_for_user = [0; OwnerKey::KEY_SIZE].into();
         let result =
             Canister::share_file(caller, user_id, file_id, file_key_encrypted_for_user).await;
         assert_eq!(result, FileSharingResponse::PendingError);
         // Upload the file first
         let file_content = vec![1, 2, 3];
         let file_type = "text/plain".to_string();
-        let owner_key = [0; 32];
+        let owner_key = [0; OwnerKey::KEY_SIZE].into();
         let num_chunks = 1;
         let res = Canister::upload_file(
             file_id,
@@ -1025,14 +1026,14 @@ mod test {
         for _ in 0..3 {
             let alias = Canister::request_file(caller, file_name).await;
             let file_id = FileAliasIndexStorage::get_file_id(&alias).unwrap();
-            let file_key_encrypted_for_user = [0; 32];
+            let file_key_encrypted_for_user = [0; OwnerKey::KEY_SIZE].into();
             let result =
                 Canister::share_file(caller, user_id, file_id, file_key_encrypted_for_user).await;
             assert_eq!(result, FileSharingResponse::PendingError);
             // Upload the file first
             let file_content = vec![1, 2, 3];
             let file_type = "text/plain".to_string();
-            let owner_key = [0; 32];
+            let owner_key = [0; OwnerKey::KEY_SIZE].into();
             let num_chunks = 1;
             let res = Canister::upload_file(
                 file_id,
@@ -1078,7 +1079,7 @@ mod test {
         //upload the file first
         let file_content = vec![1, 2, 3];
         let file_type = "text/plain".to_string();
-        let owner_key = [0; 32];
+        let owner_key = [0; OwnerKey::KEY_SIZE].into();
         let num_chunks = 1;
         let res = Canister::upload_file(
             file_id,
@@ -1094,7 +1095,10 @@ mod test {
             Principal::from_slice(&[4, 5, 6, 7]),
             Principal::from_slice(&[8, 9, 10, 11]),
         ];
-        let file_key_encrypted_for_user = vec![[2; 32], [1; 32]];
+        let file_key_encrypted_for_user = vec![
+            [2; OwnerKey::KEY_SIZE].into(),
+            [1; OwnerKey::KEY_SIZE].into(),
+        ];
         Canister::share_file_with_users(
             caller,
             user_ids.clone(),
@@ -1115,7 +1119,7 @@ mod test {
         init();
         let user_id = Principal::from_slice(&[4, 5, 6, 7]);
         let file_id = 1;
-        let file_key_encrypted_for_user = [0; 32];
+        let file_key_encrypted_for_user = [0; OwnerKey::KEY_SIZE].into();
         Canister::share_file(
             Principal::anonymous(),
             user_id,
@@ -1134,7 +1138,7 @@ mod test {
         //upload the file first
         let file_content = vec![1, 2, 3];
         let file_type = "text/plain".to_string();
-        let owner_key = [0; 32];
+        let owner_key = [0; OwnerKey::KEY_SIZE].into();
         let num_chunks = 1;
         let res = Canister::upload_file(
             file_id,
@@ -1146,7 +1150,7 @@ mod test {
         assert!(res.is_ok());
         // Now share the file with  user
         let user_id = Principal::from_slice(&[4, 5, 6, 7]);
-        let file_key_encrypted_for_user = [0; 32];
+        let file_key_encrypted_for_user = [0; OwnerKey::KEY_SIZE].into();
         Canister::share_file(caller, user_id, file_id, file_key_encrypted_for_user).await;
         // Revoke sharing
         Canister::revoke_file_sharing(caller, user_id, file_id).await;
@@ -1172,9 +1176,9 @@ mod test {
         let caller = init();
         let mut file_ids = vec![];
         let user_id = Principal::from_slice(&[4, 5, 6, 7]);
-        let file_key_encrypted_for_user = [0; 32];
+        let file_key_encrypted_for_user = [0; OwnerKey::KEY_SIZE].into();
         let file_type = "text/plain".to_string();
-        let owner_key = [0; 32];
+        let owner_key = [0; OwnerKey::KEY_SIZE].into();
         let num_chunks = 1;
 
         for _ in 0..5 {
@@ -1252,7 +1256,7 @@ mod test {
         let file_name = "test_file.txt";
         let file_content = vec![1, 2, 3];
         let file_type = "text/plain".to_string();
-        let owner_key = [0; 32];
+        let owner_key = [0; OwnerKey::KEY_SIZE].into();
         let num_chunks = 1;
         let file_id = Canister::upload_file_atomic(
             user,
@@ -1267,7 +1271,7 @@ mod test {
 
         // share file with alice
         let alice = Principal::from_slice(&[4, 5, 6, 7]);
-        let file_key_encrypted_for_user = [0; 32];
+        let file_key_encrypted_for_user = [0; OwnerKey::KEY_SIZE].into();
         let result = Canister::share_file(user, alice, file_id, file_key_encrypted_for_user).await;
         assert_eq!(result, FileSharingResponse::Ok);
 
@@ -1296,7 +1300,7 @@ mod test {
         let file_name = "test_file.txt";
         let file_content = vec![1, 2, 3];
         let file_type = "text/plain".to_string();
-        let owner_key = [0; 32];
+        let owner_key = [0; OwnerKey::KEY_SIZE].into();
         let num_chunks = 4;
         let request_id = Canister::request_file(user, file_name.to_string()).await;
         // upload the file first
@@ -1312,7 +1316,7 @@ mod test {
 
         // share file with alice
         let alice = Principal::from_slice(&[4, 5, 6, 7]);
-        let file_key_encrypted_for_user = [0; 32];
+        let file_key_encrypted_for_user = [0; OwnerKey::KEY_SIZE].into();
         let result = Canister::share_file(user, alice, file_id, file_key_encrypted_for_user).await;
         assert_eq!(result, FileSharingResponse::Ok);
 

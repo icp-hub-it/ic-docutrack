@@ -16,5 +16,4 @@ serde_bytes = { workspace = true }
 
 [build-dependencies]
 candid_parser = { workspace = true }
-cargo_metadata = { workspace = true }
-station-api = { workspace = true }
+git2 = { workspace = true }
