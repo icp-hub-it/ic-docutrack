@@ -349,7 +349,7 @@ mod test {
             principal,
             User {
                 username: "test_user".to_string(),
-                public_key: [1; 32],
+                public_key: vec![1; 32].try_into().unwrap(),
             },
         );
 
@@ -359,7 +359,7 @@ mod test {
             response,
             Some(PublicUser {
                 username: "test_user".to_string(),
-                public_key: [1; 32],
+                public_key: vec![1; 32].try_into().unwrap(),
                 ic_principal: principal,
             })
         );
