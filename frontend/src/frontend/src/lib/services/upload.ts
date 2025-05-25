@@ -4,7 +4,7 @@ import type { ActorTypeUserCanister } from "$lib/shared/actor";
 import { enumIs } from "$lib/shared/enums";
 import pLimit from "p-limit";
 import { writable } from "svelte/store";
-import type { Result as GetAliasInfoResponse } from "../../../../../declarations/user_canister/user_canister.did";
+import type { Result as GetAliasInfoResponse } from "../../../declarations/user_canister/user_canister.did";
 
 export const CHUNK_SIZE = 2_000_000;
 

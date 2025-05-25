@@ -3,13 +3,20 @@ import type { ActorMethod } from '@dfinity/agent';
 import type { IDL } from '@dfinity/candid';
 
 export type GetUsersResponse = { 'permission_error' : null } |
-  { 'users' : Array<PublicUser> };
+  { 'users' : GetUsersResponseUsers };
+export interface GetUsersResponseUsers {
+  'total' : bigint,
+  'next' : [] | [bigint],
+  'users' : Array<PublicUser>,
+}
 export interface OrchestratorInitArgs {
   'orbit_station_admin' : string,
   'orbit_station' : Principal,
 }
 export type OrchestratorInstallArgs = { 'Upgrade' : null } |
   { 'Init' : OrchestratorInitArgs };
+export interface Pagination { 'offset' : bigint, 'limit' : bigint }
+export interface PublicFileMetadata { 'file_name' : string, 'file_id' : bigint }
 export interface PublicUser {
   'username' : string,
   'public_key' : Uint8Array | number[],
@@ -28,11 +35,12 @@ export type SetUserResponse = { 'ok' : null } |
   { 'username_exists' : null } |
   { 'caller_has_already_a_user' : null } |
   { 'anonymous_caller' : null };
+export interface ShareFileMetadata { 'file_name' : string }
 export type ShareFileResponse = { 'Ok' : null } |
   { 'NoSuchUser' : Principal } |
   { 'Unauthorized' : null };
 export type SharedFilesResponse = {
-    'SharedFiles' : Array<[Principal, BigUint64Array | bigint[]]>
+    'SharedFiles' : Array<[Principal, Array<PublicFileMetadata>]>
   } |
   { 'NoSuchUser' : null } |
   { 'AnonymousUser' : null };
@@ -44,7 +52,7 @@ export type UserCanisterResponse = { 'Ok' : Principal } |
 export type WhoamiResponse = { 'known_user' : PublicUser } |
   { 'unknown_user' : null };
 export interface _SERVICE {
-  'get_users' : ActorMethod<[], GetUsersResponse>,
+  'get_users' : ActorMethod<[Pagination], GetUsersResponse>,
   'orbit_station' : ActorMethod<[], Principal>,
   'retry_user_canister_creation' : ActorMethod<
     [],
@@ -59,9 +67,12 @@ export interface _SERVICE {
     RevokeShareFileResponse
   >,
   'set_user' : ActorMethod<[string, Uint8Array | number[]], SetUserResponse>,
-  'share_file' : ActorMethod<[Principal, bigint], ShareFileResponse>,
+  'share_file' : ActorMethod<
+    [Principal, bigint, ShareFileMetadata],
+    ShareFileResponse
+  >,
   'share_file_with_users' : ActorMethod<
-    [Array<Principal>, bigint],
+    [Array<Principal>, bigint, ShareFileMetadata],
     ShareFileResponse
   >,
   'shared_files' : ActorMethod<[], SharedFilesResponse>,

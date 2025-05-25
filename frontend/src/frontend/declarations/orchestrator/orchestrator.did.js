@@ -7,14 +7,20 @@ export const idlFactory = ({ IDL }) => {
     'Upgrade' : IDL.Null,
     'Init' : OrchestratorInitArgs,
   });
+  const Pagination = IDL.Record({ 'offset' : IDL.Nat64, 'limit' : IDL.Nat64 });
   const PublicUser = IDL.Record({
     'username' : IDL.Text,
     'public_key' : IDL.Vec(IDL.Nat8),
     'ic_principal' : IDL.Principal,
   });
+  const GetUsersResponseUsers = IDL.Record({
+    'total' : IDL.Nat64,
+    'next' : IDL.Opt(IDL.Nat64),
+    'users' : IDL.Vec(PublicUser),
+  });
   const GetUsersResponse = IDL.Variant({
     'permission_error' : IDL.Null,
-    'users' : IDL.Vec(PublicUser),
+    'users' : GetUsersResponseUsers,
   });
   const RetryUserCanisterCreationResponse = IDL.Variant({
     'Ok' : IDL.Null,
@@ -35,13 +41,20 @@ export const idlFactory = ({ IDL }) => {
     'caller_has_already_a_user' : IDL.Null,
     'anonymous_caller' : IDL.Null,
   });
+  const ShareFileMetadata = IDL.Record({ 'file_name' : IDL.Text });
   const ShareFileResponse = IDL.Variant({
     'Ok' : IDL.Null,
     'NoSuchUser' : IDL.Principal,
     'Unauthorized' : IDL.Null,
   });
+  const PublicFileMetadata = IDL.Record({
+    'file_name' : IDL.Text,
+    'file_id' : IDL.Nat64,
+  });
   const SharedFilesResponse = IDL.Variant({
-    'SharedFiles' : IDL.Vec(IDL.Tuple(IDL.Principal, IDL.Vec(IDL.Nat64))),
+    'SharedFiles' : IDL.Vec(
+      IDL.Tuple(IDL.Principal, IDL.Vec(PublicFileMetadata))
+    ),
     'NoSuchUser' : IDL.Null,
     'AnonymousUser' : IDL.Null,
   });
@@ -57,7 +70,7 @@ export const idlFactory = ({ IDL }) => {
     'unknown_user' : IDL.Null,
   });
   return IDL.Service({
-    'get_users' : IDL.Func([], [GetUsersResponse], ['query']),
+    'get_users' : IDL.Func([Pagination], [GetUsersResponse], ['query']),
     'orbit_station' : IDL.Func([], [IDL.Principal], ['query']),
     'retry_user_canister_creation' : IDL.Func(
         [],
@@ -76,12 +89,12 @@ export const idlFactory = ({ IDL }) => {
       ),
     'set_user' : IDL.Func([IDL.Text, IDL.Vec(IDL.Nat8)], [SetUserResponse], []),
     'share_file' : IDL.Func(
-        [IDL.Principal, IDL.Nat64],
+        [IDL.Principal, IDL.Nat64, ShareFileMetadata],
         [ShareFileResponse],
         [],
       ),
     'share_file_with_users' : IDL.Func(
-        [IDL.Vec(IDL.Principal), IDL.Nat64],
+        [IDL.Vec(IDL.Principal), IDL.Nat64, ShareFileMetadata],
         [ShareFileResponse],
         [],
       ),

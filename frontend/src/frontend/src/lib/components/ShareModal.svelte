@@ -6,8 +6,8 @@
   import type {
     PublicFileMetadata,
     // user,
-  } from "../../../../../declarations/user_canister/user_canister.did";
-  import type { PublicUser } from "../../../../../declarations/orchestrator/orchestrator.did";
+  } from "../../../declarations/user_canister/user_canister.did";
+  import type { PublicUser } from "../../../declarations/orchestrator/orchestrator.did";
   import Modal from "./Modal.svelte";
   import CloseIcon from "./icons/CloseIcon.svelte";
   import type { AuthStateAuthenticated } from "$lib/services/auth";

@@ -7,8 +7,7 @@ import { enumIs } from "$lib/shared/enums";
 import { flatten } from "$lib/shared/flatten";
 import { unreachable } from "$lib/shared/unreachable";
 import { get, writable } from "svelte/store";
-import type { PublicFileMetadata } from "../../../../../declarations/user_canister/user_canister.did";
-import type { SharedFilesResponse } from "../../../../../declarations/orchestrator/orchestrator.did";
+import type { PublicFileMetadata } from "../../../declarations/user_canister/user_canister.did";
 
 export type UploadedFile = {
   name: string;

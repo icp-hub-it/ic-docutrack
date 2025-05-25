@@ -1,8 +1,8 @@
 import { unreachable } from "$lib/shared/unreachable";
 import { AuthClient } from "@dfinity/auth-client";
 import { derived, get, writable } from "svelte/store";
-import { createActor as createActorUser } from "../../../../../declarations/user_canister";
-import { createActor as createActorOrchestrator } from "../../../../../declarations/orchestrator";
+import { createActor as createActorOrchestrator } from "../../../declarations/orchestrator";
+import { createActor as createActorUser } from "../../../declarations/user_canister";
 import type {
   ActorTypeOrchestrator,
   ActorTypeUserCanister,

@@ -31,6 +31,7 @@
     if (data.requestName && !data.requestLink) {
       requestName = data.requestName;
       const alias = await auth.actor_user.request_file(data.requestName);
+      console.log("Alias received:", alias);
       requestLink = new URL($page.url.origin + "/upload");
       requestLink.searchParams.append("alias", alias);
     }

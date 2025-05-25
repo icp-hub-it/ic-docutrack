@@ -14,7 +14,10 @@ export const canisterId =
   process.env.ORCHESTRATOR_CANISTER_ID;
 
 export const createActor = (canisterId, options = {}) => {
-  const agent = options.agent || new HttpAgent({ ...options.agentOptions });
+  const agent = options.agent || new HttpAgent({
+    host: options.agentOptions?.host || import.meta.env.VITE_HOST || "http://localhost:4943",
+    ...options.agentOptions,
+  });
 
   if (options.agent && options.agentOptions) {
     console.warn(
