@@ -4,11 +4,10 @@ use did::user_canister::{
     FileStatus, OwnerKey, UploadFileAtomicRequest, UploadFileContinueRequest, UploadFileRequest,
 };
 use integration_tests::actor::{admin, alice};
-use integration_tests::{OrchestratorClient, PocketIcTestEnv, UserCanisterClient};
+use integration_tests::{OrchestratorClient, UserCanisterClient};
 
-#[tokio::test]
-async fn test_should_set_and_get_public_key() {
-    let env = PocketIcTestEnv::init().await;
+#[pocket_test::test]
+async fn test_should_set_and_get_public_key(env: PocketIcTestEnv) {
     let client = UserCanisterClient::from(&env);
     let me = Principal::from_slice(&[1; 29]);
 
@@ -19,13 +18,10 @@ async fn test_should_set_and_get_public_key() {
     let public_key = client.public_key(me).await;
 
     assert_eq!(new_public_key, public_key);
-
-    env.stop().await;
 }
 
-#[tokio::test]
-async fn test_should_request_file_and_get_requests() {
-    let env = PocketIcTestEnv::init().await;
+#[pocket_test::test]
+async fn test_should_request_file_and_get_requests(env: PocketIcTestEnv) {
     let client = UserCanisterClient::from(&env);
     let owner = admin();
 
@@ -44,13 +40,10 @@ async fn test_should_request_file_and_get_requests() {
         client.get_requests(owner).await.first().unwrap().file_name,
         request_name
     );
-
-    env.stop().await;
 }
 
-#[tokio::test]
-async fn test_should_upload_file() {
-    let env = PocketIcTestEnv::init().await;
+#[pocket_test::test]
+async fn test_should_upload_file(env: PocketIcTestEnv) {
     let client = UserCanisterClient::from(&env);
     let owner = admin();
     let request_name = "test.txt".to_string();
@@ -81,13 +74,10 @@ async fn test_should_upload_file() {
         }
         _ => panic!("File status is not uploaded"),
     }
-
-    env.stop().await;
 }
 
-#[tokio::test]
-async fn test_should_get_alias_info() {
-    let env = PocketIcTestEnv::init().await;
+#[pocket_test::test]
+async fn test_should_get_alias_info(env: PocketIcTestEnv) {
     let client = UserCanisterClient::from(&env);
     let owner = admin();
     let external_user = alice();
@@ -103,13 +93,10 @@ async fn test_should_get_alias_info() {
     );
     assert_eq!(alias_info.clone().unwrap().file_name, request_name);
     assert_eq!(alias_info.unwrap().file_id, 0);
-
-    env.stop().await;
 }
 
-#[tokio::test]
-async fn test_should_upload_file_atomic() {
-    let env = PocketIcTestEnv::init().await;
+#[pocket_test::test]
+async fn test_should_upload_file_atomic(env: PocketIcTestEnv) {
     let client = UserCanisterClient::from(&env);
     let owner = admin();
     let request_name = "test.txt".to_string();
@@ -135,12 +122,10 @@ async fn test_should_upload_file_atomic() {
         _ => panic!("File status is not uploaded"),
     }
     assert_eq!(public_metadata.file_id, file_id);
-    env.stop().await;
 }
 
-#[tokio::test]
-async fn test_should_upload_file_continue() {
-    let env = PocketIcTestEnv::init().await;
+#[pocket_test::test]
+async fn test_should_upload_file_continue(env: PocketIcTestEnv) {
     let client = UserCanisterClient::from(&env);
     let owner = admin();
     let request_name = "test.txt".to_string();
@@ -194,13 +179,10 @@ async fn test_should_upload_file_continue() {
         }
         _ => panic!("File status is not uploaded"),
     }
-
-    env.stop().await;
 }
 
-#[tokio::test]
-async fn test_should_download_file() {
-    let env = PocketIcTestEnv::init().await;
+#[pocket_test::test]
+async fn test_should_download_file(env: PocketIcTestEnv) {
     let client = UserCanisterClient::from(&env);
     let owner = admin();
     let request_name = "test.txt".to_string();
@@ -255,13 +237,10 @@ async fn test_should_download_file() {
         }
         _ => panic!("File not found"),
     }
-
-    env.stop().await;
 }
 
-#[tokio::test]
-async fn test_should_get_shared_files() {
-    let env = PocketIcTestEnv::init().await;
+#[pocket_test::test]
+async fn test_should_get_shared_files(env: PocketIcTestEnv) {
     let client = UserCanisterClient::from(&env);
     let orchestrator_client = OrchestratorClient::from(&env);
     let external_user = alice();
@@ -305,13 +284,10 @@ async fn test_should_get_shared_files() {
     let shared_files = client.get_shared_files(owner, external_user).await;
     assert_eq!(shared_files.len(), 1);
     assert_eq!(shared_files[0].file_id, file_id);
-
-    env.stop().await;
 }
 
-#[tokio::test]
-async fn test_should_delete_file() {
-    let env = PocketIcTestEnv::init().await;
+#[pocket_test::test]
+async fn test_should_delete_file(env: PocketIcTestEnv) {
     let client = UserCanisterClient::from(&env);
     let owner = admin();
     let request_name = "test.txt".to_string();
@@ -339,13 +315,10 @@ async fn test_should_delete_file() {
         0,
         "file should be deleted"
     );
-
-    env.stop().await;
 }
 
-#[tokio::test]
-async fn test_should_delete_shared_file() {
-    let env = PocketIcTestEnv::init().await;
+#[pocket_test::test]
+async fn test_should_delete_shared_file(env: PocketIcTestEnv) {
     let client = UserCanisterClient::from(&env);
     let orchestrator_client = OrchestratorClient::from(&env);
     let external_user = alice();
@@ -395,6 +368,4 @@ async fn test_should_delete_shared_file() {
         0,
         "file should be deleted"
     );
-
-    env.stop().await;
 }
