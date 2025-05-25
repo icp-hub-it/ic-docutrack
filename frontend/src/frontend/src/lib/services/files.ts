@@ -1,10 +1,14 @@
-import type { ActorType } from "$lib/shared/actor";
+import type {
+  ActorTypeOrchestrator,
+  ActorTypeUserCanister,
+} from "$lib/shared/actor";
 import { formatUploadDate, formatUploadDateShort } from "$lib/shared/dates";
 import { enumIs } from "$lib/shared/enums";
 import { flatten } from "$lib/shared/flatten";
 import { unreachable } from "$lib/shared/unreachable";
 import { get, writable } from "svelte/store";
-import type { file_metadata } from "../../../../declarations/backend/backend.did";
+import type { PublicFileMetadata } from "../../../../../declarations/user_canister/user_canister.did";
+import type { SharedFilesResponse } from "../../../../../declarations/orchestrator/orchestrator.did";
 
 export type UploadedFile = {
   name: string;
@@ -12,7 +16,7 @@ export type UploadedFile = {
   uploadedAt: string;
   uploadedAtShort: string;
   file_id: bigint;
-  metadata: file_metadata;
+  metadata: PublicFileMetadata | null;
 };
 
 export type FilesState =
@@ -65,7 +69,10 @@ function createFilesStore() {
 export const filesStore = createFilesStore();
 
 export class FilesService {
-  constructor(private actor: ActorType) {}
+  constructor(
+    private actor: ActorTypeUserCanister,
+    private actorOrchestrator: ActorTypeOrchestrator
+  ) {}
 
   async init() {
     filesStore.setLoading();
@@ -98,9 +105,19 @@ export class FilesService {
   }
 
   private async loadFiles(): Promise<UploadedFile[]> {
+    // walkaroudn to fetch the shared files FIX
+    const external_files_resp = await this.actorOrchestrator.shared_files();
+    let external_files =
+      "SharedFiles" in external_files_resp
+        ? external_files_resp.SharedFiles
+        : [];
+
     const files = flatten(
       await Promise.all([
-        this.actor.get_shared_files(),
+        // this.actorOrchestrator.shared_files(),
+
+        /// TODO should add owned files method. returning array of PublicFileMetadata
+        // this.actor.get_owned_files(),
         this.actor.get_requests(),
       ])
     );
@@ -136,6 +153,17 @@ export class FilesService {
       }
     }
 
+    // adding external files without metadata FIX
+    for (const external of external_files) {
+      uploadedFiles.push({
+        name: "external-file",
+        access: "You at least",
+        uploadedAt: "Unknown",
+        uploadedAtShort: "Unknown",
+        file_id: external[1][0],
+        metadata: null,
+      });
+    }
     return uploadedFiles;
   }
 }

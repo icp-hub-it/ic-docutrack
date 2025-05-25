@@ -30,7 +30,7 @@
     // Do not request new url when there is already one
     if (data.requestName && !data.requestLink) {
       requestName = data.requestName;
-      const alias = await auth.actor.request_file(data.requestName);
+      const alias = await auth.actor_user.request_file(data.requestName);
       requestLink = new URL($page.url.origin + "/upload");
       requestLink.searchParams.append("alias", alias);
     }

@@ -7,8 +7,7 @@
 
   export let isOpen = false;
   export let authenticatedStore: AuthStateAuthenticated;
-
-  let usernameValue;
+  let usernameValue: string = "";
 
   function register() {
     if ($userStore.state === "unregistered") {

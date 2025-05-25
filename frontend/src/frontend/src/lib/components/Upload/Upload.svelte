@@ -63,7 +63,7 @@
   onMount(async () => {
     alias = $page.url.searchParams.get("alias") || "";
     if (alias) {
-      const aliasInfo = await auth.actor.get_alias_info(alias);
+      const aliasInfo = await auth.actor_user.get_alias_info(alias);
 
       if (enumIs(aliasInfo, "Ok")) {
         uploadType = {
@@ -106,7 +106,7 @@
     if (state === "uploading") {
       if (
         !confirm(
-          "You are currently uploading a file. Are you sure you want to leave this page?",
+          "You are currently uploading a file. Are you sure you want to leave this page?"
         )
       ) {
         navigation.cancel();
@@ -124,7 +124,7 @@
   }
 
   async function handleUpload() {
-    uploadService = new UploadService(auth.actor);
+    uploadService = new UploadService(auth.actor_user);
 
     if (uploadType?.type === "self") {
       uploadType.fileName = fileName;

@@ -1,5 +1,6 @@
 import File from "$lib/file";
-import type { ActorType } from "$lib/shared/actor";
+import type { ActorTypeUserCanister } from "$lib/shared/actor";
+import type { ActorTypeOrchestrator } from "$lib/shared/actor";
 import { formatUploadDate } from "$lib/shared/dates";
 import { enumIs } from "$lib/shared/enums";
 import { flatten } from "$lib/shared/flatten";
@@ -21,7 +22,10 @@ const PROGRESS_INITIAL: ProgressStore = {
 export class DecryptService {
   aborted = false;
   progress = writable<ProgressStore>(PROGRESS_INITIAL);
-  constructor(private actor: ActorType) {}
+  constructor(
+    private actor: ActorTypeUserCanister,
+    private actorOrchestrator: ActorTypeOrchestrator
+  ) {}
 
   reset() {
     this.aborted = false;
@@ -40,18 +44,40 @@ export class DecryptService {
   > {
     this.progress.set(PROGRESS_INITIAL);
 
+    //FIX RETURN PublicFileMetadata[]
+    const external_files_resp = await this.actorOrchestrator.shared_files();
+    let external_files =
+      "SharedFiles" in external_files_resp
+        ? external_files_resp.SharedFiles
+        : [];
+
     let files = flatten(
       await Promise.all([
+        // this.actor.get_shared_files(),
         this.actor.get_requests(),
-        this.actor.get_shared_files(),
+        //TODO add get_owned_files
+        // this.actor.get_owned_files(),
       ])
     );
 
     if (this.aborted) return "aborted";
 
-    const maybeFile = files.find((entry) => entry.file_id == BigInt(fileId));
-
-    if (!maybeFile) {
+    let maybeFile = files.find((entry) => entry.file_id == BigInt(fileId));
+    //TODO FIX
+    const maybeExternal = external_files.find(
+      (entry) => entry[1][0] == BigInt(fileId)
+    );
+    //rollback after method update
+    if (!maybeFile && maybeExternal) {
+      maybeFile = {
+        file_id: maybeExternal[1][0],
+        file_name: "external file",
+        file_status: {
+          uploaded: { uploaded_at: BigInt(0), document_key: new Uint8Array(0) },
+        },
+        shared_with: [],
+      };
+    } else if (!maybeFile) {
       throw new Error("Error: File not found");
     }
 
@@ -113,10 +139,23 @@ export class DecryptService {
 
       let decryptedFile: File;
       try {
+        function convertToArrayBuffer(buffer: ArrayBufferLike): ArrayBuffer {
+          if (buffer instanceof ArrayBuffer) {
+            return buffer;
+          }
+          // Create a new ArrayBuffer and copy data
+          const arrayBuffer = new ArrayBuffer(buffer.byteLength);
+          new Uint8Array(arrayBuffer).set(new Uint8Array(buffer));
+          return arrayBuffer;
+        }
         decryptedFile = await File.fromEncrypted(
           maybeFile.file_name,
-          (downloadedFile.found_file.contents as Uint8Array).buffer,
-          (downloadedFile.found_file.owner_key as Uint8Array).buffer
+          convertToArrayBuffer(
+            (downloadedFile.found_file.contents as Uint8Array).buffer
+          ),
+          convertToArrayBuffer(
+            (downloadedFile.found_file.owner_key as Uint8Array).buffer
+          )
         );
       } catch {
         throw new Error(

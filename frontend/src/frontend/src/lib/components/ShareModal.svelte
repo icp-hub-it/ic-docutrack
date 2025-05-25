@@ -4,9 +4,10 @@
   import type { Principal } from "@dfinity/principal";
   import { createEventDispatcher, onMount } from "svelte";
   import type {
-    file_metadata,
-    user,
-  } from "../../../../declarations/backend/backend.did";
+    PublicFileMetadata,
+    // user,
+  } from "../../../../../declarations/user_canister/user_canister.did";
+  import type { PublicUser } from "../../../../../declarations/orchestrator/orchestrator.did";
   import Modal from "./Modal.svelte";
   import CloseIcon from "./icons/CloseIcon.svelte";
   import type { AuthStateAuthenticated } from "$lib/services/auth";
@@ -16,7 +17,7 @@
   export let auth: AuthStateAuthenticated;
 
   export let isOpen = false;
-  export let fileData: file_metadata;
+  export let fileData: PublicFileMetadata;
 
   const dispatch = createEventDispatcher<{
     shared: { file_id: bigint; shared_with: user[] };
@@ -45,11 +46,11 @@
 
   function addPersonToShare(user: { label: string; value: Principal }) {
     const maybeUser = users.find(
-      (obj) => obj.ic_principal.compareTo(user.value) === "eq",
+      (obj) => obj.ic_principal.compareTo(user.value) === "eq"
     );
 
     const principalNotYetAdded = !newSharedWith.find(
-      (obj) => obj.ic_principal.compareTo(user.value) === "eq",
+      (obj) => obj.ic_principal.compareTo(user.value) === "eq"
     );
 
     if (!!maybeUser && principalNotYetAdded) {
@@ -59,7 +60,7 @@
 
   function removePersonFromShare(principal) {
     let user = newSharedWith.find(
-      (obj) => obj.ic_principal.compareTo(principal) === "eq",
+      (obj) => obj.ic_principal.compareTo(principal) === "eq"
     );
     if (user !== null) {
       newSharedWith = removeItem(newSharedWith, user);
@@ -85,7 +86,7 @@
     let documentKey: ArrayBuffer;
     try {
       documentKey = await crypto.decryptForUser(
-        (fileData.file_status.uploaded.document_key as Uint8Array).buffer,
+        (fileData.file_status.uploaded.document_key as Uint8Array).buffer
       );
     } catch {
       error =
@@ -97,13 +98,13 @@
       try {
         const encryptedFileKey = await crypto.encryptForUser(
           documentKey,
-          (newSharedWith[i].public_key as Uint8Array).buffer,
+          (newSharedWith[i].public_key as Uint8Array).buffer
         );
         // TODO: add expiration date to backend call
         await auth.actor.share_file(
           newSharedWith[i].ic_principal,
           fileData.file_id,
-          new Uint8Array(encryptedFileKey),
+          new Uint8Array(encryptedFileKey)
         );
       } catch {
         error = `Error: could not share file with ${newSharedWith[i].username}`;
@@ -116,12 +117,12 @@
       try {
         let res = newSharedWith.find(
           (obj) =>
-            obj.ic_principal.compareTo(oldSharedWith[i].ic_principal) === "eq",
+            obj.ic_principal.compareTo(oldSharedWith[i].ic_principal) === "eq"
         );
         if (!res) {
           await auth.actor.revoke_share(
             oldSharedWith[i].ic_principal,
-            fileData.file_id,
+            fileData.file_id
           );
         }
       } catch {
@@ -162,15 +163,15 @@
     (obj) =>
       obj.ic_principal.compareTo(selfPrincipal) !== "eq" &&
       !newSharedWith.find(
-        (obj2) => obj.ic_principal.compareTo(obj2.ic_principal) === "eq",
-      ),
+        (obj2) => obj.ic_principal.compareTo(obj2.ic_principal) === "eq"
+      )
   );
 
   onMount(async () => {
     let res = await auth.actor.get_users();
     if (enumIs(res, "users")) {
       users = res.users.filter(
-        (obj) => obj.ic_principal.compareTo(selfPrincipal) !== "eq",
+        (obj) => obj.ic_principal.compareTo(selfPrincipal) !== "eq"
       );
     } else {
       users = [];
@@ -218,7 +219,7 @@
           placeholder={availableUsers?.length === 0
             ? "No users to share with"
             : "Select a user..."}
-        ></ComboBox>
+        />
       </div>
 
       <div>

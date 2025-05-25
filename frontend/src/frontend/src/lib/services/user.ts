@@ -1,5 +1,5 @@
 import { default as crypto } from "$lib/crypto";
-import type { ActorType } from "$lib/shared/actor";
+import type { ActorTypeOrchestrator } from "$lib/shared/actor";
 import { enumIs } from "$lib/shared/enums";
 import { unreachable } from "$lib/shared/unreachable";
 import { writable } from "svelte/store";
@@ -68,7 +68,7 @@ function createUserStore() {
 export const userStore = createUserStore();
 
 export class UserService {
-  constructor(private actor: ActorType) {}
+  constructor(private actor: ActorTypeOrchestrator) {}
 
   async init() {
     try {

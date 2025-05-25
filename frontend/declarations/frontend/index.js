@@ -39,3 +39,5 @@ export const createActor = (canisterId, options = {}) => {
     ...options.actorOptions,
   });
 };
+
+export const frontend = canisterId ? createActor(canisterId) : undefined;

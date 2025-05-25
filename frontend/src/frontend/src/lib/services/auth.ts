@@ -1,8 +1,12 @@
 import { unreachable } from "$lib/shared/unreachable";
 import { AuthClient } from "@dfinity/auth-client";
 import { derived, get, writable } from "svelte/store";
-import { createActor } from "../../../../declarations/backend";
-import type { ActorType } from "../shared/actor";
+import { createActor as createActorUser } from "../../../../../declarations/user_canister";
+import { createActor as createActorOrchestrator } from "../../../../../declarations/orchestrator";
+import type {
+  ActorTypeOrchestrator,
+  ActorTypeUserCanister,
+} from "../shared/actor";
 import { FilesService } from "./files";
 import { RequestsService } from "./requests";
 import { UploadService } from "./upload";
@@ -14,7 +18,8 @@ type AuthStateUninitialized = {
 
 export type AuthStateAuthenticated = {
   state: "authenticated";
-  actor: ActorType;
+  actor_user: ActorTypeUserCanister;
+  actor_orchestrator: ActorTypeOrchestrator;
   authClient: AuthClient;
   userService: UserService;
   filesService: FilesService;
@@ -25,7 +30,8 @@ export type AuthStateAuthenticated = {
 export type AuthStateUnauthenticated = {
   state: "unauthenticated";
   authClient: AuthClient;
-  actor: ActorType;
+  actor_user: ActorTypeUserCanister;
+  actor_orchestrator: ActorTypeOrchestrator;
   uploadService: UploadService;
 };
 
@@ -43,7 +49,8 @@ function createAuthStore() {
     subscribe,
     set,
     setLoggedin: (
-      actor: ActorType,
+      actor_user: ActorTypeUserCanister,
+      actor_orchestrator: ActorTypeOrchestrator,
       authClient: AuthClient,
       userService: UserService,
       filesService: FilesService,
@@ -52,7 +59,8 @@ function createAuthStore() {
     ) => {
       set({
         state: "authenticated",
-        actor,
+        actor_user,
+        actor_orchestrator,
         authClient,
         userService,
         filesService,
@@ -61,13 +69,15 @@ function createAuthStore() {
       });
     },
     setLoggedout: (
-      actor: ActorType,
+      actor_user: ActorTypeUserCanister,
+      actor_orchestrator: ActorTypeOrchestrator,
       authClient: AuthClient,
       uploadService: UploadService
     ) => {
       set({
         state: "unauthenticated",
-        actor,
+        actor_user,
+        actor_orchestrator,
         authClient,
         uploadService,
       });
@@ -81,13 +91,15 @@ export const isAuthenticated = derived(
   (store) => store.state === "authenticated"
 );
 
-function createServices(actor: ActorType) {
-  const userService = new UserService(actor);
+function createServices(
+  actor_user: ActorTypeUserCanister,
+  actorOrchestrator: ActorTypeOrchestrator
+) {
+  const userService = new UserService(actorOrchestrator);
   userService.init();
-  const filesService = new FilesService(actor);
-  const requestsService = new RequestsService(actor);
-
-  const uploadService = new UploadService(actor);
+  const filesService = new FilesService(actor_user, actorOrchestrator);
+  const requestsService = new RequestsService(actor_user);
+  const uploadService = new UploadService(actor_user);
 
   return {
     userService,
@@ -99,7 +111,8 @@ function createServices(actor: ActorType) {
 
 export class AuthService {
   constructor(
-    private canisterId: string,
+    private canisterIdUser: string,
+    private canisterIdOrchestrator: string,
     private host: string,
     private iiUrl: string
   ) {}
@@ -107,15 +120,22 @@ export class AuthService {
   async init() {
     const authClient = await AuthClient.create();
     if (await authClient.isAuthenticated()) {
-      const actor = createActor(this.canisterId, {
+      const actor_user = createActorUser(this.canisterIdUser, {
         agentOptions: { host: this.host, identity: authClient.getIdentity() },
       });
+      const actor_orchestrator = createActorOrchestrator(
+        this.canisterIdOrchestrator,
+        {
+          agentOptions: { host: this.host, identity: authClient.getIdentity() },
+        }
+      );
 
       const { userService, filesService, requestsService, uploadService } =
-        createServices(actor);
+        createServices(actor_user, actor_orchestrator);
 
       authStore.setLoggedin(
-        actor,
+        actor_user,
+        actor_orchestrator,
         authClient,
         userService,
         filesService,
@@ -123,15 +143,29 @@ export class AuthService {
         uploadService
       );
     } else {
-      const actor = createActor(this.canisterId, {
+      const actor_user = createActorUser(this.canisterIdUser, {
         agentOptions: {
           host: this.host,
           identity: authClient.getIdentity(),
         },
       });
-      const uploadService = new UploadService(actor);
+      const actor_orchestrator = createActorOrchestrator(
+        this.canisterIdOrchestrator,
+        {
+          agentOptions: {
+            host: this.host,
+            identity: authClient.getIdentity(),
+          },
+        }
+      );
+      const uploadService = new UploadService(actor_user);
 
-      authStore.setLoggedout(actor, authClient, uploadService);
+      authStore.setLoggedout(
+        actor_user,
+        actor_orchestrator,
+        authClient,
+        uploadService
+      );
     }
   }
 
@@ -151,17 +185,27 @@ export class AuthService {
             onError: reject,
           });
         });
-        const actor = createActor(this.canisterId, {
+        const actor_user = createActorUser(this.canisterIdUser, {
           agentOptions: {
             host: this.host,
             identity: store.authClient.getIdentity(),
           },
         });
+        const actor_orchestrator = createActorOrchestrator(
+          this.canisterIdOrchestrator,
+          {
+            agentOptions: {
+              host: this.host,
+              identity: store.authClient.getIdentity(),
+            },
+          }
+        );
         const { userService, filesService, requestsService, uploadService } =
-          createServices(actor);
+          createServices(actor_user, actor_orchestrator);
 
         authStore.setLoggedin(
-          actor,
+          actor_user,
+          actor_orchestrator,
           store.authClient,
           userService,
           filesService,
@@ -169,15 +213,29 @@ export class AuthService {
           uploadService
         );
       } catch (e) {
-        const actor = createActor(this.canisterId, {
+        const actor_user = createActorUser(this.canisterIdUser, {
           agentOptions: {
             host: this.host,
             identity: store.authClient.getIdentity(),
           },
         });
-        const uploadService = new UploadService(actor);
+        const actor_orchestrator = createActorOrchestrator(
+          this.canisterIdOrchestrator,
+          {
+            agentOptions: {
+              host: this.host,
+              identity: store.authClient.getIdentity(),
+            },
+          }
+        );
+        const uploadService = new UploadService(actor_user);
 
-        authStore.setLoggedout(actor, store.authClient, uploadService);
+        authStore.setLoggedout(
+          actor_user,
+          actor_orchestrator,
+          store.authClient,
+          uploadService
+        );
       }
     } else {
       unreachable(store);
@@ -190,14 +248,28 @@ export class AuthService {
       try {
         await store.authClient.logout();
         store.userService.reset();
-        const actor = createActor(this.canisterId, {
+        const actor_user = createActorUser(this.canisterIdUser, {
           agentOptions: {
             host: this.host,
             identity: store.authClient.getIdentity(),
           },
         });
-        const uploadService = new UploadService(actor);
-        authStore.setLoggedout(actor, store.authClient, uploadService);
+        const actor_orchestrator = createActorOrchestrator(
+          this.canisterIdOrchestrator,
+          {
+            agentOptions: {
+              host: this.host,
+              identity: store.authClient.getIdentity(),
+            },
+          }
+        );
+        const uploadService = new UploadService(actor_user);
+        authStore.setLoggedout(
+          actor_user,
+          actor_orchestrator,
+          store.authClient,
+          uploadService
+        );
       } catch (e) {}
     } else if (store.state === "uninitialized") {
       return;
@@ -210,7 +282,8 @@ export class AuthService {
 }
 
 export const authService = new AuthService(
-  import.meta.env.VITE_BACKEND_CANISTER_ID,
+  import.meta.env.VITE_USER_CANISTER_CANISTER_ID,
+  import.meta.env.VITE_ORCHESTRATOR_CANISTER_ID,
   import.meta.env.VITE_HOST,
   import.meta.env.VITE_II_URL
 );

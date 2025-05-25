@@ -1,4 +1,4 @@
-import type { ActorType } from "$lib/shared/actor";
+import type { ActorTypeUserCanister } from "$lib/shared/actor";
 import { formatUploadDate, formatUploadDateShort } from "$lib/shared/dates";
 import { enumIs } from "$lib/shared/enums";
 import { unreachable } from "$lib/shared/unreachable";
@@ -62,7 +62,7 @@ function createRequestsStore() {
 export const requestsStore = createRequestsStore();
 
 export class RequestsService {
-  constructor(private actor: ActorType) {}
+  constructor(private actor: ActorTypeUserCanister) {}
 
   async init() {
     requestsStore.setLoading();
