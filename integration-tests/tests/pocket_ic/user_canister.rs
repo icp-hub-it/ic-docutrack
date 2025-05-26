@@ -83,7 +83,12 @@ async fn test_should_get_alias_info(env: PocketIcTestEnv) {
     let external_user = alice();
     let request_name = "test.txt".to_string();
     let alias = client.request_file(request_name.clone(), owner).await;
-    let alias_info = client.get_alias_info(alias.clone(), external_user).await;
+    let alias_info = client
+        .get_alias_info(alias.clone(), external_user)
+        .await
+        .expect("alias info");
+
+    let public_key = client.public_key(owner).await;
 
     assert_eq!(
         client
@@ -91,8 +96,9 @@ async fn test_should_get_alias_info(env: PocketIcTestEnv) {
             .await,
         Err(did::user_canister::GetAliasInfoError::NotFound)
     );
-    assert_eq!(alias_info.clone().unwrap().file_name, request_name);
-    assert_eq!(alias_info.unwrap().file_id, 0);
+    assert_eq!(alias_info.file_name, request_name);
+    assert_eq!(alias_info.file_id, 0);
+    assert_eq!(alias_info.public_key, public_key);
 }
 
 #[pocket_test::test]

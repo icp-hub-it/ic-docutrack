@@ -525,6 +525,7 @@ impl Canister {
         Ok(AliasInfo {
             file_id,
             file_name: file.metadata.file_name.clone(),
+            public_key: file.metadata.user_public_key,
         })
     }
 

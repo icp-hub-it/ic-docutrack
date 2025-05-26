@@ -1,7 +1,7 @@
 use candid::{CandidType, Principal};
 use serde::{Deserialize, Serialize};
 
-use super::OwnerKey;
+use super::{OwnerKey, PublicKey};
 
 /// Public file metadata
 #[derive(CandidType, Serialize, Deserialize, Clone, Debug, PartialEq, Eq)]
@@ -43,6 +43,7 @@ pub enum GetAliasInfoError {
 pub struct AliasInfo {
     pub file_id: u64,
     pub file_name: String,
+    pub public_key: PublicKey,
 }
 
 /// File data
