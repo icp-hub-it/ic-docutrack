@@ -127,7 +127,7 @@ impl SharedFilesStorage {
                 file_shares.remove(&key);
                 0
             } else {
-                let new_len = entry.0.len() + 1; // +1 for the user being removed
+                let new_len = entry.0.len();
                 file_shares.insert(key, entry);
                 new_len
             }
