@@ -5,9 +5,9 @@ mod utils;
 
 use candid::Principal;
 use did::orchestrator::{
-    FileId, GetUsersResponse, OrchestratorInstallArgs, Pagination, PublicKey,
-    RetryUserCanisterCreationResponse, RevokeShareFileResponse, SetUserResponse, ShareFileResponse,
-    SharedFilesResponse, UserCanisterResponse, WhoamiResponse,
+    FileId, GetUsersResponse, OrchestratorInstallArgs, Pagination, PublicKey, PublicUser,
+    RetryUserCanisterCreationResponse, RevokeShareFileResponse, SetUserResponse, ShareFileMetadata,
+    ShareFileResponse, SharedFilesResponse, UserCanisterResponse, WhoamiResponse,
 };
 use ic_cdk_macros::{init, query, update};
 
@@ -22,6 +22,11 @@ pub fn init(args: OrchestratorInstallArgs) {
 #[query]
 pub fn get_users(pagination: Pagination) -> GetUsersResponse {
     Canister::get_users(pagination)
+}
+
+#[query]
+pub fn get_user(principal: Principal) -> Option<PublicUser> {
+    Canister::get_user(principal)
 }
 
 #[query]
@@ -53,13 +58,21 @@ pub fn set_user(username: String, public_key: PublicKey) -> SetUserResponse {
 }
 
 #[update]
-pub fn share_file(user: Principal, file_id: FileId) -> ShareFileResponse {
-    Canister::share_file(user, file_id)
+pub fn share_file(
+    user: Principal,
+    file_id: FileId,
+    metadata: ShareFileMetadata,
+) -> ShareFileResponse {
+    Canister::share_file(user, file_id, metadata)
 }
 
 #[update]
-pub fn share_file_with_users(users: Vec<Principal>, file_id: FileId) -> ShareFileResponse {
-    Canister::share_file_with_users(users, file_id)
+pub fn share_file_with_users(
+    users: Vec<Principal>,
+    file_id: FileId,
+    metadata: ShareFileMetadata,
+) -> ShareFileResponse {
+    Canister::share_file_with_users(users, file_id, metadata)
 }
 
 #[query]

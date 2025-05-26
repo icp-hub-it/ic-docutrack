@@ -1,31 +1,27 @@
 use candid::Principal;
 use did::orchestrator::{
-    GetUsersResponse, PUBKEY_SIZE, Pagination, PublicUser, SetUserResponse, SharedFilesResponse,
+    GetUsersResponse, Pagination, PublicKey, PublicUser, SetUserResponse, SharedFilesResponse,
     WhoamiResponse,
 };
-use did::user_canister::{ENCRYPTION_KEY_SIZE, FileSharingResponse, UploadFileAtomicRequest};
+use did::user_canister::{FileSharingResponse, OwnerKey, UploadFileAtomicRequest};
 use integration_tests::actor::{admin, alice};
-use integration_tests::{OrchestratorClient, PocketIcTestEnv, TestEnv, UserCanisterClient};
+use integration_tests::{OrchestratorClient, TestEnv, UserCanisterClient};
 
-#[tokio::test]
-async fn test_should_get_orbit_station() {
-    let env = PocketIcTestEnv::init().await;
-    let orbit_station = OrchestratorClient::from(&env).orchestrator_client().await;
+#[pocket_test::test]
+async fn test_should_get_orbit_station(ctx: PocketIcTestEnv) {
+    let orbit_station = OrchestratorClient::from(&ctx).orchestrator_client().await;
 
-    assert_eq!(orbit_station, env.orbit_station());
-
-    env.stop().await;
+    assert_eq!(orbit_station, ctx.orbit_station());
 }
 
-#[tokio::test]
-async fn test_should_register_user() {
-    let env = PocketIcTestEnv::init().await;
+#[pocket_test::test]
+async fn test_should_register_user(env: PocketIcTestEnv) {
     let client = OrchestratorClient::from(&env);
 
     let me = Principal::from_slice(&[1; 29]);
 
     let username = "foo".to_string();
-    let public_key = [1; PUBKEY_SIZE];
+    let public_key = PublicKey::default();
 
     // we check if username is available
     assert!(!client.username_exists(username.clone()).await,);
@@ -47,28 +43,22 @@ async fn test_should_register_user() {
             ic_principal: me,
         })
     );
-
-    env.stop().await;
 }
 
-#[tokio::test]
-async fn test_should_not_register_user_if_anonymous() {
-    let env = PocketIcTestEnv::init().await;
+#[pocket_test::test]
+async fn test_should_not_register_user_if_anonymous(env: PocketIcTestEnv) {
     let client = OrchestratorClient::from(&env);
 
     let username = "foo".to_string();
-    let public_key = [1; PUBKEY_SIZE];
+    let public_key = PublicKey::default();
     let response = client
         .set_user(Principal::anonymous(), username, public_key)
         .await;
     assert_eq!(response, SetUserResponse::AnonymousCaller);
-
-    env.stop().await;
 }
 
-#[tokio::test]
-async fn test_should_not_get_users_if_anonymous() {
-    let env = PocketIcTestEnv::init().await;
+#[pocket_test::test]
+async fn test_should_not_get_users_if_anonymous(env: PocketIcTestEnv) {
     let client = OrchestratorClient::from(&env);
 
     let users = client
@@ -81,18 +71,15 @@ async fn test_should_not_get_users_if_anonymous() {
         )
         .await;
     assert_eq!(users, GetUsersResponse::PermissionError);
-
-    env.stop().await;
 }
 
-#[tokio::test]
-async fn test_should_create_user_canister() {
-    let env = PocketIcTestEnv::init().await;
+#[pocket_test::test]
+async fn test_should_create_user_canister(env: PocketIcTestEnv) {
     let client = OrchestratorClient::from(&env);
 
     let me = alice();
     let username = "alice".to_string();
-    let public_key = [1; PUBKEY_SIZE];
+    let public_key = PublicKey::default();
 
     // create user canister
     let response = client.set_user(me, username, public_key).await;
@@ -101,31 +88,25 @@ async fn test_should_create_user_canister() {
     // wait for user canister to be created
     let user_canister = client.wait_for_user_canister(me).await;
     assert_ne!(user_canister, Principal::anonymous());
-
-    env.stop().await;
 }
 
-#[tokio::test]
-async fn test_should_not_return_shared_files_if_anonymous() {
-    let env = PocketIcTestEnv::init().await;
+#[pocket_test::test]
+async fn test_should_not_return_shared_files_if_anonymous(env: PocketIcTestEnv) {
     let client = OrchestratorClient::from(&env);
 
     let shared_files = client.shared_files(Principal::anonymous()).await;
     assert_eq!(shared_files, SharedFilesResponse::AnonymousUser);
-
-    env.stop().await;
 }
 
-#[tokio::test]
-async fn test_should_return_shared_files() {
-    let env = PocketIcTestEnv::init().await;
+#[pocket_test::test]
+async fn test_should_return_shared_files(env: PocketIcTestEnv) {
     let orchestrator_client = OrchestratorClient::from(&env);
     let owner = admin();
     let shared_with = alice();
 
     // register alice on orchestrator
     let response = orchestrator_client
-        .set_user(shared_with, "alice".to_string(), [1; PUBKEY_SIZE])
+        .set_user(shared_with, "alice".to_string(), PublicKey::default())
         .await;
     assert_eq!(response, SetUserResponse::Ok);
 
@@ -138,7 +119,7 @@ async fn test_should_return_shared_files() {
                 name: request_name.clone(),
                 content: vec![1, 2, 3],
                 file_type: "txt".to_string(),
-                owner_key: [1; ENCRYPTION_KEY_SIZE],
+                owner_key: [1; OwnerKey::KEY_SIZE].into(),
                 num_chunks: 1,
             },
             owner,
@@ -148,7 +129,7 @@ async fn test_should_return_shared_files() {
     // share file with alice
     assert_eq!(
         user_canister_client
-            .share_file(owner, file_id, shared_with, [1; ENCRYPTION_KEY_SIZE])
+            .share_file(owner, file_id, shared_with, [1; OwnerKey::KEY_SIZE].into())
             .await,
         FileSharingResponse::Ok
     );
@@ -163,7 +144,9 @@ async fn test_should_return_shared_files() {
         .get(&env.user_canister())
         .expect("Expected file on owner canister");
     assert_eq!(shared_file_on_owner_canister.len(), 1);
-    assert!(shared_file_on_owner_canister.contains(&file_id));
-
-    env.stop().await;
+    assert!(
+        shared_file_on_owner_canister
+            .iter()
+            .any(|it| it.file_id == file_id)
+    );
 }

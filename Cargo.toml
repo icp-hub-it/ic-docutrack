@@ -4,6 +4,7 @@ members = [
   "backend/orchestrator",
   "backend/user_canister",
   "integration-tests",
+  "pocket-test",
 ]
 resolver = "3"
 
@@ -11,6 +12,7 @@ resolver = "3"
 version = "0.1.0"
 edition = "2024"
 license = "Apache-2.0"
+repository = "https://github.com/icp-hub-it/ic-docutrack"
 rust-version = "1.85"
 
 [workspace.dependencies]
@@ -36,6 +38,9 @@ ic-ledger-types = "0.15.0-alpha.3"
 ic-utils = "0.40"
 log = "0.4"
 pocket-ic = "9"
+proc-macro2 = "1"
+quote = "1"
+syn = "2"
 reqwest = { version = "0.12", default-features = false }
 tokio = { version = "1", features = ["full"] }
 uuid = { version = "1", default-features = false, features = [
