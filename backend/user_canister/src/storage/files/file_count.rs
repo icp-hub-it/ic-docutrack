@@ -10,14 +10,13 @@ impl FileCountStorage {
     ///
     /// In this way the file ID is 0-based, while the FILE count actually tells how many files are in the system.
     pub fn generate_file_id() -> u64 {
-        let new = FILE_COUNT.with_borrow_mut(|file_count| {
+        FILE_COUNT.with_borrow_mut(|file_count| {
             let new_count = *file_count.get();
             file_count
                 .set(new_count + 1)
                 .expect("Failed to set file count");
             new_count
-        });
-        new
+        })
     }
 }
 
