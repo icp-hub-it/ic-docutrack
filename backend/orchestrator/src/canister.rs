@@ -284,6 +284,10 @@ impl Canister {
                                     |file_metadata| PublicFileMetadata {
                                         file_id,
                                         file_name: file_metadata.file_name,
+                                        shared_with: SharedFilesStorage::shared_with(
+                                            user_canister,
+                                            file_id,
+                                        ),
                                     },
                                 )
                             })
@@ -730,6 +734,7 @@ mod test {
             vec![PublicFileMetadata {
                 file_id,
                 file_name: "foo.txt".to_string(),
+                shared_with: vec![principal].into_iter().collect(),
             }]
             .into_iter()
             .collect(),

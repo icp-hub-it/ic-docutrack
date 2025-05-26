@@ -1,3 +1,4 @@
+mod shared_with_set;
 mod user_shared_files;
 
 use std::cell::RefCell;
@@ -9,10 +10,10 @@ use did::orchestrator::{FileId, ShareFileMetadata};
 use ic_stable_structures::memory_manager::VirtualMemory;
 use ic_stable_structures::{DefaultMemoryImpl, StableBTreeMap};
 
+use self::shared_with_set::SharedWithSet;
 use self::user_shared_files::UserSharedFiles;
 use crate::storage::memory::{
-    MEMORY_MANAGER, SHARED_FILES_MEMORY_ID, SHARED_FILES_METADATA_MEMORY_ID,
-    SHARED_FILES_METADATA_RC_MEMORY_ID,
+    FILES_SHARES_MEMORY_ID, MEMORY_MANAGER, SHARED_FILES_MEMORY_ID, SHARED_FILES_METADATA_MEMORY_ID,
 };
 
 thread_local! {
@@ -26,11 +27,9 @@ thread_local! {
         RefCell::new(StableBTreeMap::new(MEMORY_MANAGER.with(|mm| mm.get(SHARED_FILES_METADATA_MEMORY_ID)))
     );
 
-    /// Tracks the number of references to shared files metadata.
-    ///
-    /// This is used to determine if the metadata can be removed from the stable memory.
-    static SHARED_FILES_METADATA_RC: RefCell<StableBTreeMap<(StorablePrincipal, FileId), u64, VirtualMemory<DefaultMemoryImpl>>> =
-        RefCell::new(StableBTreeMap::new(MEMORY_MANAGER.with(|mm| mm.get(SHARED_FILES_METADATA_RC_MEMORY_ID)))
+    /// Map between a (user_canister, FileID) pair and the users it's shared with.
+    static FILES_SHARES: RefCell<StableBTreeMap<(StorablePrincipal, FileId), SharedWithSet, VirtualMemory<DefaultMemoryImpl>>> =
+        RefCell::new(StableBTreeMap::new(MEMORY_MANAGER.with(|mm| mm.get(FILES_SHARES_MEMORY_ID)))
     );
 }
 
@@ -43,6 +42,13 @@ impl SharedFilesStorage {
     /// Share a file with a user for the provided user canister.
     ///
     /// Marks the file as shared for the user canister
+    ///
+    /// # Arguments
+    ///
+    /// - `user`: The user principal to share the file with.
+    /// - `user_canister`: The user canister principal that owns the file.
+    /// - `file_id`: The ID of the file to share.
+    /// - `metadata`: Metadata for the file being shared.
     pub fn share_file(
         user: Principal,
         user_canister: Principal,
@@ -69,12 +75,16 @@ impl SharedFilesStorage {
             shared_files_metadata.insert((user_canister.into(), file_id), metadata);
         });
 
-        // increment the reference count
-        SHARED_FILES_METADATA_RC.with_borrow_mut(|shared_files_metadata_rc| {
-            let rc = shared_files_metadata_rc
+        // add the user to the file shares
+        FILES_SHARES.with_borrow_mut(|file_shares| {
+            let mut entry = file_shares
                 .get(&(user_canister.into(), file_id))
-                .unwrap_or(0);
-            shared_files_metadata_rc.insert((user_canister.into(), file_id), rc + 1);
+                .unwrap_or_default();
+
+            entry.0.insert(user);
+
+            // update entry
+            file_shares.insert((user_canister.into(), file_id), entry);
         });
     }
 
@@ -100,24 +110,31 @@ impl SharedFilesStorage {
             }
         });
 
-        // decrement the reference count
-        let rc = SHARED_FILES_METADATA_RC.with_borrow_mut(|shared_files_metadata_rc| {
-            let rc = shared_files_metadata_rc
-                .get(&(user_canister.into(), file_id))
-                .unwrap_or(0)
-                .checked_sub(1)
-                .unwrap_or_default();
-            if rc > 0 {
-                shared_files_metadata_rc.insert((user_canister.into(), file_id), rc);
-            } else {
-                shared_files_metadata_rc.remove(&(user_canister.into(), file_id));
+        // remove the user from the file shares; if the hashset is empty, remove the entry
+        let shares = FILES_SHARES.with_borrow_mut(|file_shares| {
+            let key = (user_canister.into(), file_id);
+            if !file_shares.contains_key(&key) {
+                return 0;
             }
 
-            rc
+            // update
+            let mut entry = file_shares
+                .get(&key)
+                .expect("file shares entry must exist at this point");
+
+            entry.0.remove(&user);
+            if entry.0.is_empty() {
+                file_shares.remove(&key);
+                0
+            } else {
+                let new_len = entry.0.len() + 1; // +1 for the user being removed
+                file_shares.insert(key, entry);
+                new_len
+            }
         });
 
-        // remove the file metadata if the reference count is 0
-        if rc == 0 {
+        // remove the file metadata if there are no more shares
+        if shares == 0 {
             SHARED_FILES_METADATA.with_borrow_mut(|shared_files_metadata| {
                 shared_files_metadata.remove(&(user_canister.into(), file_id));
             });
@@ -143,6 +160,16 @@ impl SharedFilesStorage {
     ) -> Option<ShareFileMetadata> {
         SHARED_FILES_METADATA.with_borrow(|shared_files_metadata| {
             shared_files_metadata.get(&(user_canister.into(), file_id))
+        })
+    }
+
+    /// Returns files shared with a user for a specific user canister.
+    pub fn shared_with(user_canister: Principal, file_id: FileId) -> HashSet<Principal> {
+        FILES_SHARES.with_borrow(|file_shares| {
+            file_shares
+                .get(&(user_canister.into(), file_id))
+                .map(|entry| entry.0)
+                .unwrap_or_default()
         })
     }
 }
@@ -274,23 +301,24 @@ mod test {
         });
         assert_eq!(metadata.file_name, "test.txt".to_string());
 
-        // check reference count
-        let rc = SHARED_FILES_METADATA_RC.with_borrow(|shared_files_metadata_rc| {
+        // check shared with
+        let shared_with = FILES_SHARES.with_borrow(|shared_files_metadata_rc| {
             shared_files_metadata_rc
                 .get(&(user_canister_a.into(), 1))
                 .unwrap()
         });
-        assert_eq!(rc, 2);
+        // should contain alice and bob
+        assert_eq!(shared_with.0.len(), 2);
+        assert!(shared_with.0.contains(&alice));
+        assert!(shared_with.0.contains(&bob));
 
         // revoke for bob
         SharedFilesStorage::revoke_share(bob, user_canister_a, 1);
         // check reference count
-        let rc = SHARED_FILES_METADATA_RC.with_borrow(|shared_files_metadata_rc| {
-            shared_files_metadata_rc
-                .get(&(user_canister_a.into(), 1))
-                .unwrap()
-        });
-        assert_eq!(rc, 1);
+        let shared_with = SharedFilesStorage::shared_with(user_canister_a, 1);
+        // should contain only alice
+        assert_eq!(shared_with.len(), 1);
+        assert!(shared_with.contains(&alice));
 
         // check metadata
         let metadata = SHARED_FILES_METADATA.with_borrow(|shared_files_metadata| {
@@ -303,10 +331,8 @@ mod test {
         // revoke for alice
         SharedFilesStorage::revoke_share(alice, user_canister_a, 1);
         // check reference count
-        let rc = SHARED_FILES_METADATA_RC.with_borrow(|shared_files_metadata_rc| {
-            shared_files_metadata_rc.get(&(user_canister_a.into(), 1))
-        });
-        assert!(rc.is_none());
+        let shared_with = SharedFilesStorage::shared_with(user_canister_a, 1);
+        assert!(shared_with.is_empty());
         // check metadata
         let metadata = SHARED_FILES_METADATA.with_borrow(|shared_files_metadata| {
             shared_files_metadata.get(&(user_canister_a.into(), 1))

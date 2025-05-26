@@ -144,9 +144,11 @@ async fn test_should_return_shared_files(env: PocketIcTestEnv) {
         .get(&env.user_canister())
         .expect("Expected file on owner canister");
     assert_eq!(shared_file_on_owner_canister.len(), 1);
-    assert!(
-        shared_file_on_owner_canister
-            .iter()
-            .any(|it| it.file_id == file_id)
-    );
+    let shared = shared_file_on_owner_canister
+        .first()
+        .expect("Expected at least one shared file");
+    assert_eq!(shared.file_id, file_id);
+    // check shared with
+    assert_eq!(shared.shared_with.len(), 1);
+    assert!(shared.shared_with.contains(&shared_with));
 }
