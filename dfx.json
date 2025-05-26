@@ -1,42 +1,47 @@
 {
-  "dfx": "0.17.0",
+  "dfx": "0.26.0",
   "canisters": {
     "user_canister": {
       "type": "rust",
       "package": "user_canister",
       "candid": "./.artifact/user_canister.did",
       "declarations": {
+        "output": "./frontend/declarations/user_canister",
         "node_compatibility": true
       }
     },
     "frontend": {
       "build": "pnpm --filter frontend run build",
-      "dependencies": [
-        "backend"
-      ],
-      "source": [
-        "frontend/build/"
-      ],
-      "type": "assets"
+      "dependencies": ["user_canister", "orchestrator"],
+      "source": ["frontend/build/"],
+      "type": "assets",
+      "declarations": {
+        "output": "./frontend/declarations/frontend"
+      }
     },
     "marketing": {
       "build": "pnpm --filter landing-page run build",
-      "dependencies": [
-        "frontend"
-      ],
-      "source": [
-        "landing-page/dist/"
-      ],
-      "type": "assets"
+      "dependencies": ["frontend"],
+      "source": ["landing-page/dist/"],
+      "type": "assets",
+      "declarations": {
+        "output": "./frontend/declarations/marketing"
+      }
     },
     "orchestrator": {
       "type": "rust",
       "package": "orchestrator",
-      "candid": "./.artifact/orchestrator.did"
+      "candid": "./.artifact/orchestrator.did",
+      "declarations": {
+        "output": "./frontend/declarations/orchestrator"
+      }
     },
     "internet_identity": {
       "type": "pull",
-      "id": "rdmx6-jaaaa-aaaaa-aaadq-cai"
+      "id": "rdmx6-jaaaa-aaaaa-aaadq-cai",
+      "declarations": {
+        "output": "./frontend/declarations/internet_identity"
+      }
     }
   },
   "defaults": {
