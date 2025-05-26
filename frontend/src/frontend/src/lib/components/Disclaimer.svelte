@@ -11,6 +11,6 @@
   >
     <span class="text-silver-700">
       <WarningIcon />
-    </span> This is an alpha version. Use at your own risk!
+    </span> This is an alpha version. ICP HUB ITALY welcomes you to test it!
   </a>
 </div>

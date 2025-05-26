@@ -120,6 +120,10 @@ export class AuthService {
   async init() {
     const authClient = await AuthClient.create();
     if (await authClient.isAuthenticated()) {
+      console.log(
+        "User is authenticated",
+        authClient.getIdentity().getPrincipal().toText()
+      );
       const actor_user = createActorUser(this.canisterIdUser, {
         agentOptions: { host: this.host, identity: authClient.getIdentity() },
       });

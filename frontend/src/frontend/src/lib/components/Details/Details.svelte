@@ -10,13 +10,16 @@
   import { ObjectUrlManager } from "$lib/services/objectUrls";
   import { unreachable } from "$lib/shared/unreachable";
   import { onDestroy, onMount } from "svelte";
-  import type { file_metadata } from "../../../../../declarations/backend/backend.did";
+  import type { PublicFileMetadata } from "../../../../declarations/user_canister/user_canister.did";
   import ErrorMessage from "../ErrorMessage.svelte";
   import DecryptProgress from "./DecryptProgress.svelte";
 
   export let auth: AuthStateAuthenticated;
 
-  const decryptService: DecryptService = new DecryptService(auth.actor);
+  const decryptService: DecryptService = new DecryptService(
+    auth.actor_user,
+    auth.actor_orchestrator
+  );
   const objectUrls = new ObjectUrlManager();
 
   function getFileId() {
@@ -37,7 +40,7 @@
         uploadDate: string;
         downloadUrl: string;
         isOpenShareModal: boolean;
-        originalMetadata: file_metadata;
+        originalMetadata: PublicFileMetadata;
       }
     | {
         type: "error";
@@ -90,7 +93,7 @@
         type: "loaded",
         downloadUrl: objectUrls.createObjectURLFromArrayBuffer(
           file.contents,
-          file.dataType,
+          file.dataType
         ),
         dataType: file.dataType,
         name: file.name,

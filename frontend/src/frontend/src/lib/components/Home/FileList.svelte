@@ -8,12 +8,12 @@
   import ShareIcon from "../icons/ShareIcon.svelte";
   import PlaceholderLogo from "../icons/PlaceholderLogo.svelte";
   import ShareModal from "../ShareModal.svelte";
-  import type { file_metadata } from "../../../../../declarations/backend/backend.did";
+  import type { PublicFileMetadata } from "../../../../declarations/user_canister/user_canister.did";
 
   export let auth: AuthStateAuthenticated;
   let isOpenRequestModal = false;
   let isOpenShareModal = false;
-  let shareFileData: file_metadata | undefined = undefined;
+  let shareFileData: PublicFileMetadata | null;
   onMount(() => {
     auth.filesService.reload();
   });
@@ -22,7 +22,7 @@
     goto(`/details?fileId=${file_id}`);
   }
 
-  function openShareModal(file: file_metadata) {
+  function openShareModal(file: PublicFileMetadata | null) {
     shareFileData = file;
     isOpenShareModal = true;
   }
