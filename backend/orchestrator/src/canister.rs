@@ -287,7 +287,13 @@ impl Canister {
                                         shared_with: SharedFilesStorage::shared_with(
                                             user_canister,
                                             file_id,
-                                        ),
+                                        )
+                                        .into_iter()
+                                        .filter_map(|principal| {
+                                            UserStorage::get_user(&principal)
+                                                .map(|user| PublicUser::new(user, principal))
+                                        })
+                                        .collect(),
                                     },
                                 )
                             })
@@ -728,13 +734,19 @@ mod test {
             },
         );
 
+        let public_user = PublicUser {
+            username: "test_user".to_string(),
+            public_key: PublicKey::try_from(vec![1; 32]).expect("invalid public key"),
+            ic_principal: principal,
+        };
+
         let mut expected = HashMap::new();
         expected.insert(
             user_canister,
             vec![PublicFileMetadata {
                 file_id,
                 file_name: "foo.txt".to_string(),
-                shared_with: vec![principal].into_iter().collect(),
+                shared_with: vec![public_user],
             }]
             .into_iter()
             .collect(),
