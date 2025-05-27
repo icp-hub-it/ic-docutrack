@@ -17,6 +17,8 @@ use crate::utils::{msg_caller, trap};
 
 /// Maximum number of users to retrieve at once.
 const MAX_GET_USERS_LIMIT: u64 = 128;
+/// Minimum length of the query string for getting users.
+const GET_USERS_QUERY_MIN_LENGTH: usize = 4;
 
 /// API for Business Logic
 pub struct Canister;
@@ -39,7 +41,15 @@ impl Canister {
     /// Up to 128 users can be retrieved at once.
     ///
     /// FIXME: this function should be protected.
-    pub fn get_users(Pagination { offset, limit }: Pagination) -> GetUsersResponse {
+    ///
+    /// # Arguments
+    ///
+    /// - `Pagination`: The pagination parameters, including `offset` and `limit`.
+    /// - `query`: An optional query string to filter users by username. It has a minimum length of [`GET_USERS_QUERY_MIN_LENGTH`].
+    pub fn get_users(
+        Pagination { offset, limit }: Pagination,
+        query: Option<&str>,
+    ) -> GetUsersResponse {
         let limit = limit.min(MAX_GET_USERS_LIMIT);
 
         let caller = msg_caller();
@@ -47,12 +57,25 @@ impl Canister {
             return GetUsersResponse::PermissionError;
         }
 
-        let users = UserStorage::get_users_in_range(offset, limit)
+        // Validate the query length.
+        if query.is_some_and(|q| q.len() < GET_USERS_QUERY_MIN_LENGTH) {
+            return GetUsersResponse::InvalidQuery;
+        }
+
+        let filter = |user: &User| {
+            if let Some(query) = query {
+                user.username.contains(query)
+            } else {
+                true
+            }
+        };
+
+        let users = UserStorage::get_users_in_range(offset, limit, filter)
             .into_iter()
             .map(|(principal, user)| PublicUser::new(user, principal))
             .collect::<Vec<_>>();
 
-        let max_users = UserStorage::len();
+        let max_users = UserStorage::count(filter);
         let next = if offset + limit < max_users {
             Some(offset + limit)
         } else {
@@ -417,10 +440,13 @@ mod test {
         );
 
         // get users
-        let response = Canister::get_users(Pagination {
-            offset: 0,
-            limit: 10,
-        });
+        let response = Canister::get_users(
+            Pagination {
+                offset: 0,
+                limit: 10,
+            },
+            None,
+        );
         assert_eq!(
             response,
             GetUsersResponse::Users(GetUsersResponseUsers {
@@ -433,6 +459,58 @@ mod test {
                 next: None,
             })
         );
+    }
+
+    #[test]
+    fn test_should_get_users_with_query() {
+        init_canister();
+
+        // setup users
+        for i in 0..150 {
+            UserStorage::add_user(
+                Principal::from_slice(&[i; 6]),
+                User {
+                    username: format!("test_user_{i}",),
+                    public_key: PublicKey::try_from(vec![1; 32]).expect("invalid public key"),
+                },
+            );
+        }
+
+        // get users
+        let response = Canister::get_users(
+            Pagination {
+                offset: 0,
+                limit: 20,
+            },
+            Some("test_user_12"),
+        );
+
+        // there should be eleven users (12, 120, 121, ..., 129)
+        let GetUsersResponse::Users(GetUsersResponseUsers { users, total, next }) = response else {
+            panic!("Expected GetUsersResponse::Users");
+        };
+
+        assert_eq!(users.len(), 11);
+        assert_eq!(total, 11);
+        assert!(next.is_none());
+
+        // with pagination
+        let response = Canister::get_users(
+            Pagination {
+                offset: 0,
+                limit: 5,
+            },
+            Some("test_user_12"),
+        );
+
+        // there should be eleven users (12, 120, 121, ..., 129)
+        let GetUsersResponse::Users(GetUsersResponseUsers { users, total, next }) = response else {
+            panic!("Expected GetUsersResponse::Users");
+        };
+
+        assert_eq!(users.len(), 5);
+        assert_eq!(total, 11);
+        assert_eq!(next, Some(5));
     }
 
     #[test]
@@ -451,10 +529,13 @@ mod test {
         }
 
         // get users
-        let response = Canister::get_users(Pagination {
-            offset: 0,
-            limit: 5,
-        });
+        let response = Canister::get_users(
+            Pagination {
+                offset: 0,
+                limit: 5,
+            },
+            None,
+        );
 
         let GetUsersResponse::Users(GetUsersResponseUsers { total, users, next }) = response else {
             panic!("Expected GetUsersResponse::Users");
@@ -463,10 +544,13 @@ mod test {
         assert_eq!(total, 9);
         assert_eq!(next, Some(5));
 
-        let response = Canister::get_users(Pagination {
-            offset: 5,
-            limit: 8,
-        });
+        let response = Canister::get_users(
+            Pagination {
+                offset: 5,
+                limit: 8,
+            },
+            None,
+        );
 
         let GetUsersResponse::Users(GetUsersResponseUsers { total, users, next }) = response else {
             panic!("Expected GetUsersResponse::Users");
@@ -492,10 +576,13 @@ mod test {
         }
 
         // get users
-        let response = Canister::get_users(Pagination {
-            offset: 0,
-            limit: 150,
-        });
+        let response = Canister::get_users(
+            Pagination {
+                offset: 0,
+                limit: 150,
+            },
+            None,
+        );
 
         let GetUsersResponse::Users(GetUsersResponseUsers { total, users, next }) = response else {
             panic!("Expected GetUsersResponse::Users");

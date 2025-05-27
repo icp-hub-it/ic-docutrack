@@ -20,8 +20,8 @@ pub fn init(args: OrchestratorInstallArgs) {
 }
 
 #[query]
-pub fn get_users(pagination: Pagination) -> GetUsersResponse {
-    Canister::get_users(pagination)
+pub fn get_users(pagination: Pagination, query: Option<String>) -> GetUsersResponse {
+    Canister::get_users(pagination, query.as_deref())
 }
 
 #[query]

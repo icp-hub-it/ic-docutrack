@@ -51,11 +51,22 @@ impl UserStorage {
         with_user(principal, |user| user)
     }
 
-    /// Get all users in a range
-    pub fn get_users_in_range(offset: u64, limit: u64) -> HashMap<Principal, User> {
+    /// Get all users in a range.
+    ///
+    /// # Arguments
+    ///
+    /// - `offset`: The offset to start from.
+    /// - `limit`: The maximum number of users to return.
+    /// - `filter`: A closure that takes a reference to a [`User`]
+    ///   and returns a boolean indicating whether the user should be included in the result.
+    pub fn get_users_in_range<F>(offset: u64, limit: u64, filter: F) -> HashMap<Principal, User>
+    where
+        F: Fn(&User) -> bool,
+    {
         with_users_storage(|users| {
             users
                 .iter()
+                .filter(|(_, user)| filter(user))
                 .skip(offset as usize)
                 .take(limit as usize)
                 .map(|(principal, user)| (principal.0, user.clone()))
@@ -63,9 +74,12 @@ impl UserStorage {
         })
     }
 
-    /// Get the number of users in the storage
-    pub fn len() -> u64 {
-        USERS_STORAGE.with_borrow(|users| users.len())
+    /// Count the number of users that match a given filter.
+    pub fn count<F>(f: F) -> u64
+    where
+        F: Fn(&User) -> bool,
+    {
+        USERS_STORAGE.with_borrow(|users| users.iter().filter(|(_, user)| f(user)).count() as u64)
     }
 
     /// Add a user to the storage.
@@ -126,7 +140,7 @@ mod test {
         UserStorage::add_user(principal2, user2.clone());
 
         // Get all users
-        let all_users = UserStorage::get_users_in_range(0, u64::MAX);
+        let all_users = UserStorage::get_users_in_range(0, u64::MAX, |_| true);
         // Check if the length of all users is 2
         assert_eq!(all_users.len(), 2);
         // Check if the retrieved user is in the list of all users
