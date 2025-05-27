@@ -3,8 +3,9 @@ use did::FileId;
 use did::orchestrator::PublicKey;
 use did::user_canister::{
     AliasInfo, DeleteFileResponse, FileDownloadResponse, FileSharingResponse, GetAliasInfoError,
-    OwnerKey, PublicFileMetadata, UploadFileAtomicRequest, UploadFileContinueRequest,
-    UploadFileContinueResponse, UploadFileError, UploadFileRequest,
+    OwnerKey, Path, PublicFileMetadata, RequestFileResponse, UploadFileAtomicRequest,
+    UploadFileAtomicResponse, UploadFileContinueRequest, UploadFileContinueResponse,
+    UploadFileError, UploadFileRequest,
 };
 
 use super::PocketIcTestEnv;
@@ -105,10 +106,10 @@ impl UserCanisterClient<'_> {
         &self,
         request: UploadFileAtomicRequest,
         caller: Principal,
-    ) -> u64 {
+    ) -> UploadFileAtomicResponse {
         let payload = candid::encode_args((request,)).unwrap();
         self.pic
-            .update::<u64>(
+            .update::<UploadFileAtomicResponse>(
                 self.pic.user_canister(),
                 caller,
                 "upload_file_atomic",
@@ -135,10 +136,15 @@ impl UserCanisterClient<'_> {
             .expect("Failed to continue file upload")
     }
 
-    pub async fn request_file(&self, request_name: String, caller: Principal) -> String {
-        let payload = candid::encode_args((request_name,)).unwrap();
+    pub async fn request_file(&self, path: Path, caller: Principal) -> RequestFileResponse {
+        let payload = candid::encode_args((path,)).unwrap();
         self.pic
-            .update::<String>(self.pic.user_canister(), caller, "request_file", payload)
+            .update::<RequestFileResponse>(
+                self.pic.user_canister(),
+                caller,
+                "request_file",
+                payload,
+            )
             .await
             .expect("Failed to request file")
     }

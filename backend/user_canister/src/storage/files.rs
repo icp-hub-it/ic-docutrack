@@ -4,12 +4,14 @@ mod file_alias_index;
 mod file_contents;
 mod file_count;
 mod owned_files;
+mod path_storage;
 mod shared_files;
 
 use std::cell::RefCell;
 use std::collections::HashSet;
 
 use did::StorablePrincipal;
+use did::user_canister::Path;
 use ic_stable_structures::memory_manager::VirtualMemory;
 use ic_stable_structures::{DefaultMemoryImpl, StableBTreeMap, StableCell};
 
@@ -19,50 +21,61 @@ pub use self::file_alias_index::FileAliasIndexStorage;
 pub use self::file_contents::FileContentsStorage;
 pub use self::file_count::FileCountStorage;
 pub use self::owned_files::OwnedFilesStorage;
+pub use self::path_storage::PathStorage;
 pub use self::shared_files::FileSharesStorage;
 use self::shared_files::SharedFiles;
 use crate::storage::memory::{
     FILE_ALIAS_INDEX_MEMORY_ID, FILE_CONTENTS_MEMORY_ID, FILE_COUNT_MEMORY_ID, FILE_DATA_MEMORY_ID,
-    FILE_SHARES_MEMORY_ID, MEMORY_MANAGER, OWNED_FILES_MEMORY_ID,
+    FILE_ID_TO_PATH_MEMORY_ID, FILE_PATH_TO_ID_MEMORY_ID, FILE_SHARES_MEMORY_ID, MEMORY_MANAGER,
+    OWNED_FILES_MEMORY_ID,
 };
 
 type ContentTuple = (FileId, ChunkId);
 
 thread_local! {
-  /// File count incrementer
-  static FILE_COUNT: RefCell<StableCell<u64, VirtualMemory<DefaultMemoryImpl>>> =
-      RefCell::new(StableCell::new(MEMORY_MANAGER.with(|mm| mm.get(FILE_COUNT_MEMORY_ID)), 0).unwrap()
-  );
+    /// File count incrementer
+    static FILE_COUNT: RefCell<StableCell<u64, VirtualMemory<DefaultMemoryImpl>>> =
+        RefCell::new(StableCell::new(MEMORY_MANAGER.with(|mm| mm.get(FILE_COUNT_MEMORY_ID)), 0).unwrap()
+    );
 
-  /// Owned files storage vector
-  /// Vector of available file IDs.
-  static OWNED_FILES_STORAGE: RefCell<StableBTreeMap<FileId, (), VirtualMemory<DefaultMemoryImpl>>> =
-      RefCell::new(StableBTreeMap::new(MEMORY_MANAGER.with(|mm| mm.get(OWNED_FILES_MEMORY_ID)))
-  );
+    /// Mapping between file IDs and file paths.
+    static FILE_ID_TO_PATH: RefCell<StableBTreeMap<FileId, Path, VirtualMemory<DefaultMemoryImpl>>> =
+        RefCell::new(StableBTreeMap::new(MEMORY_MANAGER.with(|mm| mm.get(FILE_ID_TO_PATH_MEMORY_ID)))
+    );
 
-  /// File data storage map
-  /// Mapping between file IDs and file information.
-  static FILE_DATA_STORAGE: RefCell<StableBTreeMap<FileId, File, VirtualMemory<DefaultMemoryImpl>>> =
-      RefCell::new(StableBTreeMap::new(MEMORY_MANAGER.with(|mm| mm.get(FILE_DATA_MEMORY_ID)))
-  );
+    /// Mapping between file paths and file IDs.
+    static FILE_PATH_TO_ID: RefCell<StableBTreeMap<Path, FileId, VirtualMemory<DefaultMemoryImpl>>> =
+        RefCell::new(StableBTreeMap::new(MEMORY_MANAGER.with(|mm| mm.get(FILE_PATH_TO_ID_MEMORY_ID)))
+    );
 
-  /// File alias index storage map
-  /// Mapping between file aliases and file IDs.
-  static FILE_ALIAS_INDEX_STORAGE: RefCell<StableBTreeMap<String, FileId, VirtualMemory<DefaultMemoryImpl>>> =
-      RefCell::new(StableBTreeMap::new(MEMORY_MANAGER.with(|mm| mm.get(FILE_ALIAS_INDEX_MEMORY_ID)))
-  );
+    /// Owned files storage vector
+    /// Vector of available file IDs.
+    static OWNED_FILES_STORAGE: RefCell<StableBTreeMap<FileId, (), VirtualMemory<DefaultMemoryImpl>>> =
+        RefCell::new(StableBTreeMap::new(MEMORY_MANAGER.with(|mm| mm.get(OWNED_FILES_MEMORY_ID)))
+    );
 
-  /// File shares storage map
-  /// Mapping between a user's principal and the list of files that are shared with them.
-  static FILE_SHARES_STORAGE: RefCell<StableBTreeMap<StorablePrincipal, SharedFiles, VirtualMemory<DefaultMemoryImpl>>> =
-      RefCell::new(StableBTreeMap::new(MEMORY_MANAGER.with(|mm| mm.get(FILE_SHARES_MEMORY_ID)))
-  );
+    /// File data storage map
+    /// Mapping between file IDs and file information.
+    static FILE_DATA_STORAGE: RefCell<StableBTreeMap<FileId, File, VirtualMemory<DefaultMemoryImpl>>> =
+        RefCell::new(StableBTreeMap::new(MEMORY_MANAGER.with(|mm| mm.get(FILE_DATA_MEMORY_ID)))
+    );
 
-  /// The contents of the file (stored in stable memory).
-  static FILE_CONTENTS_STORAGE: RefCell<StableBTreeMap<ContentTuple, Vec<u8>, VirtualMemory<DefaultMemoryImpl>>> =
-      RefCell::new(StableBTreeMap::new(MEMORY_MANAGER.with(|mm| mm.get(FILE_CONTENTS_MEMORY_ID)))
-  );
+    /// File alias index storage map
+    /// Mapping between file aliases and file IDs.
+    static FILE_ALIAS_INDEX_STORAGE: RefCell<StableBTreeMap<String, FileId, VirtualMemory<DefaultMemoryImpl>>> =
+        RefCell::new(StableBTreeMap::new(MEMORY_MANAGER.with(|mm| mm.get(FILE_ALIAS_INDEX_MEMORY_ID)))
+    );
 
+    /// File shares storage map
+    /// Mapping between a user's principal and the list of files that are shared with them.
+    static FILE_SHARES_STORAGE: RefCell<StableBTreeMap<StorablePrincipal, SharedFiles, VirtualMemory<DefaultMemoryImpl>>> =
+        RefCell::new(StableBTreeMap::new(MEMORY_MANAGER.with(|mm| mm.get(FILE_SHARES_MEMORY_ID)))
+    );
+
+    /// The contents of the file (stored in stable memory).
+    static FILE_CONTENTS_STORAGE: RefCell<StableBTreeMap<ContentTuple, Vec<u8>, VirtualMemory<DefaultMemoryImpl>>> =
+        RefCell::new(StableBTreeMap::new(MEMORY_MANAGER.with(|mm| mm.get(FILE_CONTENTS_MEMORY_ID)))
+    );
 }
 
 /// Accessor to the owned files storage

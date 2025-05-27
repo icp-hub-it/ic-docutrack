@@ -112,11 +112,11 @@ async fn test_should_return_shared_files(env: PocketIcTestEnv) {
 
     // admin creates a file and shares it with alice
     let user_canister_client = UserCanisterClient::from(&env);
-    let request_name = "test.txt".to_string();
+    let path = "/test.txt".to_string().try_into().unwrap();
     let file_id = user_canister_client
         .upload_file_atomic(
             UploadFileAtomicRequest {
-                name: request_name.clone(),
+                path,
                 content: vec![1, 2, 3],
                 file_type: "txt".to_string(),
                 owner_key: [1; OwnerKey::KEY_SIZE].into(),
@@ -124,7 +124,8 @@ async fn test_should_return_shared_files(env: PocketIcTestEnv) {
             },
             owner,
         )
-        .await;
+        .await
+        .unwrap();
 
     // share file with alice
     assert_eq!(
