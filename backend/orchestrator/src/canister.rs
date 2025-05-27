@@ -514,6 +514,21 @@ mod test {
     }
 
     #[test]
+    fn test_should_not_get_users_with_invalid_query() {
+        init_canister();
+
+        // get users
+        let response = Canister::get_users(
+            Pagination {
+                offset: 0,
+                limit: 20,
+            },
+            Some("aa"),
+        );
+        assert_eq!(response, GetUsersResponse::InvalidQuery);
+    }
+
+    #[test]
     fn test_should_get_paginated_users() {
         init_canister();
 
