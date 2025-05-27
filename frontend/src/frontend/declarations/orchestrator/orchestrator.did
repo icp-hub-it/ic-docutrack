@@ -1,0 +1,74 @@
+type GetUsersResponse = variant {
+  permission_error;
+  users : GetUsersResponseUsers;
+};
+type GetUsersResponseUsers = record {
+  total : nat64;
+  next : opt nat64;
+  users : vec PublicUser;
+};
+type OrchestratorInitArgs = record {
+  orbit_station_admin : text;
+  orbit_station : principal;
+};
+type OrchestratorInstallArgs = variant { Upgrade; Init : OrchestratorInitArgs };
+type Pagination = record { offset : nat64; limit : nat64 };
+type PublicFileMetadata = record { file_name : text; file_id : nat64 };
+type PublicUser = record {
+  username : text;
+  public_key : blob;
+  ic_principal : principal;
+};
+type RetryUserCanisterCreationResponse = variant {
+  Ok;
+  CreationPending;
+  Created : principal;
+  UserNotFound;
+  AnonymousCaller;
+};
+type RevokeShareFileResponse = variant {
+  Ok;
+  NoSuchUser : principal;
+  Unauthorized;
+};
+type SetUserResponse = variant {
+  ok;
+  username_too_long;
+  username_exists;
+  caller_has_already_a_user;
+  anonymous_caller;
+};
+type ShareFileMetadata = record { file_name : text };
+type ShareFileResponse = variant { Ok; NoSuchUser : principal; Unauthorized };
+type SharedFilesResponse = variant {
+  SharedFiles : vec record { principal; vec PublicFileMetadata };
+  NoSuchUser;
+  AnonymousUser;
+};
+type UserCanisterResponse = variant {
+  Ok : principal;
+  CreationFailed : record { reason : text };
+  CreationPending;
+  Uninitialized;
+  AnonymousCaller;
+};
+type WhoamiResponse = variant { known_user : PublicUser; unknown_user };
+service : (OrchestratorInstallArgs) -> {
+  get_user : (principal) -> (opt PublicUser) query;
+  get_users : (Pagination) -> (GetUsersResponse) query;
+  orbit_station : () -> (principal) query;
+  retry_user_canister_creation : () -> (RetryUserCanisterCreationResponse);
+  revoke_share_file : (principal, nat64) -> (RevokeShareFileResponse);
+  revoke_share_file_for_users : (vec principal, nat64) -> (
+      RevokeShareFileResponse,
+    );
+  set_user : (text, blob) -> (SetUserResponse);
+  share_file : (principal, nat64, ShareFileMetadata) -> (ShareFileResponse);
+  share_file_with_users : (vec principal, nat64, ShareFileMetadata) -> (
+      ShareFileResponse,
+    );
+  shared_files : () -> (SharedFilesResponse) query;
+  user_canister : () -> (UserCanisterResponse) query;
+  username_exists : (text) -> (bool) query;
+  who_am_i : () -> (WhoamiResponse) query;
+}

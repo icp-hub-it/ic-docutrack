@@ -52,6 +52,7 @@ export type UserCanisterResponse = { 'Ok' : Principal } |
 export type WhoamiResponse = { 'known_user' : PublicUser } |
   { 'unknown_user' : null };
 export interface _SERVICE {
+  'get_user' : ActorMethod<[Principal], [] | [PublicUser]>,
   'get_users' : ActorMethod<[Pagination], GetUsersResponse>,
   'orbit_station' : ActorMethod<[], Principal>,
   'retry_user_canister_creation' : ActorMethod<
@@ -81,4 +82,4 @@ export interface _SERVICE {
   'who_am_i' : ActorMethod<[], WhoamiResponse>,
 }
 export declare const idlFactory: IDL.InterfaceFactory;
-export declare const init: ({ IDL }: { IDL: IDL }) => IDL.Type[];
+export declare const init: (args: { IDL: typeof IDL }) => IDL.Type[];

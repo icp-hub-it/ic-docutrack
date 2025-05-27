@@ -7,12 +7,12 @@ export const idlFactory = ({ IDL }) => {
     'Upgrade' : IDL.Null,
     'Init' : OrchestratorInitArgs,
   });
-  const Pagination = IDL.Record({ 'offset' : IDL.Nat64, 'limit' : IDL.Nat64 });
   const PublicUser = IDL.Record({
     'username' : IDL.Text,
     'public_key' : IDL.Vec(IDL.Nat8),
     'ic_principal' : IDL.Principal,
   });
+  const Pagination = IDL.Record({ 'offset' : IDL.Nat64, 'limit' : IDL.Nat64 });
   const GetUsersResponseUsers = IDL.Record({
     'total' : IDL.Nat64,
     'next' : IDL.Opt(IDL.Nat64),
@@ -70,6 +70,7 @@ export const idlFactory = ({ IDL }) => {
     'unknown_user' : IDL.Null,
   });
   return IDL.Service({
+    'get_user' : IDL.Func([IDL.Principal], [IDL.Opt(PublicUser)], ['query']),
     'get_users' : IDL.Func([Pagination], [GetUsersResponse], ['query']),
     'orbit_station' : IDL.Func([], [IDL.Principal], ['query']),
     'retry_user_canister_creation' : IDL.Func(

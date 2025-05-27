@@ -3,16 +3,14 @@
   import { enumIs } from "$lib/shared/enums";
   import type { Principal } from "@dfinity/principal";
   import { createEventDispatcher, onMount } from "svelte";
-  import type {
-    PublicFileMetadata,
-    // user,
-  } from "../../../declarations/user_canister/user_canister.did";
+  import type { PublicFileMetadata } from "../../../declarations/user_canister/user_canister.did";
   import type { PublicUser } from "../../../declarations/orchestrator/orchestrator.did";
   import Modal from "./Modal.svelte";
   import CloseIcon from "./icons/CloseIcon.svelte";
   import type { AuthStateAuthenticated } from "$lib/services/auth";
   import ErrorMessage from "./ErrorMessage.svelte";
   import ComboBox from "./ComboBox.svelte";
+  import { flatten } from "$lib/shared/flatten";
 
   export let auth: AuthStateAuthenticated;
 
@@ -20,14 +18,14 @@
   export let fileData: PublicFileMetadata;
 
   const dispatch = createEventDispatcher<{
-    shared: { file_id: bigint; shared_with: user[] };
+    shared: { file_id: bigint; shared_with: PublicUser[] };
   }>();
 
-  let expirationDate = null;
+  let expirationDate: string | null = null;
   let loading: boolean = false;
-  let users: user[] = [];
-  let oldSharedWith: user[] = [];
-  let newSharedWith: user[] = [];
+  let users: PublicUser[] = [];
+  let oldSharedWith: PublicUser[] = [];
+  let newSharedWith: PublicUser[] = [];
   let error: string = "";
 
   function reset() {
@@ -36,7 +34,7 @@
     error = "";
   }
 
-  function removeItem(arr, value) {
+  function removeItem(arr: PublicUser[], value: PublicUser) {
     var index = arr.indexOf(value);
     if (index > -1) {
       arr.splice(index, 1);
@@ -58,11 +56,11 @@
     }
   }
 
-  function removePersonFromShare(principal) {
+  function removePersonFromShare(principal: Principal) {
     let user = newSharedWith.find(
       (obj) => obj.ic_principal.compareTo(principal) === "eq"
     );
-    if (user !== null) {
+    if (user !== undefined) {
       newSharedWith = removeItem(newSharedWith, user);
       // Assign to itself for reactivity purposes
       newSharedWith = newSharedWith;
@@ -86,7 +84,9 @@
     let documentKey: ArrayBuffer;
     try {
       documentKey = await crypto.decryptForUser(
-        (fileData.file_status.uploaded.document_key as Uint8Array).buffer
+        crypto.toArrayBuffer(
+          (fileData.file_status.uploaded.document_key as Uint8Array).buffer
+        )
       );
     } catch {
       error =
@@ -98,10 +98,13 @@
       try {
         const encryptedFileKey = await crypto.encryptForUser(
           documentKey,
-          (newSharedWith[i].public_key as Uint8Array).buffer
+          crypto.toArrayBuffer(
+            (newSharedWith[i].public_key as Uint8Array).buffer
+          )
         );
         // TODO: add expiration date to backend call
-        await auth.actor.share_file(
+        // Why not using share file with userss method?
+        await auth.actor_user.share_file(
           newSharedWith[i].ic_principal,
           fileData.file_id,
           new Uint8Array(encryptedFileKey)
@@ -120,7 +123,7 @@
             obj.ic_principal.compareTo(oldSharedWith[i].ic_principal) === "eq"
         );
         if (!res) {
-          await auth.actor.revoke_share(
+          await auth.actor_user.revoke_share(
             oldSharedWith[i].ic_principal,
             fileData.file_id
           );
@@ -132,23 +135,29 @@
       }
     }
     // Write back the new state, so the the UI updates
-    fileData.shared_with = newSharedWith.slice();
+    fileData.shared_with = newSharedWith
+      .slice()
+      .map((user) => user.ic_principal);
     fileData = fileData;
     isOpen = false;
     loading = false;
 
     dispatch("shared", {
       file_id: fileData.file_id,
-      shared_with: fileData.shared_with,
+      shared_with: newSharedWith.slice(),
     });
   }
 
-  function onOpen(isOpen) {
+  async function onOpen(isOpen: boolean) {
     if (isOpen) {
+      const proms = fileData.shared_with.map((principal) =>
+        auth.actor_orchestrator.get_user(principal)
+      );
+      const sharedWith = flatten(await Promise.all(proms));
       // Keep the old version of the shared users
-      oldSharedWith = fileData.shared_with.slice();
+      oldSharedWith = sharedWith.slice();
       // Copy the array and modify this list with the UI
-      newSharedWith = fileData.shared_with.slice();
+      newSharedWith = sharedWith.slice();
 
       reset();
     }
@@ -168,9 +177,12 @@
   );
 
   onMount(async () => {
-    let res = await auth.actor.get_users();
+    let res = await auth.actor_orchestrator.get_users({
+      offset: 0n,
+      limit: 100n,
+    });
     if (enumIs(res, "users")) {
-      users = res.users.filter(
+      users = res.users.users.filter(
         (obj) => obj.ic_principal.compareTo(selfPrincipal) !== "eq"
       );
     } else {

@@ -10,14 +10,10 @@ export { idlFactory } from "./orchestrator.did.js";
  * beginning in dfx 0.15.0
  */
 export const canisterId =
-  process.env.CANISTER_ID_ORCHESTRATOR ||
-  process.env.ORCHESTRATOR_CANISTER_ID;
+  process.env.CANISTER_ID_ORCHESTRATOR;
 
 export const createActor = (canisterId, options = {}) => {
-  const agent = options.agent || new HttpAgent({
-    host: options.agentOptions?.host || import.meta.env.VITE_HOST || "http://localhost:4943",
-    ...options.agentOptions,
-  });
+  const agent = options.agent || new HttpAgent({ ...options.agentOptions });
 
   if (options.agent && options.agentOptions) {
     console.warn(

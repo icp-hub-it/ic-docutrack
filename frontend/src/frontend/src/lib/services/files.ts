@@ -6,8 +6,15 @@ import { formatUploadDate, formatUploadDateShort } from "$lib/shared/dates";
 import { enumIs } from "$lib/shared/enums";
 import { flatten } from "$lib/shared/flatten";
 import { unreachable } from "$lib/shared/unreachable";
+import type { Principal } from "@dfinity/principal";
 import { get, writable } from "svelte/store";
 import type { PublicFileMetadata } from "../../../declarations/user_canister/user_canister.did";
+
+export type ExternalFileMetadata = {
+  file_id: bigint;
+  file_name: string;
+  user_canister_id: Principal;
+};
 
 export type UploadedFile = {
   name: string;
@@ -15,7 +22,7 @@ export type UploadedFile = {
   uploadedAt: string;
   uploadedAtShort: string;
   file_id: bigint;
-  metadata: PublicFileMetadata | null;
+  metadata: PublicFileMetadata | ExternalFileMetadata;
 };
 
 export type FilesState =
@@ -69,7 +76,7 @@ export const filesStore = createFilesStore();
 
 export class FilesService {
   constructor(
-    private actor: ActorTypeUserCanister,
+    private actorUserCanister: ActorTypeUserCanister,
     private actorOrchestrator: ActorTypeOrchestrator
   ) {}
 
@@ -111,13 +118,10 @@ export class FilesService {
         ? external_files_resp.SharedFiles
         : [];
 
-    const files = flatten(
+    const files: PublicFileMetadata[] = flatten(
       await Promise.all([
         // this.actorOrchestrator.shared_files(),
-
-        /// TODO should add owned files method. returning array of PublicFileMetadata
-        // this.actor.get_owned_files(),
-        this.actor.get_requests(),
+        this.actorUserCanister.get_requests(),
       ])
     );
 
@@ -152,16 +156,24 @@ export class FilesService {
       }
     }
 
-    // adding external files without metadata FIX
+    // adding external files with external metadata
     for (const external of external_files) {
-      uploadedFiles.push({
-        name: "external-file",
-        access: "You at least",
-        uploadedAt: "Unknown",
-        uploadedAtShort: "Unknown",
-        file_id: external[1][0],
-        metadata: null,
-      });
+      const user_canister_id = external[0];
+      const files_metadata = external[1];
+      for (const file of files_metadata) {
+        uploadedFiles.push({
+          name: file.file_name,
+          access: `You at least`,
+          uploadedAt: "Unknown",
+          uploadedAtShort: "Unknown",
+          file_id: file.file_id,
+          metadata: {
+            file_id: file.file_id,
+            file_name: file.file_name,
+            user_canister_id: user_canister_id,
+          },
+        });
+      }
     }
     return uploadedFiles;
   }

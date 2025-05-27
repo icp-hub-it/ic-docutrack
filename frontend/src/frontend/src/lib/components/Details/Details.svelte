@@ -25,7 +25,9 @@
   function getFileId() {
     return parseInt($page.url.searchParams.get("fileId") || "");
   }
-
+  function getFileCanisterId() {
+    return $page.url.searchParams.get("fileCanisterId") || "";
+  }
   type State =
     | {
         type: "uninitialized";
@@ -73,10 +75,12 @@
     decryptService.reset();
 
     const fileId = BigInt(getFileId());
+    const fileCanisterId = getFileCanisterId();
 
     try {
       const file = await decryptService.decryptFile({
         fileId,
+        fileCanisterId,
       });
 
       if (file === "aborted") {

@@ -6,7 +6,7 @@
       "package": "user_canister",
       "candid": "./.artifact/user_canister.did",
       "declarations": {
-        "output": "./frontend/declarations/user_canister",
+        "output": "frontend/src/frontend/declarations/user_canister",
         "node_compatibility": true
       }
     },
@@ -16,7 +16,7 @@
       "source": ["frontend/build/"],
       "type": "assets",
       "declarations": {
-        "output": "./frontend/declarations/frontend"
+        "output": "frontend/src/frontend/declarations/frontend"
       }
     },
     "marketing": {
@@ -25,7 +25,7 @@
       "source": ["landing-page/dist/"],
       "type": "assets",
       "declarations": {
-        "output": "./frontend/declarations/marketing"
+        "output": "frontend/src/frontend/declarations/marketing"
       }
     },
     "orchestrator": {
@@ -33,14 +33,15 @@
       "package": "orchestrator",
       "candid": "./.artifact/orchestrator.did",
       "declarations": {
-        "output": "./frontend/declarations/orchestrator"
-      }
+        "output": "frontend/src/frontend/declarations/orchestrator"
+      },
+      "init_arg": "(variant { Init = record { orbit_station_admin = \"admin\"; orbit_station = principal \"hu33f-3yaaa-aaaad-aalma-cai\" } })"
     },
     "internet_identity": {
       "type": "pull",
       "id": "rdmx6-jaaaa-aaaaa-aaadq-cai",
       "declarations": {
-        "output": "./frontend/declarations/internet_identity"
+        "output": "frontend/src/frontend/declarations/internet_identity"
       }
     }
   },
