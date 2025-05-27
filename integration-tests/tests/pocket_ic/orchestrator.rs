@@ -151,5 +151,5 @@ async fn test_should_return_shared_files(env: PocketIcTestEnv) {
     assert_eq!(shared.file_id, file_id);
     // check shared with
     assert_eq!(shared.shared_with.len(), 1);
-    assert!(shared.shared_with.contains(&shared_with));
+    assert_eq!(shared.shared_with[0].ic_principal, shared_with);
 }
