@@ -6,9 +6,9 @@ use candid::Principal;
 use did::orchestrator::{ShareFileMetadata, ShareFileResponse};
 use did::user_canister::{
     AliasInfo, DeleteFileResponse, FileData, FileDownloadResponse, FileSharingResponse, FileStatus,
-    GetAliasInfoError, OwnerKey, PublicFileMetadata, UploadFileAtomicRequest,
-    UploadFileContinueRequest, UploadFileContinueResponse, UploadFileError,
-    UserCanisterInstallArgs,
+    GetAliasInfoError, OwnerKey, Path, PublicFileMetadata, RequestFileResponse,
+    UploadFileAtomicRequest, UploadFileAtomicResponse, UploadFileContinueRequest,
+    UploadFileContinueResponse, UploadFileError, UserCanisterInstallArgs,
 };
 use did::utils::trap;
 
@@ -17,7 +17,8 @@ use crate::client::OrchestratorClient;
 use crate::storage::config::Config;
 use crate::storage::files::{
     File, FileAliasIndexStorage, FileContent, FileContentsStorage, FileCountStorage,
-    FileDataStorage, FileId, FileMetadata, FileSharesStorage, OwnedFilesStorage, UploadedChunks,
+    FileDataStorage, FileId, FileMetadata, FileSharesStorage, OwnedFilesStorage, PathStorage,
+    UploadedChunks,
 };
 use crate::utils::time;
 
@@ -36,20 +37,23 @@ impl Canister {
     }
 
     /// Request a file
-    pub async fn request_file<S: Into<String>>(caller: Principal, request_name: S) -> String {
+    pub async fn request_file(caller: Principal, path: Path) -> RequestFileResponse {
         if caller != Config::get_owner() {
             trap("Only the owner can request a file");
         }
-        let randomness = Randomness::new().await;
+        // check if the file already exists
+        if PathStorage::exists(&path) {
+            return RequestFileResponse::FileAlreadyExists;
+        }
 
         // generate a file ID and alias
+        let randomness = Randomness::new().await;
         let file_id = FileCountStorage::generate_file_id();
         let alias = AliasGenerator::new(randomness).generate_uuidv7();
 
         // make the file
         let file = File {
             metadata: FileMetadata {
-                file_name: request_name.into(),
                 user_public_key: Config::get_owner_public_key(),
                 requester_principal: caller,
                 requested_at: time(),
@@ -66,8 +70,10 @@ impl Canister {
         FileAliasIndexStorage::set_file_id(&alias, &file_id);
         // associate
         OwnedFilesStorage::add_owned_file(&file_id);
+        // add Path
+        PathStorage::create(file_id, path);
 
-        alias
+        RequestFileResponse::Ok(alias)
     }
 
     /// Get active requests for the caller
@@ -80,15 +86,15 @@ impl Canister {
         }
         OwnedFilesStorage::get_owned_files()
             .iter()
-            .map(|file_id| PublicFileMetadata {
-                file_id: *file_id,
-                file_name: FileDataStorage::get_file(file_id)
-                    .expect("file must exist")
-                    .metadata
-                    .file_name
-                    .clone(),
-                shared_with: Self::get_allowed_users(caller, file_id),
-                file_status: Self::get_file_status(file_id),
+            .map(|file_id| {
+                let path = PathStorage::read_link(file_id).expect("file must exist");
+                PublicFileMetadata {
+                    file_id: *file_id,
+                    file_name: path.file_name().expect("file must have a name").to_string(),
+                    file_path: path,
+                    shared_with: Self::get_allowed_users(caller, file_id),
+                    file_status: Self::get_file_status(file_id),
+                }
             })
             .collect()
     }
@@ -155,10 +161,18 @@ impl Canister {
 
     /// Upload file Atomic
     /// to be triggered by owners, no need to request file
-    pub fn upload_file_atomic(caller: Principal, request: UploadFileAtomicRequest) -> FileId {
+    pub fn upload_file_atomic(
+        caller: Principal,
+        request: UploadFileAtomicRequest,
+    ) -> UploadFileAtomicResponse {
         if caller != Config::get_owner() {
             trap("Only the owner can upload a file");
         }
+        // check if path exists
+        if PathStorage::exists(&request.path) {
+            return UploadFileAtomicResponse::FileAlreadyExists;
+        }
+
         let file_id = FileCountStorage::generate_file_id();
         let chunk_id = 0;
         let content = if request.num_chunks == 1 {
@@ -186,7 +200,6 @@ impl Canister {
         // Add file to the file storage
         let file = File {
             metadata: FileMetadata {
-                file_name: request.name,
                 user_public_key: Config::get_owner_public_key(),
                 requester_principal: caller,
                 requested_at: time(),
@@ -195,10 +208,11 @@ impl Canister {
             content,
         };
         FileDataStorage::set_file(&file_id, file);
-
         OwnedFilesStorage::add_owned_file(&file_id);
+        // add path
+        PathStorage::create(file_id, request.path);
 
-        file_id
+        UploadFileAtomicResponse::Ok(file_id)
     }
 
     /// Upload file continue
@@ -281,20 +295,17 @@ impl Canister {
             }
         }
 
-        let Some(file) = FileDataStorage::get_file(&file_id) else {
+        let Some(path) = PathStorage::read_link(&file_id) else {
             return FileSharingResponse::FileNotFound;
         };
 
         // Index Share file on the orchestrator
         if cfg!(target_family = "wasm") {
+            // get file name
+            let file_name = path.file_name().unwrap_or_default().to_string();
+
             match OrchestratorClient::from(Config::get_orchestrator())
-                .share_file(
-                    user_id,
-                    file_id,
-                    ShareFileMetadata {
-                        file_name: file.metadata.file_name,
-                    },
-                )
+                .share_file(user_id, file_id, ShareFileMetadata { file_name })
                 .await
             {
                 Err(err) => {
@@ -331,20 +342,15 @@ impl Canister {
             }
         }
 
-        let Some(file) = FileDataStorage::get_file(&file_id) else {
+        let Some(path) = PathStorage::read_link(&file_id) else {
             trap("File not found");
         };
 
         // Index files on the orchestrator
         if cfg!(target_family = "wasm") {
+            let file_name = path.file_name().unwrap_or_default().to_string();
             match OrchestratorClient::from(Config::get_orchestrator())
-                .share_file_with_users(
-                    &users,
-                    file_id,
-                    ShareFileMetadata {
-                        file_name: file.metadata.file_name,
-                    },
-                )
+                .share_file_with_users(&users, file_id, ShareFileMetadata { file_name })
                 .await
             {
                 Err(err) => {
@@ -500,15 +506,18 @@ impl Canister {
             None => vec![],
             Some(file_ids) => file_ids
                 .iter()
-                .map(|file_id| PublicFileMetadata {
-                    file_id: *file_id,
-                    file_name: FileDataStorage::get_file(file_id)
-                        .expect("file must exist")
-                        .metadata
-                        .file_name
-                        .clone(),
-                    shared_with: Self::get_allowed_users(caller, file_id),
-                    file_status: Self::get_file_status(file_id),
+                .map(|file_id| {
+                    let file_path = PathStorage::read_link(file_id).expect("file must exist");
+                    PublicFileMetadata {
+                        file_id: *file_id,
+                        file_name: file_path
+                            .file_name()
+                            .expect("file must have a name")
+                            .to_string(),
+                        file_path,
+                        shared_with: Self::get_allowed_users(caller, file_id),
+                        file_status: Self::get_file_status(file_id),
+                    }
                 })
                 .collect(),
         }
@@ -520,11 +529,17 @@ impl Canister {
             return Err(GetAliasInfoError::NotFound);
         };
 
-        let file = FileDataStorage::get_file(&file_id).unwrap();
+        let file = FileDataStorage::get_file(&file_id).expect("file must exist");
+        let file_path = PathStorage::read_link(&file_id).expect("file must exist");
+        let file_name = file_path
+            .file_name()
+            .expect("file must have a name")
+            .to_string();
 
         Ok(AliasInfo {
             file_id,
-            file_name: file.metadata.file_name.clone(),
+            file_name,
+            file_path,
             public_key: file.metadata.user_public_key,
         })
     }
@@ -580,6 +595,8 @@ impl Canister {
                 FileAliasIndexStorage::remove_file_id(&alias);
             }
         }
+        // remove file path
+        PathStorage::unlink(file_id);
 
         DeleteFileResponse::Ok
     }
@@ -607,9 +624,9 @@ mod test {
 
     #[tokio::test]
     async fn test_should_request_file() {
-        let file_name = "test_file.txt".to_string();
+        let path = Path::new("/test_file.txt").expect("valid path");
         let caller = init();
-        let alias = Canister::request_file(caller, file_name.clone()).await;
+        let alias = Canister::request_file(caller, path).await.unwrap();
         // NOTE: we expect it to end with 0 because on unit tests the randomness is just zero.
         assert!(alias.ends_with("7000-8000-000000000000"));
     }
@@ -617,35 +634,49 @@ mod test {
     #[tokio::test]
     #[should_panic(expected = "Only the owner can request a file")]
     async fn test_should_not_request_file_if_not_owner() {
-        let file_name = "test_file.txt".to_string();
+        let path = Path::new("/test_file.txt").expect("valid path");
         init();
-        Canister::request_file(Principal::anonymous(), file_name).await;
+        Canister::request_file(Principal::anonymous(), path)
+            .await
+            .unwrap();
     }
 
     #[tokio::test]
     async fn test_should_get_requests() {
-        let file_name = "test_file.txt";
+        let path = Path::new("/test_file.txt").expect("valid path");
         let caller = init();
-        Canister::request_file(caller, file_name).await;
+        Canister::request_file(caller, path.clone()).await;
         let requests = Canister::get_requests(caller);
         assert_eq!(requests.len(), 1);
-        assert_eq!(requests[0].file_name, file_name);
+        assert_eq!(requests[0].file_name, "test_file.txt".to_string());
+        assert_eq!(requests[0].file_path, path);
     }
 
     #[tokio::test]
     #[should_panic(expected = "Only the owner can get requests for a file")]
     async fn test_should_not_get_requests_if_not_owner() {
-        let file_name = "test_file.txt";
+        let path = Path::new("/test_file.txt").expect("valid path");
         let caller = init();
-        Canister::request_file(caller, file_name).await;
+        Canister::request_file(caller, path).await;
         Canister::get_requests(Principal::anonymous());
     }
 
     #[tokio::test]
-    async fn test_should_upload_file() {
-        let file_name = "test_file.txt";
+    async fn test_should_not_create_already_existing_file() {
+        let path = Path::new("/test_file.txt").expect("valid path");
         let caller = init();
-        let alias = Canister::request_file(caller, file_name).await;
+        Canister::request_file(caller, path.clone()).await.unwrap();
+
+        // create same path
+        let result = Canister::request_file(caller, path).await;
+        assert_eq!(result, RequestFileResponse::FileAlreadyExists);
+    }
+
+    #[tokio::test]
+    async fn test_should_upload_file() {
+        let path = Path::new("/test_file.txt").expect("valid path");
+        let caller = init();
+        let alias = Canister::request_file(caller, path).await.unwrap();
         let file_id = FileAliasIndexStorage::get_file_id(&alias).unwrap();
         let file_content = vec![1, 2, 3];
         let file_type = "text/plain".to_string();
@@ -674,7 +705,7 @@ mod test {
     #[test]
     fn test_should_upload_file_atomic() {
         let caller = init();
-        let file_name = "test_file.txt";
+        let path = Path::new("/test_file.txt").expect("valid path");
         let file_content = vec![1, 2, 3];
         let file_type = "text/plain".to_string();
         let owner_key = [0; OwnerKey::KEY_SIZE].into();
@@ -682,13 +713,14 @@ mod test {
         let file_id = Canister::upload_file_atomic(
             caller,
             UploadFileAtomicRequest {
-                name: file_name.to_string(),
+                path,
                 content: file_content.clone(),
                 file_type,
                 owner_key,
                 num_chunks,
             },
-        );
+        )
+        .unwrap();
         assert_eq!(file_id, 0);
 
         // Check if the file was uploaded correctly
@@ -711,7 +743,7 @@ mod test {
     #[should_panic(expected = "Only the owner can upload a file")]
     fn test_should_not_upload_file_atomic_if_not_owner() {
         init();
-        let file_name = "test_file.txt";
+        let path = Path::new("/test_file.txt").expect("valid path");
         let file_content = vec![1, 2, 3];
         let file_type = "text/plain".to_string();
         let owner_key = [0; OwnerKey::KEY_SIZE].into();
@@ -719,7 +751,7 @@ mod test {
         Canister::upload_file_atomic(
             Principal::anonymous(),
             UploadFileAtomicRequest {
-                name: file_name.to_string(),
+                path,
                 content: file_content,
                 file_type,
                 owner_key,
@@ -729,9 +761,43 @@ mod test {
     }
 
     #[test]
+    fn test_should_not_upload_atomic_if_file_already_exists() {
+        let caller = init();
+        let path = Path::new("/test_file.txt").expect("valid path");
+        let file_content = vec![1, 2, 3];
+        let file_type = "text/plain".to_string();
+        let owner_key = [0; OwnerKey::KEY_SIZE].into();
+        let num_chunks = 1;
+        Canister::upload_file_atomic(
+            caller,
+            UploadFileAtomicRequest {
+                path: path.clone(),
+                content: file_content.clone(),
+                file_type: file_type.clone(),
+                owner_key,
+                num_chunks,
+            },
+        )
+        .unwrap();
+
+        let res = Canister::upload_file_atomic(
+            caller,
+            UploadFileAtomicRequest {
+                path: path.clone(),
+                content: file_content,
+                file_type,
+                owner_key,
+                num_chunks,
+            },
+        );
+
+        assert_eq!(res, UploadFileAtomicResponse::FileAlreadyExists);
+    }
+
+    #[test]
     fn test_should_upload_file_continue() {
         let caller = init();
-        let file_name = "test_file.txt";
+        let path = Path::new("/test_file.txt").expect("valid path");
         let file_content = vec![1, 2, 3];
         let file_type = "text/plain".to_string();
         let owner_key = [0; OwnerKey::KEY_SIZE].into();
@@ -739,13 +805,14 @@ mod test {
         let file_id = Canister::upload_file_atomic(
             caller,
             UploadFileAtomicRequest {
-                name: file_name.to_string(),
+                path,
                 content: file_content.clone(),
                 file_type,
                 owner_key,
                 num_chunks,
             },
-        );
+        )
+        .unwrap();
         assert_eq!(file_id, 0);
 
         // Check if the file was uploaded correctly
@@ -793,7 +860,7 @@ mod test {
     #[test]
     fn test_should_upload_file_continue_arbitrary_order_and_eval_responses() {
         let caller = init();
-        let file_name = "test_file.txt";
+        let path = Path::new("/test_file.txt").expect("valid path");
         let file_content = vec![1, 2, 3];
         let file_type = "text/plain".to_string();
         let owner_key = [0; OwnerKey::KEY_SIZE].into();
@@ -810,13 +877,14 @@ mod test {
         let file_id = Canister::upload_file_atomic(
             caller,
             UploadFileAtomicRequest {
-                name: file_name.to_string(),
+                path,
                 content: file_content.clone(),
                 file_type,
                 owner_key,
                 num_chunks,
             },
-        );
+        )
+        .unwrap();
         assert_eq!(file_id, 0);
 
         // Upload chunks in arbitrary order
@@ -897,8 +965,8 @@ mod test {
     async fn test_should_download_file() {
         let caller = init();
         let owner = init();
-        let file_name = "test_file.txt";
-        let alias = Canister::request_file(owner, file_name).await;
+        let path = Path::new("/test_file.txt").expect("valid path");
+        let alias = Canister::request_file(owner, path).await.unwrap();
         let file_id = FileAliasIndexStorage::get_file_id(&alias).unwrap();
         let file_content = vec![1, 2, 3];
         let file_type = "text/plain".to_string();
@@ -942,8 +1010,8 @@ mod test {
     async fn test_should_not_download_file_if_not_uploaded() {
         let caller = init();
         let owner = init();
-        let file_name = "test_file.txt";
-        let alias = Canister::request_file(owner, file_name).await;
+        let path = Path::new("/test_file.txt").expect("valid path");
+        let alias = Canister::request_file(owner, path).await.unwrap();
         let file_id = FileAliasIndexStorage::get_file_id(&alias).unwrap();
         // Attempt to download the file on pending state
         let result = Canister::download_file(caller, file_id, 0);
@@ -969,8 +1037,8 @@ mod test {
     async fn test_should_not_download_file_if_not_owner() {
         let caller = init();
         let owner = init();
-        let file_name = "test_file.txt";
-        let alias = Canister::request_file(owner, file_name).await;
+        let path = Path::new("/test_file.txt").expect("valid path");
+        let alias = Canister::request_file(owner, path).await.unwrap();
         let file_id = FileAliasIndexStorage::get_file_id(&alias).unwrap();
         let file_content = vec![1, 2, 3];
         let file_type = "text/plain".to_string();
@@ -994,9 +1062,9 @@ mod test {
 
     #[tokio::test]
     async fn test_should_share_a_file() {
-        let file_name = "test_file.txt";
+        let path = Path::new("/test_file.txt").expect("valid path");
         let caller = init();
-        let alias = Canister::request_file(caller, file_name).await;
+        let alias = Canister::request_file(caller, path).await.unwrap();
         let file_id = FileAliasIndexStorage::get_file_id(&alias).unwrap();
         let user_id = Principal::from_slice(&[4, 5, 6, 7]);
         let file_key_encrypted_for_user = [0; OwnerKey::KEY_SIZE].into();
@@ -1039,13 +1107,13 @@ mod test {
 
     #[tokio::test]
     async fn test_should_share_more_than_a_file() {
-        let file_name = "test_file.txt";
         let caller = init();
 
         let user_id = Principal::from_slice(&[4, 5, 6, 7]);
         let mut file_ids = vec![];
-        for _ in 0..3 {
-            let alias = Canister::request_file(caller, file_name).await;
+        for i in 0..3 {
+            let path = Path::new(format!("/test_file_{i}.txt")).expect("valid path");
+            let alias = Canister::request_file(caller, path).await.unwrap();
             let file_id = FileAliasIndexStorage::get_file_id(&alias).unwrap();
             let file_key_encrypted_for_user = [0; OwnerKey::KEY_SIZE].into();
             let result =
@@ -1093,9 +1161,9 @@ mod test {
 
     #[tokio::test]
     async fn should_share_file_with_users() {
-        let file_name = "test_file.txt";
+        let path = Path::new("/test_file.txt").expect("valid path");
         let caller = init();
-        let alias = Canister::request_file(caller, file_name).await;
+        let alias = Canister::request_file(caller, path).await.unwrap();
         let file_id = FileAliasIndexStorage::get_file_id(&alias).unwrap();
         //upload the file first
         let file_content = vec![1, 2, 3];
@@ -1152,9 +1220,9 @@ mod test {
 
     #[tokio::test]
     async fn test_should_revoke_file_sharing() {
-        let file_name = "test_file.txt";
+        let path = Path::new("/test_file.txt").expect("valid path");
         let caller = init();
-        let alias = Canister::request_file(caller, file_name).await;
+        let alias = Canister::request_file(caller, path).await.unwrap();
         let file_id = FileAliasIndexStorage::get_file_id(&alias).unwrap();
         //upload the file first
         let file_content = vec![1, 2, 3];
@@ -1193,7 +1261,6 @@ mod test {
 
     #[tokio::test]
     async fn test_should_revoke_file_sharing_when_more_files_are_shared() {
-        let file_name = "test_file.txt";
         let caller = init();
         let mut file_ids = vec![];
         let user_id = Principal::from_slice(&[4, 5, 6, 7]);
@@ -1202,8 +1269,9 @@ mod test {
         let owner_key = [0; OwnerKey::KEY_SIZE].into();
         let num_chunks = 1;
 
-        for _ in 0..5 {
-            let alias = Canister::request_file(caller, file_name).await;
+        for i in 0..5 {
+            let path = Path::new(format!("/test_file_{i}.txt")).expect("valid path");
+            let alias = Canister::request_file(caller, path).await.unwrap();
             let file_id = FileAliasIndexStorage::get_file_id(&alias).unwrap();
             //upload the file first
             let file_content = vec![1, 2, 3];
@@ -1252,13 +1320,14 @@ mod test {
 
     #[tokio::test]
     async fn test_should_get_alias_info() {
-        let file_name = "test_file.txt";
+        let path = Path::new("/test_file.txt").expect("valid path");
         let caller = init();
-        let alias = Canister::request_file(caller, file_name).await;
+        let alias = Canister::request_file(caller, path.clone()).await.unwrap();
         let alias_info = Canister::get_alias_info(alias.clone());
         assert!(alias_info.is_ok());
         let alias_info = alias_info.unwrap();
-        assert_eq!(alias_info.file_name, file_name);
+        assert_eq!(alias_info.file_name, "test_file.txt".to_string());
+        assert_eq!(alias_info.file_path, path);
     }
 
     #[test]
@@ -1274,7 +1343,7 @@ mod test {
     async fn test_should_delete_file() {
         let user = init();
 
-        let file_name = "test_file.txt";
+        let path = Path::new("/test_file.txt").expect("valid path");
         let file_content = vec![1, 2, 3];
         let file_type = "text/plain".to_string();
         let owner_key = [0; OwnerKey::KEY_SIZE].into();
@@ -1282,13 +1351,14 @@ mod test {
         let file_id = Canister::upload_file_atomic(
             user,
             UploadFileAtomicRequest {
-                name: file_name.to_string(),
+                path,
                 content: file_content,
                 file_type,
                 owner_key,
                 num_chunks,
             },
-        );
+        )
+        .unwrap();
 
         // share file with alice
         let alice = Principal::from_slice(&[4, 5, 6, 7]);
@@ -1303,9 +1373,6 @@ mod test {
         // check if the file is deleted
         let file = FileDataStorage::get_file(&file_id);
         assert!(file.is_none());
-        // check if the file is deleted from the alias index
-        let resp_file_id = FileAliasIndexStorage::get_file_id(&file_name.to_string());
-        assert!(resp_file_id.is_none());
         // check if the file is deleted from the content storage
         let file_content = FileContentsStorage::get_file_contents(&file_id, &0);
         assert!(file_content.is_none());
@@ -1318,12 +1385,12 @@ mod test {
     async fn test_should_delete_file_when_pending() {
         let user = init();
 
-        let file_name = "test_file.txt";
+        let path = Path::new("/test_file.txt").expect("valid path");
         let file_content = vec![1, 2, 3];
         let file_type = "text/plain".to_string();
         let owner_key = [0; OwnerKey::KEY_SIZE].into();
         let num_chunks = 4;
-        let request_id = Canister::request_file(user, file_name.to_string()).await;
+        let request_id = Canister::request_file(user, path.clone()).await.unwrap();
         // upload the file first
         let file_id = FileAliasIndexStorage::get_file_id(&request_id).unwrap();
         let res = Canister::upload_file(
@@ -1349,7 +1416,7 @@ mod test {
         let file = FileDataStorage::get_file(&file_id);
         assert!(file.is_none());
         // check if the file is deleted from the alias index
-        let resp_file_id = FileAliasIndexStorage::get_file_id(&file_name.to_string());
+        let resp_file_id = FileAliasIndexStorage::get_file_id(&request_id);
         assert!(resp_file_id.is_none());
         // check if the file is deleted from the content storage
         let file_content = FileContentsStorage::get_file_contents(&file_id, &0);

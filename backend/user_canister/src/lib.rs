@@ -10,8 +10,9 @@ use did::FileId;
 use did::orchestrator::PublicKey;
 use did::user_canister::{
     AliasInfo, DeleteFileResponse, FileDownloadResponse, FileSharingResponse, GetAliasInfoError,
-    OwnerKey, PublicFileMetadata, UploadFileAtomicRequest, UploadFileContinueRequest,
-    UploadFileContinueResponse, UploadFileError, UploadFileRequest, UserCanisterInstallArgs,
+    OwnerKey, Path, PublicFileMetadata, RequestFileResponse, UploadFileAtomicRequest,
+    UploadFileAtomicResponse, UploadFileContinueRequest, UploadFileContinueResponse,
+    UploadFileError, UploadFileRequest, UserCanisterInstallArgs,
 };
 use ic_cdk_macros::{init, query, update};
 use storage::config::Config;
@@ -66,7 +67,7 @@ fn upload_file(request: UploadFileRequest) -> Result<(), UploadFileError> {
 }
 
 #[update]
-fn upload_file_atomic(request: UploadFileAtomicRequest) -> u64 {
+fn upload_file_atomic(request: UploadFileAtomicRequest) -> UploadFileAtomicResponse {
     Canister::upload_file_atomic(msg_caller(), request)
 }
 
@@ -76,8 +77,8 @@ fn upload_file_continue(request: UploadFileContinueRequest) -> UploadFileContinu
 }
 
 #[update]
-async fn request_file(request_name: String) -> String {
-    Canister::request_file(msg_caller(), request_name).await
+async fn request_file(path: Path) -> RequestFileResponse {
+    Canister::request_file(msg_caller(), path).await
 }
 
 #[query]
