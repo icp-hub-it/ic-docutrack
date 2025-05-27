@@ -1568,6 +1568,7 @@ dependencies = [
  "ic-utils",
  "log",
  "pocket-ic",
+ "pocket-test",
  "pretty_assertions",
  "reqwest",
  "serde",
@@ -2187,6 +2188,15 @@ dependencies = [
  "tracing-appender",
  "tracing-subscriber",
  "wslpath",
+]
+
+[[package]]
+name = "pocket-test"
+version = "0.1.0"
+dependencies = [
+ "proc-macro2",
+ "quote",
+ "syn 2.0.101",
 ]
 
 [[package]]

@@ -34,8 +34,7 @@
       "candid": "./.artifact/orchestrator.did",
       "declarations": {
         "output": "./frontend/declarations/orchestrator"
-      },
-      "init_arg": "(variant { Init = record { orbit_station_admin = \"admin\"; orbit_station = principal \"hu33f-3yaaa-aaaad-aalma-cai\" } })"
+      }
     },
     "internet_identity": {
       "type": "pull",

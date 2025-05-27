@@ -5,21 +5,17 @@ use did::orchestrator::{
 };
 use did::user_canister::{FileSharingResponse, OwnerKey, UploadFileAtomicRequest};
 use integration_tests::actor::{admin, alice};
-use integration_tests::{OrchestratorClient, PocketIcTestEnv, TestEnv, UserCanisterClient};
+use integration_tests::{OrchestratorClient, TestEnv, UserCanisterClient};
 
-#[tokio::test]
-async fn test_should_get_orbit_station() {
-    let env = PocketIcTestEnv::init().await;
-    let orbit_station = OrchestratorClient::from(&env).orchestrator_client().await;
+#[pocket_test::test]
+async fn test_should_get_orbit_station(ctx: PocketIcTestEnv) {
+    let orbit_station = OrchestratorClient::from(&ctx).orchestrator_client().await;
 
-    assert_eq!(orbit_station, env.orbit_station());
-
-    env.stop().await;
+    assert_eq!(orbit_station, ctx.orbit_station());
 }
 
-#[tokio::test]
-async fn test_should_register_user() {
-    let env = PocketIcTestEnv::init().await;
+#[pocket_test::test]
+async fn test_should_register_user(env: PocketIcTestEnv) {
     let client = OrchestratorClient::from(&env);
 
     let me = Principal::from_slice(&[1; 29]);
@@ -47,13 +43,10 @@ async fn test_should_register_user() {
             ic_principal: me,
         })
     );
-
-    env.stop().await;
 }
 
-#[tokio::test]
-async fn test_should_not_register_user_if_anonymous() {
-    let env = PocketIcTestEnv::init().await;
+#[pocket_test::test]
+async fn test_should_not_register_user_if_anonymous(env: PocketIcTestEnv) {
     let client = OrchestratorClient::from(&env);
 
     let username = "foo".to_string();
@@ -62,13 +55,10 @@ async fn test_should_not_register_user_if_anonymous() {
         .set_user(Principal::anonymous(), username, public_key)
         .await;
     assert_eq!(response, SetUserResponse::AnonymousCaller);
-
-    env.stop().await;
 }
 
-#[tokio::test]
-async fn test_should_not_get_users_if_anonymous() {
-    let env = PocketIcTestEnv::init().await;
+#[pocket_test::test]
+async fn test_should_not_get_users_if_anonymous(env: PocketIcTestEnv) {
     let client = OrchestratorClient::from(&env);
 
     let users = client
@@ -81,13 +71,10 @@ async fn test_should_not_get_users_if_anonymous() {
         )
         .await;
     assert_eq!(users, GetUsersResponse::PermissionError);
-
-    env.stop().await;
 }
 
-#[tokio::test]
-async fn test_should_create_user_canister() {
-    let env = PocketIcTestEnv::init().await;
+#[pocket_test::test]
+async fn test_should_create_user_canister(env: PocketIcTestEnv) {
     let client = OrchestratorClient::from(&env);
 
     let me = alice();
@@ -101,24 +88,18 @@ async fn test_should_create_user_canister() {
     // wait for user canister to be created
     let user_canister = client.wait_for_user_canister(me).await;
     assert_ne!(user_canister, Principal::anonymous());
-
-    env.stop().await;
 }
 
-#[tokio::test]
-async fn test_should_not_return_shared_files_if_anonymous() {
-    let env = PocketIcTestEnv::init().await;
+#[pocket_test::test]
+async fn test_should_not_return_shared_files_if_anonymous(env: PocketIcTestEnv) {
     let client = OrchestratorClient::from(&env);
 
     let shared_files = client.shared_files(Principal::anonymous()).await;
     assert_eq!(shared_files, SharedFilesResponse::AnonymousUser);
-
-    env.stop().await;
 }
 
-#[tokio::test]
-async fn test_should_return_shared_files() {
-    let env = PocketIcTestEnv::init().await;
+#[pocket_test::test]
+async fn test_should_return_shared_files(env: PocketIcTestEnv) {
     let orchestrator_client = OrchestratorClient::from(&env);
     let owner = admin();
     let shared_with = alice();
@@ -163,7 +144,11 @@ async fn test_should_return_shared_files() {
         .get(&env.user_canister())
         .expect("Expected file on owner canister");
     assert_eq!(shared_file_on_owner_canister.len(), 1);
-    assert!(shared_file_on_owner_canister.contains(&file_id));
-
-    env.stop().await;
+    let shared = shared_file_on_owner_canister
+        .first()
+        .expect("Expected at least one shared file");
+    assert_eq!(shared.file_id, file_id);
+    // check shared with
+    assert_eq!(shared.shared_with.len(), 1);
+    assert!(shared.shared_with.contains(&shared_with));
 }

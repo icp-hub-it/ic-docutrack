@@ -19,6 +19,7 @@ serde = { workspace = true }
 tokio = { workspace = true }
 
 [dev-dependencies]
+pocket-test = { path = "../pocket-test" }
 pretty_assertions = "1"
 
 [features]
