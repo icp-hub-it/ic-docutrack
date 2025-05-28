@@ -1,3 +1,4 @@
+import { toArrayBuffer } from "$lib/buffer";
 import crypto from "$lib/crypto";
 import FileTools from "$lib/file";
 import type { ActorTypeUserCanister } from "$lib/shared/actor";
@@ -45,13 +46,9 @@ export class UploadService {
     onAborted?: () => void;
   }) {
     const userPublicKey =
-      //TODO FIX this when user public_key is stored in the allias info response
-      // this action limits functionality to only upload a file as a owner.
-
-      // uploadType.type === "request"
-      //   ? (uploadType.fileInfo.user.public_key as Uint8Array).buffer
-      //   :
-      await crypto.getLocalUserPublicKey();
+      uploadType.type === "request"
+        ? toArrayBuffer((uploadType.fileInfo.public_key as Uint8Array).buffer)
+        : await crypto.getLocalUserPublicKey();
 
     const fileName =
       uploadType.type === "request"
@@ -99,13 +96,19 @@ export class UploadService {
           return;
         }
       } else {
-        fileId = await this.actor.upload_file_atomic({
+        const response = await this.actor.upload_file_atomic({
           content: firstChunk,
           owner_key: new Uint8Array(encryptedFileKey),
-          name: fileName,
+          path: fileName,
           file_type: dataType,
           num_chunks: BigInt(numChunks),
         });
+        if (enumIs(response, "FileAlreadyExists")) {
+          onError("File already exists. Please choose a different file name.");
+          return;
+        } else if (enumIs(response, "Ok")) {
+          fileId = response.Ok;
+        }
       }
 
       onChunkUploaded(0, firstChunk.length);

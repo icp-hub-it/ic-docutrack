@@ -13,7 +13,11 @@ type OrchestratorInitArgs = record {
 };
 type OrchestratorInstallArgs = variant { Upgrade; Init : OrchestratorInitArgs };
 type Pagination = record { offset : nat64; limit : nat64 };
-type PublicFileMetadata = record { file_name : text; file_id : nat64 };
+type PublicFileMetadata = record {
+  file_name : text;
+  shared_with : vec PublicUser;
+  file_id : nat64;
+};
 type PublicUser = record {
   username : text;
   public_key : blob;

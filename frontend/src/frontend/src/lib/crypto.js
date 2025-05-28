@@ -71,20 +71,6 @@ async function encryptForUser(plaintext, publicKey) {
 
 
 /**
- * converts SharedArrayBuffer to ArrayBuffer  
- * @param {ArrayBufferLike} bufferLike
- * @returns {ArrayBuffer}
- */
-function toArrayBuffer(bufferLike) {
-  return bufferLike instanceof ArrayBuffer
-    ? bufferLike
-    : bufferLike instanceof SharedArrayBuffer
-      ? new Uint8Array(bufferLike).slice().buffer
-      : (() => {
-        throw new Error("Unsupported buffer type");
-      })();
-}
-/**
  * @param {ArrayBuffer} ciphertext
  * @returns {Promise<ArrayBuffer>} containing the decrypted version of the ciphertext ArrayBuffer
  */
@@ -190,5 +176,4 @@ export default {
   generateFileKey,
   encryptFile,
   decryptFile,
-  toArrayBuffer,
 };

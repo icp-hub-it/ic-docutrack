@@ -2,7 +2,12 @@ import type { Principal } from '@dfinity/principal';
 import type { ActorMethod } from '@dfinity/agent';
 import type { IDL } from '@dfinity/candid';
 
-export interface AliasInfo { 'file_name' : string, 'file_id' : bigint }
+export interface AliasInfo {
+  'public_key' : Uint8Array | number[],
+  'file_name' : string,
+  'file_path' : string,
+  'file_id' : bigint,
+}
 export type DeleteFileResponse = { 'Ok' : null } |
   { 'FailedToRevokeShare' : string } |
   { 'FileNotFound' : null };
@@ -32,9 +37,12 @@ export type GetAliasInfoError = { 'not_found' : null };
 export interface PublicFileMetadata {
   'file_status' : FileStatus,
   'file_name' : string,
+  'file_path' : string,
   'shared_with' : Array<Principal>,
   'file_id' : bigint,
 }
+export type RequestFileResponse = { 'Ok' : string } |
+  { 'FileAlreadyExists' : null };
 export type Result = { 'Ok' : AliasInfo } |
   { 'Err' : GetAliasInfoError };
 export type Result_1 = { 'Ok' : null } |
@@ -42,10 +50,12 @@ export type Result_1 = { 'Ok' : null } |
 export interface UploadFileAtomicRequest {
   'content' : Uint8Array | number[],
   'owner_key' : Uint8Array | number[],
-  'name' : string,
+  'path' : string,
   'file_type' : string,
   'num_chunks' : bigint,
 }
+export type UploadFileAtomicResponse = { 'Ok' : bigint } |
+  { 'FileAlreadyExists' : null };
 export interface UploadFileContinueRequest {
   'contents' : Uint8Array | number[],
   'chunk_id' : bigint,
@@ -78,7 +88,7 @@ export interface _SERVICE {
   'get_requests' : ActorMethod<[], Array<PublicFileMetadata>>,
   'get_shared_files' : ActorMethod<[Principal], Array<PublicFileMetadata>>,
   'public_key' : ActorMethod<[], Uint8Array | number[]>,
-  'request_file' : ActorMethod<[string], string>,
+  'request_file' : ActorMethod<[string], RequestFileResponse>,
   'revoke_share' : ActorMethod<[Principal, bigint], undefined>,
   'set_public_key' : ActorMethod<[Uint8Array | number[]], undefined>,
   'share_file' : ActorMethod<
@@ -90,7 +100,10 @@ export interface _SERVICE {
     undefined
   >,
   'upload_file' : ActorMethod<[UploadFileRequest], Result_1>,
-  'upload_file_atomic' : ActorMethod<[UploadFileAtomicRequest], bigint>,
+  'upload_file_atomic' : ActorMethod<
+    [UploadFileAtomicRequest],
+    UploadFileAtomicResponse
+  >,
   'upload_file_continue' : ActorMethod<
     [UploadFileContinueRequest],
     UploadFileContinueResponse

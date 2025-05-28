@@ -25,7 +25,9 @@ export const idlFactory = ({ IDL }) => {
     'not_found_file' : IDL.Null,
   });
   const AliasInfo = IDL.Record({
+    'public_key' : IDL.Vec(IDL.Nat8),
     'file_name' : IDL.Text,
+    'file_path' : IDL.Text,
     'file_id' : IDL.Nat64,
   });
   const GetAliasInfoError = IDL.Variant({ 'not_found' : IDL.Null });
@@ -41,8 +43,13 @@ export const idlFactory = ({ IDL }) => {
   const PublicFileMetadata = IDL.Record({
     'file_status' : FileStatus,
     'file_name' : IDL.Text,
+    'file_path' : IDL.Text,
     'shared_with' : IDL.Vec(IDL.Principal),
     'file_id' : IDL.Nat64,
+  });
+  const RequestFileResponse = IDL.Variant({
+    'Ok' : IDL.Text,
+    'FileAlreadyExists' : IDL.Null,
   });
   const FileSharingResponse = IDL.Variant({
     'ok' : IDL.Null,
@@ -65,9 +72,13 @@ export const idlFactory = ({ IDL }) => {
   const UploadFileAtomicRequest = IDL.Record({
     'content' : IDL.Vec(IDL.Nat8),
     'owner_key' : IDL.Vec(IDL.Nat8),
-    'name' : IDL.Text,
+    'path' : IDL.Text,
     'file_type' : IDL.Text,
     'num_chunks' : IDL.Nat64,
+  });
+  const UploadFileAtomicResponse = IDL.Variant({
+    'Ok' : IDL.Nat64,
+    'FileAlreadyExists' : IDL.Null,
   });
   const UploadFileContinueRequest = IDL.Record({
     'contents' : IDL.Vec(IDL.Nat8),
@@ -96,7 +107,7 @@ export const idlFactory = ({ IDL }) => {
         ['query'],
       ),
     'public_key' : IDL.Func([], [IDL.Vec(IDL.Nat8)], ['query']),
-    'request_file' : IDL.Func([IDL.Text], [IDL.Text], []),
+    'request_file' : IDL.Func([IDL.Text], [RequestFileResponse], []),
     'revoke_share' : IDL.Func([IDL.Principal, IDL.Nat64], [], []),
     'set_public_key' : IDL.Func([IDL.Vec(IDL.Nat8)], [], []),
     'share_file' : IDL.Func(
@@ -110,7 +121,11 @@ export const idlFactory = ({ IDL }) => {
         [],
       ),
     'upload_file' : IDL.Func([UploadFileRequest], [Result_1], []),
-    'upload_file_atomic' : IDL.Func([UploadFileAtomicRequest], [IDL.Nat64], []),
+    'upload_file_atomic' : IDL.Func(
+        [UploadFileAtomicRequest],
+        [UploadFileAtomicResponse],
+        [],
+      ),
     'upload_file_continue' : IDL.Func(
         [UploadFileContinueRequest],
         [UploadFileContinueResponse],

@@ -49,6 +49,7 @@ export const idlFactory = ({ IDL }) => {
   });
   const PublicFileMetadata = IDL.Record({
     'file_name' : IDL.Text,
+    'shared_with' : IDL.Vec(PublicUser),
     'file_id' : IDL.Nat64,
   });
   const SharedFilesResponse = IDL.Variant({

@@ -16,7 +16,11 @@ export interface OrchestratorInitArgs {
 export type OrchestratorInstallArgs = { 'Upgrade' : null } |
   { 'Init' : OrchestratorInitArgs };
 export interface Pagination { 'offset' : bigint, 'limit' : bigint }
-export interface PublicFileMetadata { 'file_name' : string, 'file_id' : bigint }
+export interface PublicFileMetadata {
+  'file_name' : string,
+  'shared_with' : Array<PublicUser>,
+  'file_id' : bigint,
+}
 export interface PublicUser {
   'username' : string,
   'public_key' : Uint8Array | number[],
