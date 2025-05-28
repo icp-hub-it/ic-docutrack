@@ -5,7 +5,7 @@ import { unreachable } from "$lib/shared/unreachable";
 import { get, writable } from "svelte/store";
 
 export type Request = {
-  name: string;
+  path: string;
   formattedDate: string;
   formattedDateShort: string;
   alias: string;
@@ -116,7 +116,7 @@ export class RequestsService {
         }
 
         uploadedFiles.push({
-          name: file.file_name,
+          path: file.file_path,
           access: accessMessage,
           formattedDate: formatUploadDate(
             file.file_status.pending.requested_at

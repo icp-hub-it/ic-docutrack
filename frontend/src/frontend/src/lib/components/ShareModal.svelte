@@ -4,6 +4,7 @@
   import type { Principal } from "@dfinity/principal";
   import { createEventDispatcher, onMount } from "svelte";
   import type { PublicFileMetadata } from "../../../declarations/user_canister/user_canister.did";
+  import type { ExternalFileMetadata } from "../services/files";
   import type { PublicUser } from "../../../declarations/orchestrator/orchestrator.did";
   import Modal from "./Modal.svelte";
   import CloseIcon from "./icons/CloseIcon.svelte";
@@ -11,11 +12,18 @@
   import ErrorMessage from "./ErrorMessage.svelte";
   import ComboBox from "./ComboBox.svelte";
   import { flatten } from "$lib/shared/flatten";
+  import { toArrayBuffer } from "$lib/buffer";
 
   export let auth: AuthStateAuthenticated;
 
   export let isOpen = false;
-  export let fileData: PublicFileMetadata;
+  export let fileData: PublicFileMetadata | ExternalFileMetadata;
+
+  function isPublicFileMetadata(
+    file: PublicFileMetadata | ExternalFileMetadata
+  ): file is PublicFileMetadata {
+    return (file as PublicFileMetadata).file_id !== undefined;
+  }
 
   const dispatch = createEventDispatcher<{
     shared: { file_id: bigint; shared_with: PublicUser[] };
@@ -68,7 +76,10 @@
   }
 
   async function saveShare() {
-    if (!enumIs(fileData.file_status, "uploaded")) {
+    if (
+      isPublicFileMetadata(fileData) &&
+      !enumIs(fileData.file_status, "uploaded")
+    ) {
       return;
     }
 
@@ -80,14 +91,19 @@
       // The expiration date is saved as timestamp in nanoseconds, convert accordingly
       timestamp = Date.parse(expirationDate) * 1e6;
     }
-
-    let documentKey: ArrayBuffer;
+    // initializing empty maybe FIX TODO no need to escape ExternalFileMetadata
+    let documentKey: ArrayBuffer = new ArrayBuffer(0);
     try {
-      documentKey = await crypto.decryptForUser(
-        crypto.toArrayBuffer(
-          (fileData.file_status.uploaded.document_key as Uint8Array).buffer
-        )
-      );
+      if (
+        isPublicFileMetadata(fileData) &&
+        enumIs(fileData.file_status, "uploaded")
+      ) {
+        documentKey = await crypto.decryptForUser(
+          toArrayBuffer(
+            (fileData.file_status.uploaded.document_key as Uint8Array).buffer
+          )
+        );
+      }
     } catch {
       error =
         "Error: unable to access file. You may be able to access this file with a different browser, as the decryption key is stored in the browser.";
@@ -98,18 +114,19 @@
       try {
         const encryptedFileKey = await crypto.encryptForUser(
           documentKey,
-          crypto.toArrayBuffer(
-            (newSharedWith[i].public_key as Uint8Array).buffer
-          )
+          toArrayBuffer((newSharedWith[i].public_key as Uint8Array).buffer)
         );
         // TODO: add expiration date to backend call
-        // Why not using share file with userss method?
-        await auth.actor_user.share_file(
+        const response = await auth.actor_user.share_file(
           newSharedWith[i].ic_principal,
           fileData.file_id,
           new Uint8Array(encryptedFileKey)
         );
-      } catch {
+        console.log(
+          response ? "File shared successfully" : "File share failed"
+        );
+      } catch (err) {
+        console.error(err);
         error = `Error: could not share file with ${newSharedWith[i].username}`;
         loading = false;
         return;
@@ -150,10 +167,15 @@
 
   async function onOpen(isOpen: boolean) {
     if (isOpen) {
-      const proms = fileData.shared_with.map((principal) =>
-        auth.actor_orchestrator.get_user(principal)
-      );
-      const sharedWith = flatten(await Promise.all(proms));
+      let sharedWith: PublicUser[] = [];
+      if (!isPublicFileMetadata(fileData)) {
+        sharedWith = fileData.shared_with;
+      } else {
+        const proms = fileData.shared_with.map((principal) =>
+          auth.actor_orchestrator.get_user(principal)
+        );
+        sharedWith = flatten(await Promise.all(proms));
+      }
       // Keep the old version of the shared users
       oldSharedWith = sharedWith.slice();
       // Copy the array and modify this list with the UI

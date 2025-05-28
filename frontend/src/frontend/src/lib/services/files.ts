@@ -8,21 +8,23 @@ import { flatten } from "$lib/shared/flatten";
 import { unreachable } from "$lib/shared/unreachable";
 import type { Principal } from "@dfinity/principal";
 import { get, writable } from "svelte/store";
-import type { PublicFileMetadata } from "../../../declarations/user_canister/user_canister.did";
+import type { PublicFileMetadata } from "../../../declarations/orchestrator/orchestrator.did";
+import type { PublicFileMetadata as PublicFileMetadataCAN } from "../../../declarations/user_canister/user_canister.did";
+//FIXME: expect same type from both user_canister and orchestrator
 
-export type ExternalFileMetadata = {
+export interface ExternalFileMetadata extends PublicFileMetadata {
   file_id: bigint;
   file_name: string;
   user_canister_id: Principal;
-};
+}
 
 export type UploadedFile = {
-  name: string;
+  path: string;
   access: string;
   uploadedAt: string;
   uploadedAtShort: string;
   file_id: bigint;
-  metadata: PublicFileMetadata | ExternalFileMetadata;
+  metadata: PublicFileMetadataCAN | ExternalFileMetadata;
 };
 
 export type FilesState =
@@ -111,14 +113,8 @@ export class FilesService {
   }
 
   private async loadFiles(): Promise<UploadedFile[]> {
-    // walkaroudn to fetch the shared files FIX
-    const external_files_resp = await this.actorOrchestrator.shared_files();
-    let external_files =
-      "SharedFiles" in external_files_resp
-        ? external_files_resp.SharedFiles
-        : [];
-
-    const files: PublicFileMetadata[] = flatten(
+    // Fetch oowned files
+    const files: PublicFileMetadataCAN[] = flatten(
       await Promise.all([
         // this.actorOrchestrator.shared_files(),
         this.actorUserCanister.get_requests(),
@@ -144,7 +140,7 @@ export class FilesService {
         }
 
         uploadedFiles.push({
-          name: file.file_name,
+          path: file.file_path,
           access: accessMessage,
           uploadedAt: formatUploadDate(file.file_status.uploaded.uploaded_at),
           uploadedAtShort: formatUploadDateShort(
@@ -155,15 +151,32 @@ export class FilesService {
         });
       }
     }
+    const resp = await this.actorOrchestrator.shared_files();
+    let res_unwrapped: Array<[Principal, Array<PublicFileMetadata>]> = [];
+    if (enumIs(resp, "AnonymousUser") || enumIs(resp, "NoSuchUser"))
+      throw new Error("Failed to load shared Anonymous User or No Such User");
 
+    if (enumIs(resp, "SharedFiles")) res_unwrapped = resp.SharedFiles;
     // adding external files with external metadata
-    for (const external of external_files) {
+    for (const external of res_unwrapped) {
       const user_canister_id = external[0];
       const files_metadata = external[1];
       for (const file of files_metadata) {
+        let nShared = file.shared_with ? file.shared_with.length : 0;
+        let accessMessage = "";
+        switch (nShared) {
+          case 0:
+            accessMessage = "Only You";
+            break;
+          case 1:
+            accessMessage = "You & 1 other";
+            break;
+          default:
+            accessMessage = "You & " + nShared + " others";
+        }
         uploadedFiles.push({
-          name: file.file_name,
-          access: `You at least`,
+          path: file.file_name,
+          access: accessMessage,
           uploadedAt: "Unknown",
           uploadedAtShort: "Unknown",
           file_id: file.file_id,
@@ -171,6 +184,7 @@ export class FilesService {
             file_id: file.file_id,
             file_name: file.file_name,
             user_canister_id: user_canister_id,
+            shared_with: file.shared_with,
           },
         });
       }

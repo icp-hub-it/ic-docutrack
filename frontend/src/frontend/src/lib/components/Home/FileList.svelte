@@ -2,7 +2,7 @@
   import RequestModal from "../RequestModal.svelte";
   import type { AuthStateAuthenticated } from "$lib/services/auth";
   import { onMount } from "svelte";
-  import { filesStore } from "$lib/services/files";
+  import { filesStore, type ExternalFileMetadata } from "$lib/services/files";
   import { unreachable } from "$lib/shared/unreachable";
   import { goto } from "$app/navigation";
   import ShareIcon from "../icons/ShareIcon.svelte";
@@ -13,7 +13,7 @@
   export let auth: AuthStateAuthenticated;
   let isOpenRequestModal = false;
   let isOpenShareModal = false;
-  let shareFileData: PublicFileMetadata | null;
+  let shareFileData: PublicFileMetadata | ExternalFileMetadata | null;
   onMount(() => {
     auth.filesService.reload();
   });
@@ -22,7 +22,9 @@
     goto(`/details?fileId=${file_id}`);
   }
 
-  function openShareModal(file: PublicFileMetadata | null) {
+  function openShareModal(
+    file: PublicFileMetadata | ExternalFileMetadata | null
+  ) {
     shareFileData = file;
     isOpenShareModal = true;
   }
@@ -66,8 +68,8 @@
               <td
                 class="pl-4 bg-background-100 rounded-tl-xl rounded-bl-xl body-1"
               >
-                {#if file.name}
-                  {file.name}
+                {#if file.path}
+                  {file.path}
                 {:else}
                   <span class="opacity-50">Unnamed file</span>
                 {/if}
@@ -98,8 +100,8 @@
         >
           <div class="flex justify-between items-center mb-3">
             <span class="text-text-100 title-2">
-              {#if file.name}
-                {file.name}
+              {#if file.path}
+                {file.path}
               {:else}
                 <span class="opacity-50">Unnamed file</span>
               {/if}

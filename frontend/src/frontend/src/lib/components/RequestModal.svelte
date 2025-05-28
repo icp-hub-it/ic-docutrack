@@ -4,6 +4,7 @@
   import Modal from "./Modal.svelte";
   import CopyIcon from "./icons/CopyIcon.svelte";
   import type { AuthStateAuthenticated } from "$lib/services/auth";
+  import { enumIs } from "$lib/shared/enums";
 
   export let isOpen = false;
   export let auth: AuthStateAuthenticated;
@@ -18,7 +19,7 @@
     "request-completed": void;
   }>();
 
-  async function updateRequestUrl(e) {
+  async function updateRequestUrl(e: any) {
     loading = true;
     const formData = new FormData(e.target);
     const data: any = {};
@@ -31,9 +32,14 @@
     if (data.requestName && !data.requestLink) {
       requestName = data.requestName;
       const alias = await auth.actor_user.request_file(data.requestName);
-      console.log("Alias received:", alias);
+      if (enumIs(alias, "FileAlreadyExists")) {
+        console.error("Error requesting file:", alias.FileAlreadyExists);
+        loading = false;
+        return;
+      }
+      console.log("Alias received:", alias.Ok);
       requestLink = new URL($page.url.origin + "/upload");
-      requestLink.searchParams.append("alias", alias);
+      requestLink.searchParams.append("alias", alias.Ok);
     }
     loading = false;
 

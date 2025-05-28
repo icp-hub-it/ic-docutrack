@@ -95,7 +95,7 @@ function createServices(
   actor_user: ActorTypeUserCanister,
   actorOrchestrator: ActorTypeOrchestrator
 ) {
-  const userService = new UserService(actorOrchestrator);
+  const userService = new UserService(actorOrchestrator, actor_user);
   userService.init();
   const filesService = new FilesService(actor_user, actorOrchestrator);
   const requestsService = new RequestsService(actor_user);

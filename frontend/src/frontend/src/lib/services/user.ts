@@ -1,5 +1,8 @@
 import { default as crypto } from "$lib/crypto";
-import type { ActorTypeOrchestrator } from "$lib/shared/actor";
+import type {
+  ActorTypeOrchestrator,
+  ActorTypeUserCanister,
+} from "$lib/shared/actor";
 import { enumIs } from "$lib/shared/enums";
 import { unreachable } from "$lib/shared/unreachable";
 import { writable } from "svelte/store";
@@ -68,11 +71,14 @@ function createUserStore() {
 export const userStore = createUserStore();
 
 export class UserService {
-  constructor(private actor: ActorTypeOrchestrator) {}
+  constructor(
+    private actorOrchestrator: ActorTypeOrchestrator,
+    private actorUser: ActorTypeUserCanister
+  ) {}
 
   async init() {
     try {
-      const response = await this.actor.who_am_i();
+      const response = await this.actorOrchestrator.who_am_i();
       if (enumIs(response, "known_user")) {
         userStore.register(response.known_user.username);
       } else if (enumIs(response, "unknown_user")) {
@@ -89,7 +95,18 @@ export class UserService {
     try {
       userStore.setUnregistered({ state: "registering" });
 
-      const response = await this.actor.set_user(
+      try {
+        await this.actorUser.set_public_key(
+          new Uint8Array(await crypto.getLocalUserPublicKey())
+        );
+      } catch (error) {
+        userStore.setUnregistered({
+          state: "error",
+          errorMessage:
+            error instanceof Error ? error.message : "Unknown error",
+        });
+      }
+      const response = await this.actorOrchestrator.set_user(
         username,
         new Uint8Array(await crypto.getLocalUserPublicKey())
       );

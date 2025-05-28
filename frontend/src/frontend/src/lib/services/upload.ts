@@ -18,7 +18,7 @@ export type UploadType =
     }
   | {
       type: "self";
-      fileName: string;
+      filePath: string;
     };
 
 export class UploadService {
@@ -50,13 +50,14 @@ export class UploadService {
         ? toArrayBuffer((uploadType.fileInfo.public_key as Uint8Array).buffer)
         : await crypto.getLocalUserPublicKey();
 
-    const fileName =
+    console.log("User public key:", userPublicKey);
+    const filePath =
       uploadType.type === "request"
-        ? uploadType.fileInfo.file_name
-        : uploadType.fileName;
+        ? uploadType.fileInfo.file_path + uploadType.fileInfo.file_name
+        : uploadType.filePath;
 
     const fileBytes = await file.arrayBuffer();
-    let fileToEncrypt = FileTools.fromUnencrypted(fileName, fileBytes);
+    let fileToEncrypt = FileTools.fromUnencrypted(filePath, fileBytes);
     const encryptedFileKey = await fileToEncrypt.getEncryptedFileKey(
       userPublicKey
     );
@@ -99,10 +100,11 @@ export class UploadService {
         const response = await this.actor.upload_file_atomic({
           content: firstChunk,
           owner_key: new Uint8Array(encryptedFileKey),
-          path: fileName,
+          path: filePath,
           file_type: dataType,
           num_chunks: BigInt(numChunks),
         });
+        console.log("calling canister upload_file_atomic");
         if (enumIs(response, "FileAlreadyExists")) {
           onError("File already exists. Please choose a different file name.");
           return;

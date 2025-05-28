@@ -62,7 +62,7 @@
               <tr class="text-text-100">
                 <td
                   class="pl-4 bg-background-100 rounded-tl-xl rounded-bl-xl body-1 h-[52px]"
-                  >{request.name}</td
+                  >{request.path}</td
                 >
                 <td class="bg-background-100 body-1">{request.access}</td>
                 <td class="bg-background-100 body-1">{request.formattedDate}</td
@@ -87,8 +87,8 @@
           <div class="bg-white rounded-xl py-3 px-4 flex flex-col">
             <div class="mb-3">
               <span class="text-text-100 title-2">
-                {#if request.name}
-                  {request.name}
+                {#if request.path}
+                  {request.path}
                 {:else}
                   <span class="opacity-50">Unnamed request</span>
                 {/if}

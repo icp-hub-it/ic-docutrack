@@ -85,7 +85,7 @@
       // upload file for self
       uploadType = {
         type: "self",
-        fileName: "",
+        filePath: "",
       };
     } else {
       goto("/");
@@ -127,9 +127,14 @@
     uploadService = new UploadService(auth.actor_user);
 
     if (uploadType?.type === "self") {
-      uploadType.fileName = fileName;
+      uploadType.filePath = fileName;
     }
-
+    console.log(
+      "Starting upload for file:",
+      fileName,
+      "with type:",
+      uploadType
+    );
     await uploadService.uploadFile({
       file: file!,
       dataType: dataType!,
