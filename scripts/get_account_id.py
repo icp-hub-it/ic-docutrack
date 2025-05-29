@@ -7,18 +7,14 @@ from sys import argv, exit
 
 
 def principal_str_to_bytes(principal_str: str) -> bytes:
-    # Rimuove i trattini
     cleaned = principal_str.replace("-", "").upper()
 
-    # La base32 standard in Python richiede che la stringa sia paddingata con '='
-    # Deve essere un multiplo di 8 caratteri
     padding = "=" * ((8 - len(cleaned) % 8) % 8)
     b32_str = cleaned + padding
 
-    # Decodifica base32
     decoded = base64.b32decode(b32_str)
 
-    # Verifica CRC32 (i primi 4 byte)
+    # Verifiy CRC32 (first 4 bytes)
     checksum = decoded[:4]
     data = decoded[4:]
     expected_checksum = zlib.crc32(data).to_bytes(4, byteorder="big")
@@ -26,7 +22,7 @@ def principal_str_to_bytes(principal_str: str) -> bytes:
     if checksum != expected_checksum:
         raise ValueError("Checksum non valido per il principal")
 
-    return data  # sono i bytes del principal
+    return data
 
 
 def generate_account_id(owner: bytes, subaccount: bytes) -> bytes:
@@ -46,11 +42,19 @@ def generate_account_id(owner: bytes, subaccount: bytes) -> bytes:
     return result  # 32 bytes
 
 
-if len(argv) != 2:
+if len(argv) < 2:
     print("Usage: get_account_id.py <principal>")
     exit(1)
 
-principal = argv[1]
+text = False
+argindex = 1
+
+
+if argv[argindex] == "--text":
+    text = True
+    argindex += 1
+
+principal = argv[argindex]
 
 principal_bytes = principal_str_to_bytes(principal)
 
@@ -58,7 +62,8 @@ principal_bytes = principal_str_to_bytes(principal)
 subaccount = bytes(32)
 account_id = generate_account_id(principal_bytes, subaccount)
 
-# Print the account ID as a hex string
-# print("0x" + account_id.hex().upper())
-
-print(f"{'\\'.join(f"{byte:02x}" for byte in account_id)}")
+if text:
+    print(account_id.hex())
+else:
+    for byte in account_id:
+        print(f"\\\\{byte:02x}", end="")

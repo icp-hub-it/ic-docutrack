@@ -6,7 +6,14 @@ deploy_orbit_local: deploy_cycles_management_canisters install_nns_ledger_canist
   echo "Deploying Orbit on local network"
 
   admin_principal="$(dfx identity get-principal)"
-  orchestrator_principal="$(dfx canister --network=local id ochestrator)"
+  orchestrator_principal="$(dfx canister --network=local id orchestrator)"
+
+  # create orbit station
+  echo "Creating Orbit Station canister on local network"
+  dfx canister --network=local create --with-cycles=1000000000000000 orbit-station
+
+  just deploy_orbit_upgrader local
+  orbit_upgrader="$(dfx canister --network=local id orbit-upgrader)"
 
   init_args="(
     variant {
@@ -14,10 +21,7 @@ deploy_orbit_local: deploy_cycles_management_canisters install_nns_ledger_canist
         name = \"Orbit Station\";
         fallback_controller = principal \"rrkah-fqaaa-aaaaa-aaaaq-cai\";
         upgrader = variant {
-          Deploy = record {
-            initial_cycles = opt 5_000_000_000_000;
-            wasm_module = blob \"$(python3 ./scripts/dfx_wasm.py ./.artifact/orbit-upgrader.wasm.gz)\";
-          };
+          Id = principal \"$orbit_upgrader\"
         };
         admins = vec {
           record {
@@ -27,15 +31,21 @@ deploy_orbit_local: deploy_cycles_management_canisters install_nns_ledger_canist
           record {
             name = \"docutrack-orchestrator\";
             identity = principal \"$orchestrator_principal\";
-          };
+          }
         };
         quorum = opt 1;
       }
     }
   )"
 
+  orbit_station="$(dfx canister --network=local id orbit-station)"
+  echo "Orbit Station canister ID: $orbit_station"
+
+  echo "Adding Orbit Station canister as a controller for the Orbit Upgrader canister"
+  dfx canister update-settings --yes --network=local --add-controller "$orbit_station" orbit-station
   echo "Installing Orbit canister with init args: $init_args"
-  dfx canister --network=local create --with-cycles=1000000000000000 --argument="$init_args" orbit-station
+  dfx canister install --mode=reinstall --yes --wasm=./.artifact/orbit-station.wasm.gz --network=local --argument="$init_args" orbit-station
+  echo "Orbit Station canister installed successfully"
 
 [private]
 deploy_orbit network:
@@ -67,18 +77,21 @@ install_nns_ledger_canister:
   init_args="(
     variant { 
       Init = record {
-        minting_account = blob \"$admin_account\";
+        minting_account = \"$admin_account\";
         initial_values = vec {
-          $admin_account = record { 
-            e8s = 1_000_000_000_000;
-          };
+          record {
+            \"$admin_account\";
+            record {
+              e8s = 1_000_000_000_000 : nat64;
+            }
+          }
         };
         send_whitelist = vec { };
-        transfer_fee = record {
+        transfer_fee = opt record {
           e8s = 10_000;
         };
-        token_symbol = \"ICP\";
-        token_name = \"Internet Computer\";
+        token_symbol = opt \"ICP\";
+        token_name = opt \"Internet Computer\";
       }
     }
   )"
@@ -134,15 +147,36 @@ install_cycles_minting_canister:
   )"
 
   echo "Installing cycles minting canister with init args: $init_args"
-  dfx canister --network=local create --with-cycles=1000000000000000 --specified-id="rkp4c-7iaaa-aaaaa-aaaca-cai" cycles_minting
-  dfx canister install --mode=reinstall --yes --wasm=./.artifact/cycles-minting-canister.wasm.gz --network=local --argument="$init_args" cycles_minting
+  dfx canister --network=local create --with-cycles=1000000000000000 --specified-id="rkp4c-7iaaa-aaaaa-aaaca-cai" cmc
+  dfx canister install --mode=reinstall --yes --wasm=./.artifact/cycles-minting-canister.wasm.gz --network=local --argument="$init_args" cmc
 
   # Setup
   
+[private]
+deploy_orbit_upgrader network cycles="1000000000000000":
+  #!/usr/bin/env bash
+  set -ex
+  
+  echo "Deploying Orbit Upgrader canister on {{network}} network"
+
+  orbit_station=$(dfx canister --network={{network}} id orbit-station)
+
+  echo "Creating Orbit Upgrader canister on {{network}} network"
+  dfx canister --network={{network}} create --with-cycles={{cycles}} orbit-upgrader
+
+  init_args="(
+    record {
+      target_canister = principal \"$orbit_station\";
+    }
+  )"
+
+  echo "Installing Orbit Upgrader canister with init args: $init_args"
+  dfx canister install --mode=reinstall --yes --wasm=./.artifact/orbit-upgrader.wasm.gz --network={{network}} --argument="$init_args" orbit-upgrader
+  dfx canister update-settings --yes --network={{network}} --add-controller "$orbit_station" orbit-upgrader
 
 [private]
 get_account_id principal:
-  python3 ./scripts/get_account_id.py {{principal}}
+  python3 ./scripts/get_account_id.py --text {{principal}}
 
 [private]
 get_orbit_station_uuid username network:
@@ -150,8 +184,10 @@ get_orbit_station_uuid username network:
 
   set -e
   args="(
-    search_term = \"{{username}}\";
+    record {
+      search_term = opt \"{{username}}\";
+    }
   )"
 
-  response="$(dfx canister call --network={{network}} orbit-station --query list_users $args)"
-  echo $response
+  uuid=$(dfx canister call --network={{network}} orbit-station --output json --query list_users "$args" | jq -r .Ok.users[0].id)
+  echo $uuid

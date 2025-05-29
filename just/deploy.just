@@ -13,19 +13,22 @@ dfx_stop:
   dfx stop
 
 [group('deploy')]
-dfx_deploy_local install_mode orbit_station:
+dfx_deploy_local install_mode="install":
   #!/usr/bin/env bash
   set -ex
 
   if [ "{{install_mode}}" = "install" ]; then
       just dfx_start
-      just create_canisters "$NETWORK" 1000000000000000
+      echo "Creating canisters on local network"
+      just create_canisters local 1000000000000000
       # install the orbit station canister
+      echo "Deploying Orbit Station canister on local network"
       just deploy_orbit_local
       # Install the orchestrator canister
-      just deploy_canisters "$NETWORK" "install" "{{orbit_station}}"
+      echo "Deploying Orchestrator canister on local network"
+      just deploy_canisters local "install"
   elif [ "{{install_mode}}" = "upgrade" ] || [ "{{install_mode}}" = "reinstall" ]; then
-      just deploy_canisters "$NETWORK" "{{install_mode}}" "{{orbit_station}}"
+      just deploy_canisters local "{{install_mode}}"
   else
       echo "Usage: $0 <create|upgrade|reinstall>"
       exit 1
@@ -41,7 +44,7 @@ create_canisters network cycles:
   dfx canister --network={{network}} create --with-cycles={{cycles}} orchestrator
 
 [private]
-deploy_canisters network install_mode orbit_station:
+deploy_canisters network install_mode:
   #!/usr/bin/env bash
   set -ex
 
@@ -62,7 +65,7 @@ deploy_orchestrator_canister network install_mode:
   orchestrator_init_args="(
     variant { 
       Init = record {
-        orbit_station_admin = \"$orbit_station_admin";
+        orbit_station_admin = \"$orbit_station_admin\";
         orbit_station = principal \"$orbit_station\";
       }
     }
@@ -70,4 +73,4 @@ deploy_orchestrator_canister network install_mode:
 
   echo "Installing the orchestrator canister with init args: $orchestrator_init_args"
 
-  dfx canister install --mode={{install_mode}} --yes --network={{network}} --argument="$orchestrator_init_args" orchestrator
+  dfx canister install --mode={{install_mode}} --yes --network={{network}} --argument="$orchestrator_init_args" --wasm ./.artifact/orchestrator.wasm.gz orchestrator
