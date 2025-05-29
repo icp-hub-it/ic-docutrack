@@ -13,16 +13,19 @@ dfx_stop:
   dfx stop
 
 [group('deploy')]
-dfx_deploy_local install_mode orbit_station orbit_station_admin:
+dfx_deploy_local install_mode orbit_station:
   #!/usr/bin/env bash
   set -ex
 
   if [ "{{install_mode}}" = "install" ]; then
       just dfx_start
       just create_canisters "$NETWORK" 1000000000000000
-      just deploy_canisters "$NETWORK" "install" "{{orbit_station}}" "{{orbit_station_admin}}"
+      # install the orbit station canister
+      just deploy_orbit_local
+      # Install the orchestrator canister
+      just deploy_canisters "$NETWORK" "install" "{{orbit_station}}"
   elif [ "{{install_mode}}" = "upgrade" ] || [ "{{install_mode}}" = "reinstall" ]; then
-      just deploy_canisters "$NETWORK" "{{install_mode}}" "{{orbit_station}}" "{{orbit_station_admin}}"
+      just deploy_canisters "$NETWORK" "{{install_mode}}" "{{orbit_station}}"
   else
       echo "Usage: $0 <create|upgrade|reinstall>"
       exit 1
@@ -38,21 +41,23 @@ create_canisters network cycles:
   dfx canister --network={{network}} create --with-cycles={{cycles}} orchestrator
 
 [private]
-deploy_canisters network install_mode orbit_station orbit_station_admin:
+deploy_canisters network install_mode orbit_station:
   #!/usr/bin/env bash
   set -ex
 
   just build_all_canisters
 
-  # orchestrator ID
-  orchestrator_id=$(dfx canister --network={{network}} id orchestrator)
-
-  just deploy_orchestrator_canister {{network}} {{install_mode}} {{orbit_station}} {{orbit_station_admin}}
+  just deploy_orchestrator_canister {{network}} {{install_mode}}
 
 [private]
-deploy_orchestrator_canister network install_mode orbit_station orbit_station_admin:
+deploy_orchestrator_canister network install_mode:
   #!/usr/bin/env bash
   set -ex
+
+  orbit_station=$(dfx canister --network={{network}} id orbit-station)
+
+  # Get orchestrator admin name on the station
+  orbit_station_admin="$(just get_orbit_station_uuid docutrack-orchestrator {{network}})"
 
   orchestrator_init_args="(
     variant { 
@@ -63,6 +68,6 @@ deploy_orchestrator_canister network install_mode orbit_station orbit_station_ad
     }
   )"
 
-  echo "Installing the orbit station canister with init args: $orchestrator_init_args"
+  echo "Installing the orchestrator canister with init args: $orchestrator_init_args"
 
   dfx canister install --mode={{install_mode}} --yes --network={{network}} --argument="$orchestrator_init_args" orchestrator
