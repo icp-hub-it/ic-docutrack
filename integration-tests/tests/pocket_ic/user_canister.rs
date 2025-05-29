@@ -1,7 +1,8 @@
 use candid::Principal;
 use did::orchestrator::{PublicKey, SetUserResponse};
 use did::user_canister::{
-    FileStatus, OwnerKey, UploadFileAtomicRequest, UploadFileContinueRequest, UploadFileRequest,
+    FileStatus, OwnerKey, Path, UploadFileAtomicRequest, UploadFileContinueRequest,
+    UploadFileRequest,
 };
 use integration_tests::actor::{admin, alice};
 use integration_tests::{OrchestratorClient, UserCanisterClient};
@@ -25,8 +26,8 @@ async fn test_should_request_file_and_get_requests(env: PocketIcTestEnv) {
     let client = UserCanisterClient::from(&env);
     let owner = admin();
 
-    let request_name = "test.txt".to_string();
-    let request_id = client.request_file(request_name.clone(), owner).await;
+    let path = Path::new("/test.txt").unwrap();
+    let request_id = client.request_file(path.clone(), owner).await.unwrap();
     // check randomness is working uuidv7
     // 0196f279-a899-7000-8000-000000000000
     // │        │     │    │    └───── 48 bit randomness
@@ -36,18 +37,22 @@ async fn test_should_request_file_and_get_requests(env: PocketIcTestEnv) {
     // └────────────────────────────── (timestamp)
     assert!(!request_id.ends_with("000000000000"));
 
-    assert_eq!(
-        client.get_requests(owner).await.first().unwrap().file_name,
-        request_name
-    );
+    let request = client
+        .get_requests(owner)
+        .await
+        .first()
+        .expect("should have at least one request")
+        .clone();
+    assert_eq!(request.file_name, "test.txt");
+    assert_eq!(request.file_path, path);
 }
 
 #[pocket_test::test]
 async fn test_should_upload_file(env: PocketIcTestEnv) {
     let client = UserCanisterClient::from(&env);
     let owner = admin();
-    let request_name = "test.txt".to_string();
-    let alias = client.request_file(request_name.clone(), owner).await;
+    let path = Path::new("/test.txt").unwrap();
+    let alias = client.request_file(path, owner).await.unwrap();
     let alias_info = client
         .get_alias_info(alias.clone(), owner)
         .await
@@ -81,9 +86,14 @@ async fn test_should_get_alias_info(env: PocketIcTestEnv) {
     let client = UserCanisterClient::from(&env);
     let owner = admin();
     let external_user = alice();
-    let request_name = "test.txt".to_string();
-    let alias = client.request_file(request_name.clone(), owner).await;
-    let alias_info = client.get_alias_info(alias.clone(), external_user).await;
+    let path = Path::new("/test.txt").unwrap();
+    let alias = client.request_file(path.clone(), owner).await.unwrap();
+    let alias_info = client
+        .get_alias_info(alias.clone(), external_user)
+        .await
+        .expect("alias info");
+
+    let public_key = client.public_key(owner).await;
 
     assert_eq!(
         client
@@ -91,19 +101,21 @@ async fn test_should_get_alias_info(env: PocketIcTestEnv) {
             .await,
         Err(did::user_canister::GetAliasInfoError::NotFound)
     );
-    assert_eq!(alias_info.clone().unwrap().file_name, request_name);
-    assert_eq!(alias_info.unwrap().file_id, 0);
+    assert_eq!(alias_info.file_name, "test.txt");
+    assert_eq!(alias_info.file_path, path);
+    assert_eq!(alias_info.file_id, 0);
+    assert_eq!(alias_info.public_key, public_key);
 }
 
 #[pocket_test::test]
 async fn test_should_upload_file_atomic(env: PocketIcTestEnv) {
     let client = UserCanisterClient::from(&env);
     let owner = admin();
-    let request_name = "test.txt".to_string();
+    let path = Path::new("/test.txt").unwrap();
     let file_id = client
         .upload_file_atomic(
             UploadFileAtomicRequest {
-                name: request_name.clone(),
+                path,
                 content: vec![1, 2, 3],
                 file_type: "txt".to_string(),
                 owner_key: [1; OwnerKey::KEY_SIZE].into(),
@@ -111,7 +123,8 @@ async fn test_should_upload_file_atomic(env: PocketIcTestEnv) {
             },
             owner,
         )
-        .await;
+        .await
+        .unwrap();
     assert_eq!(file_id, 0);
     let public_metadata = client.get_requests(owner).await.first().unwrap().clone();
 
@@ -128,12 +141,12 @@ async fn test_should_upload_file_atomic(env: PocketIcTestEnv) {
 async fn test_should_upload_file_continue(env: PocketIcTestEnv) {
     let client = UserCanisterClient::from(&env);
     let owner = admin();
-    let request_name = "test.txt".to_string();
+    let path = Path::new("/test.txt").unwrap();
 
     let file_id = client
         .upload_file_atomic(
             UploadFileAtomicRequest {
-                name: request_name.clone(),
+                path,
                 content: vec![1, 2, 3],
                 file_type: "txt".to_string(),
                 owner_key: [1; OwnerKey::KEY_SIZE].into(),
@@ -141,7 +154,8 @@ async fn test_should_upload_file_continue(env: PocketIcTestEnv) {
             },
             owner,
         )
-        .await;
+        .await
+        .unwrap();
     assert_eq!(file_id, 0);
     client
         .upload_file_continue(
@@ -185,12 +199,12 @@ async fn test_should_upload_file_continue(env: PocketIcTestEnv) {
 async fn test_should_download_file(env: PocketIcTestEnv) {
     let client = UserCanisterClient::from(&env);
     let owner = admin();
-    let request_name = "test.txt".to_string();
+    let path = Path::new("/test.txt").unwrap();
 
     let file_id = client
         .upload_file_atomic(
             UploadFileAtomicRequest {
-                name: request_name.clone(),
+                path,
                 content: vec![1, 2, 3],
                 file_type: "txt".to_string(),
                 owner_key: [1; OwnerKey::KEY_SIZE].into(),
@@ -198,7 +212,8 @@ async fn test_should_download_file(env: PocketIcTestEnv) {
             },
             owner,
         )
-        .await;
+        .await
+        .unwrap();
     assert_eq!(file_id, 0);
     client
         .upload_file_continue(
@@ -245,7 +260,7 @@ async fn test_should_get_shared_files(env: PocketIcTestEnv) {
     let orchestrator_client = OrchestratorClient::from(&env);
     let external_user = alice();
     let owner = admin();
-    let request_name = "test.txt".to_string();
+    let path = Path::new("/test.txt").unwrap();
 
     // register alice on orchestrator
     let response = orchestrator_client
@@ -256,7 +271,7 @@ async fn test_should_get_shared_files(env: PocketIcTestEnv) {
     let file_id = client
         .upload_file_atomic(
             UploadFileAtomicRequest {
-                name: request_name.clone(),
+                path,
                 content: vec![1, 2, 3],
                 file_type: "txt".to_string(),
                 owner_key: [1; OwnerKey::KEY_SIZE].into(),
@@ -264,7 +279,8 @@ async fn test_should_get_shared_files(env: PocketIcTestEnv) {
             },
             owner,
         )
-        .await;
+        .await
+        .unwrap();
 
     let shared_files = client.get_shared_files(owner, external_user).await;
     assert_eq!(shared_files.len(), 0);
@@ -290,12 +306,12 @@ async fn test_should_get_shared_files(env: PocketIcTestEnv) {
 async fn test_should_delete_file(env: PocketIcTestEnv) {
     let client = UserCanisterClient::from(&env);
     let owner = admin();
-    let request_name = "test.txt".to_string();
+    let path = Path::new("/test.txt").unwrap();
 
     let file_id = client
         .upload_file_atomic(
             UploadFileAtomicRequest {
-                name: request_name.clone(),
+                path,
                 content: vec![1, 2, 3],
                 file_type: "txt".to_string(),
                 owner_key: [1; OwnerKey::KEY_SIZE].into(),
@@ -303,7 +319,8 @@ async fn test_should_delete_file(env: PocketIcTestEnv) {
             },
             owner,
         )
-        .await;
+        .await
+        .unwrap();
     assert_eq!(file_id, 0);
     client
         .delete_file(owner, file_id)
@@ -323,7 +340,7 @@ async fn test_should_delete_shared_file(env: PocketIcTestEnv) {
     let orchestrator_client = OrchestratorClient::from(&env);
     let external_user = alice();
     let owner = admin();
-    let request_name = "test.txt".to_string();
+    let path = Path::new("/test.txt").unwrap();
 
     // register alice on orchestrator
     let response = orchestrator_client
@@ -334,7 +351,7 @@ async fn test_should_delete_shared_file(env: PocketIcTestEnv) {
     let file_id = client
         .upload_file_atomic(
             UploadFileAtomicRequest {
-                name: request_name.clone(),
+                path,
                 content: vec![1, 2, 3],
                 file_type: "txt".to_string(),
                 owner_key: [1; OwnerKey::KEY_SIZE].into(),
@@ -342,7 +359,8 @@ async fn test_should_delete_shared_file(env: PocketIcTestEnv) {
             },
             owner,
         )
-        .await;
+        .await
+        .unwrap();
 
     // share file with alice
     assert_eq!(

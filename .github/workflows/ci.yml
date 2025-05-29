@@ -1,7 +1,7 @@
 name: build_and_test
 
 env:
-  RUST_VERSION: 1.86.0
+  RUST_VERSION: 1.87.0
 
 on:
   push:

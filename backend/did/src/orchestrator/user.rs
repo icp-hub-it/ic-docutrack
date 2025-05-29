@@ -93,6 +93,8 @@ pub enum SetUserResponse {
 pub enum GetUsersResponse {
     #[serde(rename = "permission_error")]
     PermissionError,
+    #[serde(rename = "invalid_query")]
+    InvalidQuery,
     #[serde(rename = "users")]
     Users(GetUsersResponseUsers),
 }

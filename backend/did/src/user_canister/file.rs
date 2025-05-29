@@ -1,13 +1,14 @@
 use candid::{CandidType, Principal};
 use serde::{Deserialize, Serialize};
 
-use super::OwnerKey;
+use super::{OwnerKey, Path, PublicKey};
 
 /// Public file metadata
 #[derive(CandidType, Serialize, Deserialize, Clone, Debug, PartialEq, Eq)]
 pub struct PublicFileMetadata {
     pub file_id: u64,
     pub file_name: String,
+    pub file_path: Path,
     pub file_status: FileStatus,
     pub shared_with: Vec<Principal>,
 }
@@ -43,6 +44,8 @@ pub enum GetAliasInfoError {
 pub struct AliasInfo {
     pub file_id: u64,
     pub file_name: String,
+    pub file_path: Path,
+    pub public_key: PublicKey,
 }
 
 /// File data
@@ -109,7 +112,7 @@ pub struct UploadFileRequest {
 /// File upload atomic request
 #[derive(CandidType, Serialize, Deserialize, Clone, Debug, PartialEq)]
 pub struct UploadFileAtomicRequest {
-    pub name: String,
+    pub path: Path,
     pub content: Vec<u8>,
     pub owner_key: OwnerKey,
     pub file_type: String,

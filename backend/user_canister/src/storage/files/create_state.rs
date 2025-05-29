@@ -8,7 +8,6 @@ use ic_stable_structures::storable::Bound;
 
 use crate::utils::trap;
 
-pub const MAX_FILE_NAME_SIZE: usize = 255;
 pub const MAX_PRINCIPAL_SIZE: usize = 29;
 
 pub type ChunkId = u64;
@@ -540,7 +539,6 @@ impl Storable for UploadedChunks {
 /// File metadata.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct FileMetadata {
-    pub file_name: String,
     pub user_public_key: PublicKey,
     pub requester_principal: Principal,
     pub requested_at: u64,
@@ -550,30 +548,13 @@ pub struct FileMetadata {
 impl Storable for FileMetadata {
     /// 1 for file name length, up to 255 for file name, 32 for public key, 29 for principal, 8 for requested_at, 9 for uploaded_at
     const BOUND: Bound = Bound::Bounded {
-        max_size: 1
-            + MAX_FILE_NAME_SIZE as u32
-            + PublicKey::BOUND.max_size()
-            + MAX_PRINCIPAL_SIZE as u32
-            + 8
-            + 9,
+        max_size: PublicKey::BOUND.max_size() + MAX_PRINCIPAL_SIZE as u32 + 8 + 9,
         is_fixed_size: false,
     };
 
     /// Strategy [file_name_len: u8 | file_name | public_key | principal_len: u8 | principal | requested_at: u64 | uploaded_at: u64]
     fn from_bytes(bytes: std::borrow::Cow<[u8]>) -> Self {
         let mut offset = 0;
-        let file_name_len: u8 = bytes[offset];
-        offset += 1;
-        if file_name_len as usize > MAX_FILE_NAME_SIZE {
-            trap("File name length exceeds maximum size");
-        }
-        if offset + file_name_len as usize > bytes.len() {
-            trap("Not enough bytes for file name");
-        }
-        // Read file name
-        let file_name = String::from_utf8(bytes[offset..offset + file_name_len as usize].to_vec())
-            .expect("Failed to decode file name");
-        offset += file_name_len as usize;
         if offset + PublicKey::KEY_LEN_SIZE > bytes.len() {
             trap("Not enough bytes for public key");
         }
@@ -626,7 +607,6 @@ impl Storable for FileMetadata {
             );
 
             FileMetadata {
-                file_name,
                 user_public_key,
                 requester_principal,
                 requested_at,
@@ -634,7 +614,6 @@ impl Storable for FileMetadata {
             }
         } else {
             FileMetadata {
-                file_name,
                 user_public_key,
                 requester_principal,
                 requested_at,
@@ -644,18 +623,8 @@ impl Storable for FileMetadata {
     }
 
     fn to_bytes(&self) -> std::borrow::Cow<[u8]> {
-        let file_name_len = self.file_name.len() as u8;
-        let mut bytes = Vec::with_capacity(
-            1 + file_name_len as usize
-                + self.user_public_key.encoding_size()
-                + MAX_PRINCIPAL_SIZE
-                + 8
-                + 9,
-        );
-
-        // encode file name
-        bytes.push(file_name_len);
-        bytes.extend_from_slice(self.file_name.as_bytes());
+        let mut bytes =
+            Vec::with_capacity(self.user_public_key.encoding_size() + MAX_PRINCIPAL_SIZE + 8 + 9);
 
         // encode public key
         bytes.extend_from_slice(self.user_public_key.to_bytes().as_ref());
@@ -686,7 +655,6 @@ mod tests {
     #[test]
     fn test_storable_file_metadata_roundtrip() {
         let file_metadata = FileMetadata {
-            file_name: "test.txt".to_string(),
             user_public_key: vec![0; 32].try_into().unwrap(),
             requester_principal: Principal::from_slice(&[0, 1, 2, 3]),
             requested_at: 123456789,
@@ -736,7 +704,6 @@ mod tests {
     fn test_storable_file_roundtrip() {
         let file = File {
             metadata: FileMetadata {
-                file_name: "test.txt".to_string(),
                 user_public_key: vec![0; 32].try_into().unwrap(),
                 requester_principal: Principal::from_slice(&[0; MAX_PRINCIPAL_SIZE]),
                 requested_at: 123456789,
