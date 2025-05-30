@@ -9,6 +9,7 @@ use did::orchestrator::{
     SharedFilesResponse, User, UserCanisterResponse, WhoamiResponse,
 };
 
+use crate::debug;
 use crate::storage::config::Config;
 use crate::storage::shared_files::SharedFilesStorage;
 use crate::storage::user_canister::{UserCanisterCreateState, UserCanisterStorage};
@@ -29,6 +30,8 @@ impl Canister {
         let OrchestratorInstallArgs::Init(args) = args else {
             trap("Invalid arguments");
         };
+
+        debug!("Initializing canister with args: {:?}", args);
 
         Config::set_orbit_station(args.orbit_station);
         Config::set_orbit_station_admin(args.orbit_station_admin);
@@ -51,6 +54,7 @@ impl Canister {
         query: Option<&str>,
     ) -> GetUsersResponse {
         let limit = limit.min(MAX_GET_USERS_LIMIT);
+        debug!("Getting users with offset: {offset}, limit: {limit}, query: {query:?}",);
 
         let caller = msg_caller();
         if caller == Principal::anonymous() {
@@ -59,6 +63,7 @@ impl Canister {
 
         // Validate the query length.
         if query.is_some_and(|q| q.len() < GET_USERS_QUERY_MIN_LENGTH) {
+            debug!("Query is too short: {query:?}",);
             return GetUsersResponse::InvalidQuery;
         }
 
@@ -91,6 +96,7 @@ impl Canister {
 
     /// Get a user from the storage as [`PublicUser`].
     pub fn get_user(principal: Principal) -> Option<PublicUser> {
+        debug!("Getting user with principal: {principal}",);
         UserStorage::get_user(&principal).map(|user| PublicUser::new(user, principal))
     }
 
@@ -104,6 +110,10 @@ impl Canister {
     /// - [`RetryUserCanisterCreationResponse::CreationPending`]: The user canister creation is already in progress.
     /// - [`RetryUserCanisterCreationResponse::UserNotFound`]: The user doesn't exist. In that case, the caller should call `set_user` first.
     pub fn retry_user_canister_creation() -> RetryUserCanisterCreationResponse {
+        debug!(
+            "Retrying user canister creation for caller: {}",
+            msg_caller()
+        );
         let caller = msg_caller();
         if caller == Principal::anonymous() {
             return RetryUserCanisterCreationResponse::AnonymousCaller;
@@ -142,6 +152,7 @@ impl Canister {
     /// - [`RevokeShareFileResponse::NoSuchUser`] if the user doesn't exist.
     /// - [`RevokeShareFileResponse::Unauthorized`] if the caller is not a user canister.
     pub fn revoke_share_file(user: Principal, file_id: FileId) -> RevokeShareFileResponse {
+        debug!("Revoking share for user: {user}, file_id: {file_id}",);
         let user_canister = msg_caller();
         // check if the caller is a user canister
         if !UserCanisterStorage::is_user_canister(user_canister) {
@@ -165,6 +176,10 @@ impl Canister {
         users: Vec<Principal>,
         file_id: FileId,
     ) -> RevokeShareFileResponse {
+        debug!(
+            "Revoking share for users: {:?}, file_id: {}",
+            users, file_id
+        );
         let user_canister = msg_caller();
         // check if the caller is a user canister
         if !UserCanisterStorage::is_user_canister(user_canister) {
@@ -189,6 +204,7 @@ impl Canister {
     /// - [`SetUserResponse::UsernameExists`] if the username already exists.
     /// - [`SetUserResponse::CallerHasAlreadyAUser`] if the caller already has a user.
     pub fn set_user(username: String, public_key: PublicKey) -> SetUserResponse {
+        debug!("Setting user with username: {username}, public_key: {public_key:?}",);
         // Check if the caller is anonymous.
         let caller = msg_caller();
         if caller == Principal::anonymous() {
@@ -239,6 +255,7 @@ impl Canister {
         file_id: FileId,
         metadata: ShareFileMetadata,
     ) -> ShareFileResponse {
+        debug!("Sharing file with user: {user}, file_id: {file_id}, metadata: {metadata:?}",);
         Self::share_file_with_users(vec![user], file_id, metadata)
     }
 
@@ -254,6 +271,10 @@ impl Canister {
         file_id: FileId,
         metadata: ShareFileMetadata,
     ) -> ShareFileResponse {
+        debug!(
+            "Sharing file with users: {:?}, file_id: {}, metadata: {:?}",
+            users, file_id, metadata
+        );
         let user_canister = msg_caller();
         // check if the caller is a user canister
         if !UserCanisterStorage::is_user_canister(user_canister) {
@@ -284,6 +305,7 @@ impl Canister {
     /// - [`SharedFilesResponse::NoSuchUser`] if the user doesn't exist.
     /// - [`SharedFilesResponse::SharedFiles`] if the user exists and has shared files.
     pub fn shared_files() -> SharedFilesResponse {
+        debug!("Getting shared files for caller: {}", msg_caller());
         let caller = msg_caller();
         if caller == Principal::anonymous() {
             return SharedFilesResponse::AnonymousUser;
@@ -329,6 +351,7 @@ impl Canister {
 
     /// Checks whether a given username exists in the storage.
     pub fn username_exists(username: String) -> bool {
+        debug!("Checking if username exists: {username}",);
         UserStorage::username_exists(&username)
     }
 
@@ -341,6 +364,7 @@ impl Canister {
     /// - [`UserCanisterResponse::CreationPending`] if the user canister is being created.
     /// - [`UserCanisterResponse::CreationFailed`] if the user canister creation failed.
     pub fn user_canister() -> UserCanisterResponse {
+        debug!("Getting user canister for caller: {}", msg_caller());
         let caller = msg_caller();
         if caller == Principal::anonymous() {
             return UserCanisterResponse::AnonymousCaller;
@@ -368,6 +392,7 @@ impl Canister {
     /// - [`WhoamiResponse::UnknownUser`] if the caller is anonymous or doesn't exist.
     /// - [`WhoamiResponse::KnownUser`] if the caller exists.
     pub fn whoami() -> WhoamiResponse {
+        debug!("Getting whoami for caller: {}", msg_caller());
         let caller = msg_caller();
         if caller == Principal::anonymous() {
             return WhoamiResponse::UnknownUser;

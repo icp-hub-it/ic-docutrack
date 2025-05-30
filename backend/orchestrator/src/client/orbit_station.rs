@@ -10,6 +10,8 @@ use did::orbit_station::{
 use did::user_canister::UserCanisterInstallArgs;
 use ic_cdk::call::{Call, CallRejected, CallResult, Error as CallError};
 
+use crate::debug;
+
 /// Client for the Orbit Station canister.
 pub struct OrbitStationClient {
     principal: Principal,
@@ -30,6 +32,7 @@ impl OrbitStationClient {
             request_id,
             with_full_info: None,
         };
+        debug!("Getting request status for request: {request:?}",);
 
         Call::unbounded_wait(self.principal, "get_request")
             .with_arg(request)
@@ -99,6 +102,8 @@ impl OrbitStationClient {
             ),
         };
 
+        debug!("Creating user canister request: {request:?}");
+
         Call::unbounded_wait(self.principal, "create_request")
             .with_arg(request)
             .await?
@@ -114,6 +119,7 @@ impl OrbitStationClient {
         wasm: &[u8],
         arg: UserCanisterInstallArgs,
     ) -> CallResult<CreateRequestResult> {
+        debug!("Installing user canister {canister_id} for user {owner}: {arg:?}");
         let arg = candid::encode_one(arg).map_err(|e| {
             CallError::CallRejected(CallRejected::with_rejection(
                 1,

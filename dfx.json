@@ -90,13 +90,13 @@
         }
       }
     },
-    "nns_exchange": {
+    "cycles_ledger": {
       "type": "custom",
-      "candid": "https://raw.githubusercontent.com/dfinity/exchange-rate-canister/refs/heads/main/src/xrc/xrc.did",
-      "wasm": "https://github.com/dfinity/exchange-rate-canister/releases/latest/download/xrc.wasm.gz",
+      "wasm": "https://github.com/dfinity/cycles-ledger/releases/download/cycles-ledger-v0.3.0/cycles-ledger.wasm.gz",
+      "candid": "https://github.com/dfinity/cycles-ledger/releases/download/cycles-ledger-v0.3.0/cycles-ledger.did",
       "remote": {
         "id": {
-          "ic": "uf6dk-hyaaa-aaaaq-qaaaq-cai"
+          "ic": "um5iw-rqaaa-aaaaq-qaaba-cai"
         }
       }
     },
@@ -111,7 +111,11 @@
   "networks": {
     "local": {
       "bind": "127.0.0.1:8000",
-      "type": "ephemeral"
+      "type": "ephemeral",
+      "replica": {
+        "subnet_type": "system",
+        "port": 4943
+      }
     }
   },
   "version": 1

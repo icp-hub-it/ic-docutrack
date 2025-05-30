@@ -1,5 +1,5 @@
 [group('orbit')]
-deploy_orbit_local: deploy_cycles_management_canisters install_nns_ledger_canister install_nns_index_canister create_nns_exchange_canister install_cycles_minting_canister
+deploy_orbit_local: deploy_cycles_management_canisters install_nns_ledger_canister install_nns_index_canister install_cycles_ledger_canister install_cycles_minting_canister
   #!/usr/bin/env bash
   set -ex
 
@@ -46,6 +46,8 @@ deploy_orbit_local: deploy_cycles_management_canisters install_nns_ledger_canist
   echo "Installing Orbit canister with init args: $init_args"
   dfx canister install --mode=reinstall --yes --wasm=./.artifact/orbit-station.wasm.gz --network=local --argument="$init_args" orbit-station
   echo "Orbit Station canister installed successfully"
+
+  just wait_for_orbit_station_healthy local
 
 [private]
 deploy_orbit network:
@@ -119,12 +121,22 @@ install_nns_index_canister:
   dfx canister install --mode=reinstall --yes --wasm=./.artifact/icp-index.wasm.gz --network=local --argument="$init_args" nns_index
 
 [private]
-create_nns_exchange_canister:
+install_cycles_ledger_canister:
   #!/usr/bin/env bash
   set -ex
-  echo "Creating NNS exchange canister on local network"
+  echo "Installing cycles ledger canister on local network"
 
-  dfx canister --network=local create --with-cycles=1000000000000000 --specified-id="uf6dk-hyaaa-aaaaq-qaaaq-cai" nns_exchange
+  init_args="(
+    variant {
+      Init = record {
+        max_blocks_per_request = 1 : nat64;
+      }
+    }
+  )"
+
+  echo "Installing cycles ledger canister with init args: $init_args"
+  dfx canister --network=local create --with-cycles=1000000000000000 --specified-id="um5iw-rqaaa-aaaaq-qaaba-cai" cycles_ledger
+  dfx canister install --mode=reinstall --yes --wasm=./.artifact/cycles-ledger.wasm.gz --network=local --argument="$init_args" cycles_ledger
 
 [private]
 install_cycles_minting_canister:
@@ -134,14 +146,13 @@ install_cycles_minting_canister:
 
   nns_ledger="$(dfx canister --network=local id nns_ledger)"
   nns_index="$(dfx canister --network=local id nns_index)"
-  nns_exchange="$(dfx canister --network=local id nns_exchange)"
+  cycles_ledger="$(dfx canister --network=local id cycles_ledger)"
 
   init_args="(
-    record {
-      ledger_canister_id = principal \"$nns_ledger\";
-      governance_canister_id = principal \"rrkah-fqaaa-aaaaa-aaaaq-cai\";
-      exchange_rate_canister = principal \"$nns_exchange\";
-      cycles_ledger_canister = principal \"um5iw-rqaaa-aaaaq-qaaba-cai\";
+    opt record {
+      ledger_canister_id = opt principal \"$nns_ledger\";
+      governance_canister_id = opt principal \"rrkah-fqaaa-aaaaa-aaaaq-cai\";
+      cycles_ledger_canister_id = opt principal \"$cycles_ledger\";
       last_purged_notification = opt 0;
     }
   )"
@@ -191,3 +202,19 @@ get_orbit_station_uuid username network:
 
   uuid=$(dfx canister call --network={{network}} orbit-station --output json --query list_users "$args" | jq -r .Ok.users[0].id)
   echo $uuid
+
+[private]
+wait_for_orbit_station_healthy network:
+  #!/usr/bin/env bash
+
+  while [ 1 ]; do
+     VAL=$(dfx canister call --output json --network={{network}} orbit-station health_status | grep "Healthy")
+     RC=$?
+     if [ $RC -eq 0 ]; then
+       echo "Orbit Station is healthy"
+       break
+     else
+       echo "Waiting for Orbit Station to be healthy..."
+       sleep 5
+     fi
+  done

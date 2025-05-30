@@ -34,6 +34,10 @@ dfx_deploy_local install_mode="install":
       exit 1
   fi
 
+[group('deploy')]
+dfx_log canister network="local":
+  dfx canister logs --network={{network}} {{canister}}
+
 [private]
 dfx_prepare_env: 
   dfx identity new --storage-mode=plaintext --force admin

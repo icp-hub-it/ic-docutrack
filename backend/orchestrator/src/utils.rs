@@ -46,3 +46,26 @@ pub fn datetime() -> OffsetDateTime {
     OffsetDateTime::from_unix_timestamp_nanos(time as i128)
         .unwrap_or_else(|_| trap("Failed to convert time to OffsetDateTime"))
 }
+
+/// Prints a debug message.
+pub fn debug<S>(msg: S)
+where
+    S: AsRef<str>,
+{
+    if cfg!(target_family = "wasm") {
+        ic_cdk::api::debug_print(msg);
+    } else {
+        println!("{}", msg.as_ref());
+    }
+}
+
+#[macro_export]
+macro_rules! debug {
+    ($($key:tt $(:$capture:tt)? $(= $value:expr)?),+; $($arg:tt)+) => ({
+        debug(format!($($arg)+));
+    });
+
+    ( $($arg:tt)+) => ({
+        $crate::utils::debug(format!($($arg)+));
+    });
+}
