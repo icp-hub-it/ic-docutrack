@@ -114,4 +114,3 @@ deploy_frontend_canister network install_mode:
   dfx canister install --network={{network}} --yes --mode={{install_mode}} frontend
   dfx build marketing
   dfx canister install --network={{network}} --yes --mode={{install_mode}} marketing
-  
