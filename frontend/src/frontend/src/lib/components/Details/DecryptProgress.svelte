@@ -6,12 +6,15 @@
     step: "initializing" | "downloading" | "decrypting";
     totalChunks: number;
     currentChunk: number;
-  };
+  } | null = null;
 
   let label: string;
   let percent: number;
 
   $: label = (() => {
+    if (!progress) {
+      return "Initializing...";
+    }
     if (progress.step === "initializing") {
       return "Initializing...";
     } else if (progress.step === "downloading") {
@@ -27,6 +30,9 @@
   })();
 
   $: percent = (() => {
+    if (!progress) {
+      return 0;
+    }
     if (progress.step === "initializing") {
       return 0;
     } else if (progress.step === "downloading") {

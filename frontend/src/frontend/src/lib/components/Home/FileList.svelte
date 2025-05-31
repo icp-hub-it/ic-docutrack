@@ -1,6 +1,7 @@
 <script lang="ts">
   import RequestModal from "../RequestModal.svelte";
   import type { AuthStateAuthenticated } from "$lib/services/auth";
+  import { authStore } from "$lib/services/auth";
   import { onMount } from "svelte";
   import { filesStore, type ExternalFileMetadata } from "$lib/services/files";
   import { unreachable } from "$lib/shared/unreachable";
@@ -14,8 +15,31 @@
   let isOpenRequestModal = false;
   let isOpenShareModal = false;
   let shareFileData: PublicFileMetadata | ExternalFileMetadata | null;
+  let loadingState: "loading" | "error" | "ready" = "loading";
+
   onMount(() => {
-    auth.filesService.reload();
+    if (auth.canisterRetrievalState === "retrieved" && auth.filesService) {
+      auth.filesService.reload();
+      loadingState = "ready";
+    } else if (auth.canisterRetrievalState === "failed") {
+      loadingState = "error";
+    } else {
+      // pending or uninitialized: wait for authStore to update
+      const unsubscribe = authStore.subscribe((state) => {
+        if (state.state === "authenticated") {
+          if (
+            state.canisterRetrievalState === "retrieved" &&
+            state.filesService
+          ) {
+            state.filesService.reload();
+            loadingState = "ready";
+          } else if (state.canisterRetrievalState === "failed") {
+            loadingState = "error";
+          }
+        }
+      });
+      return () => unsubscribe();
+    }
   });
 
   function goToDetails(file_id: bigint) {
@@ -30,7 +54,14 @@
   }
 </script>
 
-{#if $filesStore.state === "idle" || $filesStore.state === "loading"}
+{#if loadingState === "loading"}
+  <h1 class="title-1">Initializing...</h1>
+{:else if loadingState === "error"}
+  <div class="">
+    <h1 class="title-1">My Files</h1>
+    <p>Error: Unable to load files due to initialization failure.</p>
+  </div>
+{:else if $filesStore.state === "idle" || $filesStore.state === "loading"}
   <h1 class="title-1">Loading...</h1>
 {:else if $filesStore.state === "error"}
   <div class="">
@@ -161,6 +192,6 @@
     {auth}
     bind:isOpen={isOpenShareModal}
     bind:fileData={shareFileData}
-    on:shared={() => auth.filesService.reload()}
+    on:shared={() => auth.filesService?.reload()}
   />
 {/if}

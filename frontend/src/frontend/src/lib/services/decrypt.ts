@@ -1,15 +1,15 @@
 import File from "$lib/file";
+import { authStore } from "$lib/services/auth";
 import type {
   ActorTypeOrchestrator,
   ActorTypeUserCanister,
 } from "$lib/shared/actor";
 import { formatUploadDate } from "$lib/shared/dates";
 import { enumIs } from "$lib/shared/enums";
-import { flatten } from "$lib/shared/flatten";
 import { unreachable } from "$lib/shared/unreachable";
 import { Principal } from "@dfinity/principal";
-import { writable } from "svelte/store";
-import { canisterId as userCanisterId } from "../../../declarations/user_canister";
+import { get, writable } from "svelte/store";
+import { createActor as createActorUser } from "../../../declarations/user_canister";
 import type { PublicFileMetadata } from "../../../declarations/user_canister/user_canister.did";
 import type { ExternalFileMetadata } from "./files";
 
@@ -55,18 +55,40 @@ export class DecryptService {
     | "aborted"
   > {
     this.progress.set(PROGRESS_INITIAL);
+    // Get userCanisterId from authStore
+    const authState = get(authStore);
+    if (authState.state !== "authenticated" || !authState.userCanisterId) {
+      throw new Error("User canister ID not available. Please try again.");
+    }
+    const userCanisterId = authState.userCanisterId;
 
     let maybeFile: PublicFileMetadata | ExternalFileMetadata | undefined;
-    // for the momentfirs aanalyse owned files
-    if (!fileCanisterId || fileCanisterId === userCanisterId) {
-      let files = flatten(
-        await Promise.all([
-          // this.actor.get_shared_files(),
-          this.actorUserCanister.get_requests(),
-          //TODO add get_owned_files
-          // this.actor.get_owned_files(),
-        ])
-      );
+
+    // Determine if the file is owned or external
+    const isExternalFile = fileCanisterId && fileCanisterId !== userCanisterId;
+
+    // Initialize the correct actor for downloading
+    let actorUser: ActorTypeUserCanister = this.actorUserCanister;
+    if (isExternalFile) {
+      try {
+        // Validate fileCanisterId as a Principal
+        Principal.fromText(fileCanisterId);
+        // Create a new actor for the external canister
+        actorUser = createActorUser(fileCanisterId, {
+          agentOptions: {
+            host: import.meta.env.VITE_HOST,
+            identity: authState.authClient.getIdentity(),
+          },
+        });
+      } catch {
+        throw new Error("Invalid file canister ID.");
+      }
+    }
+
+    // Check owned files or requests if not external or no fileCanisterId
+    if (!isExternalFile) {
+      let files = await actorUser.get_requests();
+
       maybeFile = files.find((entry) => entry.file_id == BigInt(fileId));
       if (maybeFile && enumIs(maybeFile.file_status, "pending")) {
         throw new Error("Error: File not uploaded");
@@ -92,6 +114,7 @@ export class DecryptService {
               file_id: file.file_id,
               file_name: file.file_name,
               user_canister_id: entry[0],
+              shared_with: file.shared_with,
             });
           });
           return acc;
@@ -117,7 +140,8 @@ export class DecryptService {
       step: "downloading",
     }));
 
-    let downloadedFile = await this.actorUserCanister.download_file(
+    // Download the file using the correct actor
+    let downloadedFile = await actorUser.download_file(
       BigInt(fileId),
       0n
     );
@@ -132,7 +156,7 @@ export class DecryptService {
         currentChunk: 1,
       }));
       for (let i = 1; i < downloadedFile.found_file.num_chunks; i++) {
-        const downloadedChunk = await this.actorUserCanister.download_file(
+        const downloadedChunk = await actorUser.download_file(
           BigInt(fileId),
           BigInt(i)
         );
@@ -194,7 +218,6 @@ export class DecryptService {
       return {
         name: decryptedFile.name,
         dataType: downloadedFile.found_file.file_type,
-        //FIXME:
         uploadDate: formatUploadDate(0n),
         contents: decryptedFile.contents,
         originalMetadata: maybeFile,

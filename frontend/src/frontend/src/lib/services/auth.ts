@@ -18,21 +18,21 @@ type AuthStateUninitialized = {
 
 export type AuthStateAuthenticated = {
   state: "authenticated";
-  actor_user: ActorTypeUserCanister;
+  actor_user?: ActorTypeUserCanister;
   actor_orchestrator: ActorTypeOrchestrator;
   authClient: AuthClient;
-  userService: UserService;
-  filesService: FilesService;
-  requestService: RequestsService;
-  uploadService: UploadService;
+  userService?: UserService;
+  filesService?: FilesService;
+  requestService?: RequestsService;
+  uploadService?: UploadService;
+  userCanisterId?: string;
+  canisterRetrievalState: "retrieved" | "pending" | "failed" | "uninitialized";
 };
 
 export type AuthStateUnauthenticated = {
   state: "unauthenticated";
   authClient: AuthClient;
-  actor_user: ActorTypeUserCanister;
   actor_orchestrator: ActorTypeOrchestrator;
-  uploadService: UploadService;
 };
 
 export type AuthState =
@@ -49,13 +49,19 @@ function createAuthStore() {
     subscribe,
     set,
     setLoggedin: (
-      actor_user: ActorTypeUserCanister,
       actor_orchestrator: ActorTypeOrchestrator,
       authClient: AuthClient,
-      userService: UserService,
-      filesService: FilesService,
-      requestService: RequestsService,
-      uploadService: UploadService
+      actor_user?: ActorTypeUserCanister,
+      userService?: UserService,
+      filesService?: FilesService,
+      requestService?: RequestsService,
+      uploadService?: UploadService,
+      userCanisterId?: string,
+      canisterRetrievalState:
+        | "retrieved"
+        | "pending"
+        | "failed"
+        | "uninitialized" = "uninitialized"
     ) => {
       set({
         state: "authenticated",
@@ -66,20 +72,18 @@ function createAuthStore() {
         filesService,
         requestService,
         uploadService,
+        userCanisterId,
+        canisterRetrievalState,
       });
     },
     setLoggedout: (
-      actor_user: ActorTypeUserCanister,
       actor_orchestrator: ActorTypeOrchestrator,
-      authClient: AuthClient,
-      uploadService: UploadService
+      authClient: AuthClient
     ) => {
       set({
         state: "unauthenticated",
-        actor_user,
         actor_orchestrator,
         authClient,
-        uploadService,
       });
     },
   };
@@ -92,14 +96,14 @@ export const isAuthenticated = derived(
 );
 
 function createServices(
-  actor_user: ActorTypeUserCanister,
+  actorUser: ActorTypeUserCanister,
   actorOrchestrator: ActorTypeOrchestrator
 ) {
-  const userService = new UserService(actorOrchestrator, actor_user);
+  const userService = new UserService(actorOrchestrator, actorUser);
   userService.init();
-  const filesService = new FilesService(actor_user, actorOrchestrator);
-  const requestsService = new RequestsService(actor_user);
-  const uploadService = new UploadService(actor_user);
+  const filesService = new FilesService(actorUser, actorOrchestrator);
+  const requestsService = new RequestsService(actorUser);
+  const uploadService = new UploadService(actorUser);
 
   return {
     userService,
@@ -109,67 +113,176 @@ function createServices(
   };
 }
 
+async function delay(ms: number) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
 export class AuthService {
   constructor(
-    private canisterIdUser: string,
     private canisterIdOrchestrator: string,
     private host: string,
     private iiUrl: string
   ) {}
 
+  initClient(canisterId: string) {
+    const store = get(authStore);
+    const identity =
+      store.state === "authenticated" || store.state === "unauthenticated"
+        ? store.authClient.getIdentity()
+        : undefined; /// should not  be reached. type guard
+    if (!identity) {
+      throw new Error("Identity is not available. User must be authenticated.");
+    }
+    console.log("Creating actor client for:", canisterId);
+    const actor_user = createActorUser(canisterId, {
+      agentOptions: {
+        host: this.host,
+        identity,
+      },
+    });
+    const uploadService = new UploadService(actor_user); /// Maybe not here..
+    return { actor_user, uploadService };
+  }
+
+  async tryRetrieveUserCanister(
+    actor_orchestrator: ActorTypeOrchestrator,
+    authClient: AuthClient,
+    maxRetries: number = 5,
+    retryDelayMs: number = 2000
+  ): Promise<AuthStateAuthenticated> {
+    let retries = 0;
+    while (retries < maxRetries) {
+      try {
+        const response = await actor_orchestrator.user_canister();
+        if ("Ok" in response) {
+          const userCanisterId = response.Ok.toText();
+          console.log("User canister ID retrieved:", userCanisterId);
+          const actor_user = createActorUser(userCanisterId, {
+            agentOptions: {
+              host: this.host,
+              identity: authClient.getIdentity(),
+            },
+          });
+          const { userService, filesService, requestsService, uploadService } =
+            createServices(actor_user, actor_orchestrator);
+          return {
+            state: "authenticated",
+            actor_user,
+            actor_orchestrator,
+            authClient,
+            userService,
+            filesService,
+            requestService: requestsService,
+            uploadService,
+            userCanisterId,
+            canisterRetrievalState: "retrieved",
+          };
+        } else if ("CreationPending" in response) {
+          retries++;
+          await delay(retryDelayMs);
+          continue;
+        } else if (
+          "CreationFailed" in response ||
+          "Uninitialized" in response
+        ) {
+          const retryResponse =
+            await actor_orchestrator.retry_user_canister_creation();
+          if ("Created" in retryResponse) {
+            const userCanisterId = retryResponse.Created.toText();
+            const actor_user = createActorUser(userCanisterId, {
+              agentOptions: {
+                host: this.host,
+                identity: authClient.getIdentity(),
+              },
+            });
+            const {
+              userService,
+              filesService,
+              requestsService,
+              uploadService,
+            } = createServices(actor_user, actor_orchestrator);
+            return {
+              state: "authenticated",
+              actor_user,
+              actor_orchestrator,
+              authClient,
+              userService,
+              filesService,
+              requestService: requestsService,
+              uploadService,
+              userCanisterId,
+              canisterRetrievalState: "retrieved",
+            };
+          } else if (
+            "Ok" in retryResponse ||
+            "CreationPending" in retryResponse
+          ) {
+            retries++;
+            await delay(retryDelayMs);
+            continue;
+          } else if ("AnonymousCaller" in retryResponse) {
+            authStore.setLoggedout(actor_orchestrator, authClient);
+            return {
+              state: "unauthenticated",
+              actor_orchestrator,
+              authClient,
+            } as any; // Type cast to satisfy return type
+          } else if ("UserNotFound" in retryResponse) {
+            return {
+              state: "authenticated",
+              actor_orchestrator,
+              authClient,
+              canisterRetrievalState: "failed",
+            };
+          } else {
+            unreachable(retryResponse);
+          }
+        } else if ("AnonymousCaller" in response) {
+          authStore.setLoggedout(actor_orchestrator, authClient);
+          return {
+            state: "unauthenticated",
+            actor_orchestrator,
+            authClient,
+          } as any; // Type cast to satisfy return type
+        } else {
+          unreachable(response);
+        }
+      } catch (e) {
+        console.error("Error", e);
+        retries++;
+        await delay(retryDelayMs);
+      }
+    }
+    return {
+      state: "authenticated",
+      actor_orchestrator,
+      authClient,
+      canisterRetrievalState: "failed",
+    };
+  }
+
   async init() {
     const authClient = await AuthClient.create();
+
+    const actor_orchestrator = createActorOrchestrator(
+      this.canisterIdOrchestrator,
+      {
+        agentOptions: { host: this.host, identity: authClient.getIdentity() },
+      }
+    );
+
     if (await authClient.isAuthenticated()) {
       console.log(
         "User is authenticated",
         authClient.getIdentity().getPrincipal().toText()
       );
-      const actor_user = createActorUser(this.canisterIdUser, {
-        agentOptions: { host: this.host, identity: authClient.getIdentity() },
-      });
-      const actor_orchestrator = createActorOrchestrator(
-        this.canisterIdOrchestrator,
-        {
-          agentOptions: { host: this.host, identity: authClient.getIdentity() },
-        }
-      );
-
-      const { userService, filesService, requestsService, uploadService } =
-        createServices(actor_user, actor_orchestrator);
-
-      authStore.setLoggedin(
-        actor_user,
+      const authState = await this.tryRetrieveUserCanister(
         actor_orchestrator,
-        authClient,
-        userService,
-        filesService,
-        requestsService,
-        uploadService
+        authClient
       );
+      authStore.set(authState);
     } else {
-      const actor_user = createActorUser(this.canisterIdUser, {
-        agentOptions: {
-          host: this.host,
-          identity: authClient.getIdentity(),
-        },
-      });
-      const actor_orchestrator = createActorOrchestrator(
-        this.canisterIdOrchestrator,
-        {
-          agentOptions: {
-            host: this.host,
-            identity: authClient.getIdentity(),
-          },
-        }
-      );
-      const uploadService = new UploadService(actor_user);
-
-      authStore.setLoggedout(
-        actor_user,
-        actor_orchestrator,
-        authClient,
-        uploadService
-      );
+      authStore.setLoggedout(actor_orchestrator, authClient);
     }
   }
 
@@ -189,12 +302,7 @@ export class AuthService {
             onError: reject,
           });
         });
-        const actor_user = createActorUser(this.canisterIdUser, {
-          agentOptions: {
-            host: this.host,
-            identity: store.authClient.getIdentity(),
-          },
-        });
+
         const actor_orchestrator = createActorOrchestrator(
           this.canisterIdOrchestrator,
           {
@@ -204,25 +312,14 @@ export class AuthService {
             },
           }
         );
-        const { userService, filesService, requestsService, uploadService } =
-          createServices(actor_user, actor_orchestrator);
 
-        authStore.setLoggedin(
-          actor_user,
+        const authState = await this.tryRetrieveUserCanister(
           actor_orchestrator,
-          store.authClient,
-          userService,
-          filesService,
-          requestsService,
-          uploadService
+          store.authClient
         );
+        authStore.set(authState);
       } catch (e) {
-        const actor_user = createActorUser(this.canisterIdUser, {
-          agentOptions: {
-            host: this.host,
-            identity: store.authClient.getIdentity(),
-          },
-        });
+        console.error("Login failed", e);
         const actor_orchestrator = createActorOrchestrator(
           this.canisterIdOrchestrator,
           {
@@ -232,14 +329,7 @@ export class AuthService {
             },
           }
         );
-        const uploadService = new UploadService(actor_user);
-
-        authStore.setLoggedout(
-          actor_user,
-          actor_orchestrator,
-          store.authClient,
-          uploadService
-        );
+        authStore.setLoggedout(actor_orchestrator, store.authClient);
       }
     } else {
       unreachable(store);
@@ -251,13 +341,10 @@ export class AuthService {
     if (store.state === "authenticated") {
       try {
         await store.authClient.logout();
-        store.userService.reset();
-        const actor_user = createActorUser(this.canisterIdUser, {
-          agentOptions: {
-            host: this.host,
-            identity: store.authClient.getIdentity(),
-          },
-        });
+        if (store.userService) {
+          store.userService.reset();
+        }
+
         const actor_orchestrator = createActorOrchestrator(
           this.canisterIdOrchestrator,
           {
@@ -267,13 +354,8 @@ export class AuthService {
             },
           }
         );
-        const uploadService = new UploadService(actor_user);
-        authStore.setLoggedout(
-          actor_user,
-          actor_orchestrator,
-          store.authClient,
-          uploadService
-        );
+
+        authStore.setLoggedout(actor_orchestrator, store.authClient);
       } catch (e) {}
     } else if (store.state === "uninitialized") {
       return;
@@ -286,7 +368,6 @@ export class AuthService {
 }
 
 export const authService = new AuthService(
-  import.meta.env.VITE_USER_CANISTER_CANISTER_ID,
   import.meta.env.VITE_ORCHESTRATOR_CANISTER_ID,
   import.meta.env.VITE_HOST,
   import.meta.env.VITE_II_URL

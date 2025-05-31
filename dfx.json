@@ -11,16 +11,6 @@
       },
       "init_arg": "(variant { Init = record { owner = principal \"ps5mw-jftib-ruqn2-tjiyb-yipxx-te3qn-6bfzn-rrm7l-rsy36-bahqj-tqe\"; orchestrator = principal \"uzt4z-lp777-77774-qaabq-cai\" } })"
     },
-    "user2_canister": {
-      "type": "rust",
-      "package": "user_canister",
-      "candid": "./.artifact/user_canister.did",
-      "declarations": {
-        "output": "frontend/src/frontend/declarations/user_canister",
-        "node_compatibility": true
-      },
-      "init_arg": "(variant { Init = record { owner = principal \"rkwlf-blwa2-akti2-uabff-jnx3p-le2eo-gdpod-dzysx-7k2j4-zyxmf-2qe\"; orchestrator = principal \"uzt4z-lp777-77774-qaabq-cai\" } })"
-    },
     "frontend": {
       "build": "pnpm --filter frontend run build",
       "dependencies": ["user_canister", "orchestrator"],
@@ -61,11 +51,6 @@
       "packtool": ""
     }
   },
-  "networks": {
-    "local": {
-      "bind": "127.0.0.1:8000",
-      "type": "ephemeral"
-    }
-  },
+  "networks": {},
   "version": 1
 }

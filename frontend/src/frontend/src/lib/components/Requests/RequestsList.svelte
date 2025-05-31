@@ -2,13 +2,36 @@
   import RequestModal from "$lib/components/RequestModal.svelte";
   import PlaceholderLogo from "$lib/components/icons/PlaceholderLogo.svelte";
   import type { AuthStateAuthenticated } from "$lib/services/auth";
+  import { authStore } from "$lib/services/auth";
   import { requestsStore } from "$lib/services/requests";
   import { onMount } from "svelte";
 
   export let auth: AuthStateAuthenticated;
+  let loadingState: "loading" | "error" | "ready" = "loading";
 
   onMount(() => {
-    auth.requestService.init();
+    if (auth.canisterRetrievalState === "retrieved" && auth.requestService) {
+      auth.requestService.init();
+      loadingState = "ready";
+    } else if (auth.canisterRetrievalState === "failed") {
+      loadingState = "error";
+    } else {
+      // pending or uninitialized: wait for authStore to update
+      const unsubscribe = authStore.subscribe((state) => {
+        if (state.state === "authenticated") {
+          if (
+            state.canisterRetrievalState === "retrieved" &&
+            state.requestService
+          ) {
+            state.requestService.init();
+            loadingState = "ready";
+          } else if (state.canisterRetrievalState === "failed") {
+            loadingState = "error";
+          }
+        }
+      });
+      return () => unsubscribe();
+    }
   });
 
   let isOpenRequestModal = false;
@@ -17,10 +40,17 @@
 <section>
   <RequestModal
     bind:isOpen={isOpenRequestModal}
-    on:request-created={() => auth.requestService.reload()}
+    on:request-created={() => auth.requestService?.reload()}
     {auth}
   />
-  {#if $requestsStore.state === "idle" || $requestsStore.state === "loading"}
+  {#if loadingState === "loading"}
+    <h1 class="title-1">Initializing...</h1>
+  {:else if loadingState === "error"}
+    <div class="">
+      <h1 class="title-1">Requests</h1>
+      <p>Error: Unable to load requests due to initialization failure.</p>
+    </div>
+  {:else if $requestsStore.state === "idle" || $requestsStore.state === "loading"}
     <h1 class="title-1">Loading...</h1>
   {:else if $requestsStore.state === "error"}
     <div class="">
@@ -71,7 +101,7 @@
                   class="pr-4 bg-background-100 rounded-tr-xl rounded-br-xl body-1"
                 >
                   <a
-                    href="/upload?alias={request.alias}"
+                    href="/upload?alias={request.alias}&usercanister={auth.userCanisterId}"
                     class="underline text-accent-100"
                   >
                     {request.alias}

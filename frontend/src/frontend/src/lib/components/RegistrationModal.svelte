@@ -1,16 +1,44 @@
 <script lang="ts">
   import type { AuthStateAuthenticated } from "$lib/services/auth";
+  import { authStore } from "$lib/services/auth";
   import { userStore } from "$lib/services/user";
   import { unreachable } from "$lib/shared/unreachable";
+  import { onMount } from "svelte";
   import ErrorMessage from "./ErrorMessage.svelte";
   import Modal from "./Modal.svelte";
 
   export let isOpen = false;
   export let authenticatedStore: AuthStateAuthenticated;
   let usernameValue: string = "";
+  let loadingState: "loading" | "error" | "ready" = "loading";
+  onMount(() => {
+    if (
+      authenticatedStore.canisterRetrievalState === "retrieved" &&
+      authenticatedStore.userService
+    ) {
+      loadingState = "ready";
+    } else if (authenticatedStore.canisterRetrievalState === "failed") {
+      loadingState = "error";
+    } else {
+      // pending or uninitialized: wait for authStore to update
+      const unsubscribe = authStore.subscribe((state) => {
+        if (state.state === "authenticated") {
+          if (
+            state.canisterRetrievalState === "retrieved" &&
+            state.userService
+          ) {
+            loadingState = "ready";
+          } else if (state.canisterRetrievalState === "failed") {
+            loadingState = "error";
+          }
+        }
+      });
+      return () => unsubscribe();
+    }
+  });
 
   function register() {
-    if ($userStore.state === "unregistered") {
+    if ($userStore.state === "unregistered" && authenticatedStore.userService) {
       authenticatedStore.userService.register(usernameValue);
     }
   }
@@ -18,44 +46,55 @@
 
 <div>
   <Modal {isOpen} title="Register Yourself" mandatory>
-    <form class="" on:submit|preventDefault={() => register()}>
-      <p class="body-1 text-text-200 mb-4">
-        Your Internet Identity is not connected with a username yet. Choose a
-        username to setup an account on DocuTrack. Your username will be
-        publicly visible
-      </p>
-      <div class="mb-4">
-        <label for="username" class="input-label">Username</label>
-        <input
-          type="text"
-          required
-          class="input"
-          bind:value={usernameValue}
-          placeholder="Username"
-        />
-      </div>
-      <div class="mt-10">
-        {#if $userStore.state === "unregistered"}
-          {#if $userStore.registrationState.state === "registering"}
-            <button type="button" class="btn btn-full btn-accent" disabled
-              >Loading...</button
-            >
-          {:else if $userStore.registrationState.state === "error"}
-            <ErrorMessage class="mb-4">
-              {$userStore.registrationState.errorMessage}
-            </ErrorMessage>
-            <button type="submit" class="btn btn-full btn-accent">Submit</button
-            >
-          {:else if $userStore.registrationState.state === "idle"}
-            <button type="submit" class="btn btn-full btn-accent">Submit</button
-            >
+    {#if loadingState === "loading"}
+      <p class="body-1 text-text-200 mb-4">Initializing...</p>
+    {:else if loadingState === "error"}
+      <ErrorMessage class="mb-4">
+        Unable to initialize registration due to a system error.
+      </ErrorMessage>
+    {:else}
+      <form class="" on:submit|preventDefault={() => register()}>
+        <p class="body-1 text-text-200 mb-4">
+          Your Internet Identity is not connected with a username yet. Choose a
+          username to setup an account on DocuTrack. Your username will be
+          publicly visible
+        </p>
+        <div class="mb-4">
+          <label for="username" class="input-label">Username</label>
+          <input
+            type="text"
+            required
+            class="input"
+            bind:value={usernameValue}
+            placeholder="Username"
+          />
+        </div>
+        <div class="mt-10">
+          {#if $userStore.state === "unregistered"}
+            {#if $userStore.registrationState.state === "registering"}
+              <button type="button" class="btn btn-full btn-accent" disabled
+                >Loading...</button
+              >
+            {:else if $userStore.registrationState.state === "error"}
+              <ErrorMessage class="mb-4">
+                {$userStore.registrationState.errorMessage}
+              </ErrorMessage>
+              <button type="submit" class="btn btn-full btn-accent"
+                >Submit</button
+              >
+            {:else if $userStore.registrationState.state === "idle"}
+              <button type="submit" class="btn btn-full btn-accent"
+                >Submit</button
+              >
+            {:else}
+              {unreachable($userStore.registrationState)}
+            {/if}
           {:else}
-            {unreachable($userStore.registrationState)}
+            <button type="submit" class="btn btn-full btn-accent">Submit</button
+            >
           {/if}
-        {:else}
-          <button type="submit" class="btn btn-full btn-accent">Submit</button>
-        {/if}
-      </div>
-    </form>
+        </div>
+      </form>
+    {/if}
   </Modal>
 </div>

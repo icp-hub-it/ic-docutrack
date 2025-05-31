@@ -13,11 +13,15 @@
   import ComboBox from "./ComboBox.svelte";
   import { flatten } from "$lib/shared/flatten";
   import { toArrayBuffer } from "$lib/buffer";
+  import { authStore } from "$lib/services/auth";
 
   export let auth: AuthStateAuthenticated;
 
   export let isOpen = false;
   export let fileData: PublicFileMetadata | ExternalFileMetadata;
+
+  let loadingState: "loading" | "error" | "ready" = "loading";
+  let error: string | null = null;
 
   function isPublicFileMetadata(
     file: PublicFileMetadata | ExternalFileMetadata
@@ -34,7 +38,7 @@
   let users: PublicUser[] = [];
   let oldSharedWith: PublicUser[] = [];
   let newSharedWith: PublicUser[] = [];
-  let error: string = "";
+  let initError: string = "";
 
   function reset() {
     expirationDate = null;
@@ -76,6 +80,12 @@
   }
 
   async function saveShare() {
+    if (!auth.actor_user) {
+      error = "System not ready. Please try again later.";
+      loading = false;
+      return;
+    }
+
     if (
       isPublicFileMetadata(fileData) &&
       !enumIs(fileData.file_status, "uploaded")
@@ -201,7 +211,7 @@
   onMount(async () => {
     let res = await auth.actor_orchestrator.get_users({
       offset: 0n,
-      limit: 100n,
+      limit: 127n,
     });
     if (enumIs(res, "users")) {
       users = res.users.users.filter(

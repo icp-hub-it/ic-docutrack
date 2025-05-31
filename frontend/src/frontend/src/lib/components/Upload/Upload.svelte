@@ -6,6 +6,7 @@
     AuthStateAuthenticated,
     AuthStateUnauthenticated,
   } from "$lib/services/auth";
+  import { authService } from "$lib/services/auth";
   import { mediaQueryStore } from "$lib/services/media";
   import { ObjectUrlManager } from "$lib/services/objectUrls";
   import {
@@ -30,6 +31,7 @@
   export let auth: AuthStateAuthenticated | AuthStateUnauthenticated;
 
   let alias: string | null = null;
+  let usercanisterId: string | null = null;
   let uploadType: UploadType | null = null;
   let state:
     | "initializing"
@@ -61,9 +63,11 @@
   }
 
   onMount(async () => {
+    usercanisterId = $page.url.searchParams.get("usercanister") || ""; // get usercanister from URL
     alias = $page.url.searchParams.get("alias") || "";
-    if (alias) {
-      const aliasInfo = await auth.actor_user.get_alias_info(alias);
+    if (alias && usercanisterId) {
+      const { actor_user } = authService.initClient(usercanisterId);
+      const aliasInfo = await actor_user.get_alias_info(alias);
 
       if (enumIs(aliasInfo, "Ok")) {
         uploadType = {
@@ -124,7 +128,15 @@
   }
 
   async function handleUpload() {
-    uploadService = new UploadService(auth.actor_user);
+    if (auth.state === "authenticated" && auth.actor_user) {
+      uploadService = new UploadService(auth.actor_user);
+    } else if (usercanisterId) {
+      uploadService = authService.initClient(usercanisterId).uploadService;
+    } else {
+      state = "error";
+      error = "No user canister available for upload";
+      return;
+    }
 
     if (uploadType?.type === "self") {
       uploadType.filePath = fileName;

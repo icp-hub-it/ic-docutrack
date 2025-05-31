@@ -18,6 +18,7 @@ type UserState =
   | {
       state: "registered";
       username: string;
+      userCanisterId?: string; // Optional until retrieved
     }
   | {
       state: "unregistered";
@@ -44,10 +45,11 @@ function createUserStore() {
     subscribe,
     set,
 
-    register: (username: string) => {
+    register: (username: string, userCanisterId?: string) => {
       set({
         state: "registered",
         username,
+        userCanisterId,
       });
     },
     setUnregistered: (registrationState: RegistrationState) => {
@@ -73,14 +75,23 @@ export const userStore = createUserStore();
 export class UserService {
   constructor(
     private actorOrchestrator: ActorTypeOrchestrator,
-    private actorUser: ActorTypeUserCanister
+    private actorUser?: ActorTypeUserCanister // Optional, as it may not be available immediately
   ) {}
 
   async init() {
     try {
       const response = await this.actorOrchestrator.who_am_i();
       if (enumIs(response, "known_user")) {
-        userStore.register(response.known_user.username);
+        const orchestratorResponse =
+          await this.actorOrchestrator.user_canister();
+        if ("Ok" in orchestratorResponse) {
+          userStore.register(
+            response.known_user.username,
+            orchestratorResponse.Ok.toText()
+          );
+        } else {
+          userStore.register(response.known_user.username); // Register without canister ID
+        }
       } else if (enumIs(response, "unknown_user")) {
         userStore.setUnregistered({ state: "idle" });
       } else {
@@ -95,17 +106,24 @@ export class UserService {
     try {
       userStore.setUnregistered({ state: "registering" });
 
-      try {
-        await this.actorUser.set_public_key(
-          new Uint8Array(await crypto.getLocalUserPublicKey())
-        );
-      } catch (error) {
-        userStore.setUnregistered({
-          state: "error",
-          errorMessage:
-            error instanceof Error ? error.message : "Unknown error",
-        });
+      // review this.  to ensure public key is persisted in the canister  elsewhere
+      if (this.actorUser) {
+        try {
+          await this.actorUser.set_public_key(
+            new Uint8Array(await crypto.getLocalUserPublicKey())
+          );
+        } catch (error) {
+          userStore.setUnregistered({
+            state: "error",
+            errorMessage:
+              error instanceof Error
+                ? error.message
+                : "Something wrong while setting public key",
+          });
+          return;
+        }
       }
+
       const response = await this.actorOrchestrator.set_user(
         username,
         new Uint8Array(await crypto.getLocalUserPublicKey())
@@ -118,8 +136,61 @@ export class UserService {
         });
         return;
       }
+      //////
+      // Retrieve user canister ID after registration
+      let retries = 0;
+      const maxRetries = 5;
+      const retryDelayMs = 2000;
+      while (retries < maxRetries) {
+        const orchestratorResponse =
+          await this.actorOrchestrator.user_canister();
+        if ("Ok" in orchestratorResponse) {
+          userStore.register(username, orchestratorResponse.Ok.toText());
+          return;
+        } else if ("CreationPending" in orchestratorResponse) {
+          retries++;
+          await new Promise((resolve) => setTimeout(resolve, retryDelayMs));
+          continue;
+        } else if (
+          "CreationFailed" in orchestratorResponse ||
+          "Uninitialized" in orchestratorResponse
+        ) {
+          const retryResponse =
+            await this.actorOrchestrator.retry_user_canister_creation();
+          if ("Created" in retryResponse) {
+            userStore.register(username, retryResponse.Created.toText());
+            return;
+          } else if (
+            "Ok" in retryResponse ||
+            "CreationPending" in retryResponse
+          ) {
+            retries++;
+            await new Promise((resolve) => setTimeout(resolve, retryDelayMs));
+            continue;
+          } else if ("AnonymousCaller" in retryResponse) {
+            userStore.setError("Anonymous caller detected during retry");
+            return;
+          } else if ("UserNotFound" in retryResponse) {
+            userStore.setUnregistered({
+              state: "error",
+              errorMessage: "User not found; please try registering again",
+            });
+            return;
+          } else {
+            unreachable(retryResponse);
+          }
+        } else if ("AnonymousCaller" in orchestratorResponse) {
+          userStore.setError("Anonymous caller detected");
+          return;
+        } else {
+          unreachable(orchestratorResponse);
+        }
+      }
 
-      userStore.register(username);
+      userStore.setUnregistered({
+        state: "error",
+        errorMessage: "Failed to retrieve user canister ID after retries",
+      });
     } catch (e: unknown) {
       if (e instanceof Error) {
         userStore.setUnregistered({
