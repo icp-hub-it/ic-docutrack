@@ -34,19 +34,23 @@
         "output": "frontend/src/frontend/declarations/orchestrator"
       }
     },
-    "internet_identity": {
-      "type": "pull",
-      "id": "rdmx6-jaaaa-aaaaa-aaadq-cai",
-      "declarations": {
-        "output": "frontend/src/frontend/declarations/internet_identity"
-      }
-    }
+    "orbit-station": {},
+    "orbit-upgrader": {}
   },
   "defaults": {
     "build": {
       "packtool": ""
     }
   },
-  "networks": {},
+  "networks": {
+    "local": {
+      "bind": "127.0.0.1:8080",
+      "type": "ephemeral",
+      "replica": {
+        "subnet_type": "system",
+        "port": 4943
+      }
+    }
+  },
   "version": 1
 }

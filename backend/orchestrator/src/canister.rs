@@ -9,6 +9,7 @@ use did::orchestrator::{
     SharedFilesResponse, User, UserCanisterResponse, WhoamiResponse,
 };
 
+use crate::debug;
 use crate::storage::config::Config;
 use crate::storage::shared_files::SharedFilesStorage;
 use crate::storage::user_canister::{UserCanisterCreateState, UserCanisterStorage};
@@ -17,6 +18,8 @@ use crate::utils::{msg_caller, trap};
 
 /// Maximum number of users to retrieve at once.
 const MAX_GET_USERS_LIMIT: u64 = 128;
+/// Minimum length of the query string for getting users.
+const GET_USERS_QUERY_MIN_LENGTH: usize = 4;
 
 /// API for Business Logic
 pub struct Canister;
@@ -27,6 +30,8 @@ impl Canister {
         let OrchestratorInstallArgs::Init(args) = args else {
             trap("Invalid arguments");
         };
+
+        debug!("Initializing canister with args: {:?}", args);
 
         Config::set_orbit_station(args.orbit_station);
         Config::set_orbit_station_admin(args.orbit_station_admin);
@@ -39,20 +44,43 @@ impl Canister {
     /// Up to 128 users can be retrieved at once.
     ///
     /// FIXME: this function should be protected.
-    pub fn get_users(Pagination { offset, limit }: Pagination) -> GetUsersResponse {
+    ///
+    /// # Arguments
+    ///
+    /// - `Pagination`: The pagination parameters, including `offset` and `limit`.
+    /// - `query`: An optional query string to filter users by username. It has a minimum length of [`GET_USERS_QUERY_MIN_LENGTH`].
+    pub fn get_users(
+        Pagination { offset, limit }: Pagination,
+        query: Option<&str>,
+    ) -> GetUsersResponse {
         let limit = limit.min(MAX_GET_USERS_LIMIT);
+        debug!("Getting users with offset: {offset}, limit: {limit}, query: {query:?}",);
 
         let caller = msg_caller();
         if caller == Principal::anonymous() {
             return GetUsersResponse::PermissionError;
         }
 
-        let users = UserStorage::get_users_in_range(offset, limit)
+        // Validate the query length.
+        if query.is_some_and(|q| q.len() < GET_USERS_QUERY_MIN_LENGTH) {
+            debug!("Query is too short: {query:?}",);
+            return GetUsersResponse::InvalidQuery;
+        }
+
+        let filter = |user: &User| {
+            if let Some(query) = query {
+                user.username.contains(query)
+            } else {
+                true
+            }
+        };
+
+        let users = UserStorage::get_users_in_range(offset, limit, filter)
             .into_iter()
             .map(|(principal, user)| PublicUser::new(user, principal))
             .collect::<Vec<_>>();
 
-        let max_users = UserStorage::len();
+        let max_users = UserStorage::count(filter);
         let next = if offset + limit < max_users {
             Some(offset + limit)
         } else {
@@ -68,6 +96,7 @@ impl Canister {
 
     /// Get a user from the storage as [`PublicUser`].
     pub fn get_user(principal: Principal) -> Option<PublicUser> {
+        debug!("Getting user with principal: {principal}",);
         UserStorage::get_user(&principal).map(|user| PublicUser::new(user, principal))
     }
 
@@ -81,6 +110,10 @@ impl Canister {
     /// - [`RetryUserCanisterCreationResponse::CreationPending`]: The user canister creation is already in progress.
     /// - [`RetryUserCanisterCreationResponse::UserNotFound`]: The user doesn't exist. In that case, the caller should call `set_user` first.
     pub fn retry_user_canister_creation() -> RetryUserCanisterCreationResponse {
+        debug!(
+            "Retrying user canister creation for caller: {}",
+            msg_caller()
+        );
         let caller = msg_caller();
         if caller == Principal::anonymous() {
             return RetryUserCanisterCreationResponse::AnonymousCaller;
@@ -119,6 +152,7 @@ impl Canister {
     /// - [`RevokeShareFileResponse::NoSuchUser`] if the user doesn't exist.
     /// - [`RevokeShareFileResponse::Unauthorized`] if the caller is not a user canister.
     pub fn revoke_share_file(user: Principal, file_id: FileId) -> RevokeShareFileResponse {
+        debug!("Revoking share for user: {user}, file_id: {file_id}",);
         let user_canister = msg_caller();
         // check if the caller is a user canister
         if !UserCanisterStorage::is_user_canister(user_canister) {
@@ -142,6 +176,10 @@ impl Canister {
         users: Vec<Principal>,
         file_id: FileId,
     ) -> RevokeShareFileResponse {
+        debug!(
+            "Revoking share for users: {:?}, file_id: {}",
+            users, file_id
+        );
         let user_canister = msg_caller();
         // check if the caller is a user canister
         if !UserCanisterStorage::is_user_canister(user_canister) {
@@ -166,6 +204,7 @@ impl Canister {
     /// - [`SetUserResponse::UsernameExists`] if the username already exists.
     /// - [`SetUserResponse::CallerHasAlreadyAUser`] if the caller already has a user.
     pub fn set_user(username: String, public_key: PublicKey) -> SetUserResponse {
+        debug!("Setting user with username: {username}, public_key: {public_key:?}",);
         // Check if the caller is anonymous.
         let caller = msg_caller();
         if caller == Principal::anonymous() {
@@ -216,6 +255,7 @@ impl Canister {
         file_id: FileId,
         metadata: ShareFileMetadata,
     ) -> ShareFileResponse {
+        debug!("Sharing file with user: {user}, file_id: {file_id}, metadata: {metadata:?}",);
         Self::share_file_with_users(vec![user], file_id, metadata)
     }
 
@@ -231,6 +271,10 @@ impl Canister {
         file_id: FileId,
         metadata: ShareFileMetadata,
     ) -> ShareFileResponse {
+        debug!(
+            "Sharing file with users: {:?}, file_id: {}, metadata: {:?}",
+            users, file_id, metadata
+        );
         let user_canister = msg_caller();
         // check if the caller is a user canister
         if !UserCanisterStorage::is_user_canister(user_canister) {
@@ -261,6 +305,7 @@ impl Canister {
     /// - [`SharedFilesResponse::NoSuchUser`] if the user doesn't exist.
     /// - [`SharedFilesResponse::SharedFiles`] if the user exists and has shared files.
     pub fn shared_files() -> SharedFilesResponse {
+        debug!("Getting shared files for caller: {}", msg_caller());
         let caller = msg_caller();
         if caller == Principal::anonymous() {
             return SharedFilesResponse::AnonymousUser;
@@ -306,6 +351,7 @@ impl Canister {
 
     /// Checks whether a given username exists in the storage.
     pub fn username_exists(username: String) -> bool {
+        debug!("Checking if username exists: {username}",);
         UserStorage::username_exists(&username)
     }
 
@@ -318,6 +364,7 @@ impl Canister {
     /// - [`UserCanisterResponse::CreationPending`] if the user canister is being created.
     /// - [`UserCanisterResponse::CreationFailed`] if the user canister creation failed.
     pub fn user_canister() -> UserCanisterResponse {
+        debug!("Getting user canister for caller: {}", msg_caller());
         let caller = msg_caller();
         if caller == Principal::anonymous() {
             return UserCanisterResponse::AnonymousCaller;
@@ -345,6 +392,7 @@ impl Canister {
     /// - [`WhoamiResponse::UnknownUser`] if the caller is anonymous or doesn't exist.
     /// - [`WhoamiResponse::KnownUser`] if the caller exists.
     pub fn whoami() -> WhoamiResponse {
+        debug!("Getting whoami for caller: {}", msg_caller());
         let caller = msg_caller();
         if caller == Principal::anonymous() {
             return WhoamiResponse::UnknownUser;
@@ -423,10 +471,13 @@ mod test {
         );
 
         // get users
-        let response = Canister::get_users(Pagination {
-            offset: 0,
-            limit: 10,
-        });
+        let response = Canister::get_users(
+            Pagination {
+                offset: 0,
+                limit: 10,
+            },
+            None,
+        );
         assert_eq!(
             response,
             GetUsersResponse::Users(GetUsersResponseUsers {
@@ -439,6 +490,73 @@ mod test {
                 next: None,
             })
         );
+    }
+
+    #[test]
+    fn test_should_get_users_with_query() {
+        init_canister();
+
+        // setup users
+        for i in 0..150 {
+            UserStorage::add_user(
+                Principal::from_slice(&[i; 6]),
+                User {
+                    username: format!("test_user_{i}",),
+                    public_key: PublicKey::try_from(vec![1; 32]).expect("invalid public key"),
+                },
+            );
+        }
+
+        // get users
+        let response = Canister::get_users(
+            Pagination {
+                offset: 0,
+                limit: 20,
+            },
+            Some("test_user_12"),
+        );
+
+        // there should be eleven users (12, 120, 121, ..., 129)
+        let GetUsersResponse::Users(GetUsersResponseUsers { users, total, next }) = response else {
+            panic!("Expected GetUsersResponse::Users");
+        };
+
+        assert_eq!(users.len(), 11);
+        assert_eq!(total, 11);
+        assert!(next.is_none());
+
+        // with pagination
+        let response = Canister::get_users(
+            Pagination {
+                offset: 0,
+                limit: 5,
+            },
+            Some("test_user_12"),
+        );
+
+        // there should be eleven users (12, 120, 121, ..., 129)
+        let GetUsersResponse::Users(GetUsersResponseUsers { users, total, next }) = response else {
+            panic!("Expected GetUsersResponse::Users");
+        };
+
+        assert_eq!(users.len(), 5);
+        assert_eq!(total, 11);
+        assert_eq!(next, Some(5));
+    }
+
+    #[test]
+    fn test_should_not_get_users_with_invalid_query() {
+        init_canister();
+
+        // get users
+        let response = Canister::get_users(
+            Pagination {
+                offset: 0,
+                limit: 20,
+            },
+            Some("aa"),
+        );
+        assert_eq!(response, GetUsersResponse::InvalidQuery);
     }
 
     #[test]
@@ -457,10 +575,13 @@ mod test {
         }
 
         // get users
-        let response = Canister::get_users(Pagination {
-            offset: 0,
-            limit: 5,
-        });
+        let response = Canister::get_users(
+            Pagination {
+                offset: 0,
+                limit: 5,
+            },
+            None,
+        );
 
         let GetUsersResponse::Users(GetUsersResponseUsers { total, users, next }) = response else {
             panic!("Expected GetUsersResponse::Users");
@@ -469,10 +590,13 @@ mod test {
         assert_eq!(total, 9);
         assert_eq!(next, Some(5));
 
-        let response = Canister::get_users(Pagination {
-            offset: 5,
-            limit: 8,
-        });
+        let response = Canister::get_users(
+            Pagination {
+                offset: 5,
+                limit: 8,
+            },
+            None,
+        );
 
         let GetUsersResponse::Users(GetUsersResponseUsers { total, users, next }) = response else {
             panic!("Expected GetUsersResponse::Users");
@@ -498,10 +622,13 @@ mod test {
         }
 
         // get users
-        let response = Canister::get_users(Pagination {
-            offset: 0,
-            limit: 150,
-        });
+        let response = Canister::get_users(
+            Pagination {
+                offset: 0,
+                limit: 150,
+            },
+            None,
+        );
 
         let GetUsersResponse::Users(GetUsersResponseUsers { total, users, next }) = response else {
             panic!("Expected GetUsersResponse::Users");

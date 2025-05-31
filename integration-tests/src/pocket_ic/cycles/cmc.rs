@@ -11,6 +11,7 @@ pub struct CyclesCanisterInitPayload {
     pub cycles_ledger_canister_id: Option<Principal>,
 }
 
+#[allow(dead_code)]
 #[derive(Debug, CandidType, Serialize)]
 pub enum ExchangeRateCanister {
     Set(Principal),

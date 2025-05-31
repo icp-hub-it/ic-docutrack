@@ -11,7 +11,7 @@ Other document sharing apps require users to exchange public keys or other crypt
 
 You can try out DocuTrack on [https://wavpu-oiaaa-aaaam-aabuq-cai.icp0.io/](https://wavpu-oiaaa-aaaam-aabuq-cai.icp0.io/).
 
-The dapp is explained in more detail [here](./documentation.pdf).
+The dapp is explained in more detail [in the documentation](./documentation.pdf).
 
 ## Disclaimer: please read carefully
 
@@ -31,6 +31,7 @@ The best solution for the first three bullet points is to apply [vetKeys](https:
 - [Rust (1.85 or later)](https://rustup.rs/): to build the canisters
 - [Node.js](https://nodejs.org/en/) (v22.0.0 or later)
 - [DFX](https://internetcomputer.org/docs/building-apps/getting-started/install) (v0.23 or later)
+  - **NNS** extension is required to deploy the canisters, so make sure to install it with `dfx extension install nns`
 - [Just](https://just.systems/) to run scripts
 - [ic-wasm](https://github.com/dfinity/ic-wasm): to bundle the canisters
 - [candid-extractor](https://github.com/dfinity/candid-extractor): to extract the candid interface of the canisters
@@ -75,25 +76,26 @@ just fmt_nightly
 To run the dapp locally, run the following in one terminal window:
 
 ```sh
-dfx start --clean
+just dfx_deploy_local install
 ```
 
-And in another terminal"
+This will eventually print the URL of the dapp, which you can open in your browser:
+
+```txt
+webserver-port: 8080
+frontend: uzt4z-lp777-77774-qaabq-cai
+marketing: u6s2n-gx777-77774-qaaba-cai
+orbit-station: umunu-kh777-77774-qaaca-cai
+orchestrator: uxrrr-q7777-77774-qaaaq-cai
+frontend url: http://uzt4z-lp777-77774-qaabq-cai.raw.localhost:8080
+marketing url: http://u6s2n-gx777-77774-qaaba-cai.raw.localhost:8080
+```
+
+To stop the DFX local replica, run:
 
 ```sh
-# Install needed frontend dependencies.
-npm install -g pnpm
-pnpm install
-
-# Deploy the canisters.
-dfx deploy
-dfx deps pull
-dfx deps deploy
+just dfx_stop
 ```
-
-In your browser you can now go to <canister_id>.localhost:8000 to access the frontend.
-
-If you want to contribute, see our [CONTRIBUTING](.github/CONTRIBUTING.md) document to get started.
 
 ## Local frontend development
 

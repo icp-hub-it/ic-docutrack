@@ -7,6 +7,7 @@ use time::OffsetDateTime;
 use time::format_description::well_known::Rfc3339;
 
 use crate::client::OrbitStationClient;
+use crate::debug;
 use crate::storage::config::Config;
 use crate::storage::user_canister::{UserCanisterCreateState, UserCanisterStorage};
 use crate::utils::{datetime, trap};
@@ -14,7 +15,7 @@ use crate::utils::{datetime, trap};
 /// Default interval between each operation.
 const DEFAULT_INTERVAL: Duration = Duration::from_secs(10);
 /// Interval to wait for the Orbit Station to process the request.
-const ORBIT_STATION_REQUEST_INTERVAL: Duration = Duration::from_secs(60);
+const ORBIT_STATION_REQUEST_INTERVAL: Duration = Duration::from_secs(10);
 /// The WASM file for the user canister.
 const USER_CANISTER_WASM: &[u8] = include_bytes!("../../../../.artifact/user_canister.wasm.gz");
 
@@ -33,6 +34,8 @@ impl CreateUserStateMachine {
             user,
         };
 
+        debug!("Starting user canister creation state machine for user: {user}",);
+
         // Initialize the user canister creation state.
         UserCanisterStorage::init_create_state(state_machine.user);
 
@@ -41,6 +44,10 @@ impl CreateUserStateMachine {
 
     /// Set a timer to wait for the specified duration and then run the state machine.
     fn tick(self, delay: Duration) {
+        debug!(
+            "Scheduling next step for user canister creation for user: {} in {:?}",
+            self.user, delay
+        );
         // run state machine
         ic_cdk_timers::set_timer(delay, move || {
             ic_cdk::futures::spawn(async move {
@@ -54,6 +61,10 @@ impl CreateUserStateMachine {
         // load state from storage
         let current_state = UserCanisterStorage::get_create_state(self.user)
             .unwrap_or_else(|| trap("User canister creation state not found"));
+        debug!(
+            "Running user canister creation state machine for user: {}. Current state: {:?}",
+            self.user, current_state
+        );
 
         let current_state_id = std::mem::discriminant(&current_state);
 
@@ -91,6 +102,8 @@ impl CreateUserStateMachine {
             UserCanisterCreateState::Failed { .. } => return, // stop the state machine
         };
 
+        debug!("New state for user canister creation: {:?}", new_state);
+
         // update state in storage if the variant type has changed
         if std::mem::discriminant(&new_state) != current_state_id {
             UserCanisterStorage::set_create_state(self.user, new_state.clone());
@@ -104,6 +117,10 @@ impl CreateUserStateMachine {
     /// Sends a request to the Orbit Station canister to install the user canister.
     async fn create_canister(&self) -> UserCanisterCreateState {
         let orbit_station_admin = Config::get_orbit_station_admin();
+        debug!(
+            "Creating user canister for user: {} with Orbit Station admin: {}",
+            self.user, orbit_station_admin
+        );
 
         match OrbitStationClient::from(self.orbit_station)
             .create_user_canister(self.user, orbit_station_admin)
@@ -123,6 +140,7 @@ impl CreateUserStateMachine {
 
     /// Checks the result of the create canister request.
     async fn check_create_canister_result(&self, request_id: String) -> UserCanisterCreateState {
+        debug!("Checking create canister result for request ID: {request_id}");
         // send request to get the request status
         let response = match OrbitStationClient::from(self.orbit_station)
             .get_request_status(request_id.clone())
@@ -146,15 +164,19 @@ impl CreateUserStateMachine {
         };
 
         let status = response.request.status;
+        debug!("Request status for {request_id}: {:?}", status);
         match status {
             RequestStatus::Completed { .. } => {
+                debug!("Create canister request completed successfully for {request_id}");
                 // operation is successful; get canister id
                 let op = match response.request.operation {
                     RequestOperation::CreateExternalCanister(op) => op,
-                    _ => trap(format!(
-                        "unexpected operation type: {:?}",
-                        response.request.operation
-                    )),
+                    _ => {
+                        return UserCanisterCreateState::Failed {
+                            reason: "Unexpected operation type for create canister request"
+                                .to_string(),
+                        };
+                    }
                 };
 
                 match op.canister_id {
@@ -179,6 +201,7 @@ impl CreateUserStateMachine {
                 ),
             },
             RequestStatus::Scheduled { scheduled_at } => {
+                debug!("Create canister request is scheduled for {request_id} at {scheduled_at}");
                 // operation is scheduled; update state
                 UserCanisterCreateState::WaitForCreateCanisterSchedule {
                     request_id,
@@ -186,6 +209,7 @@ impl CreateUserStateMachine {
                 }
             }
             RequestStatus::Approved | RequestStatus::Created | RequestStatus::Processing { .. } => {
+                debug!("Create canister request is still in progress for {request_id}");
                 // operation is in progress; update state
                 UserCanisterCreateState::WaitForCreateCanisterResult { request_id }
             }
@@ -194,6 +218,10 @@ impl CreateUserStateMachine {
 
     /// Installs the user canister by sending a request to the Orbit Station canister.
     async fn install_canister(&self, user_canister: Principal) -> UserCanisterCreateState {
+        debug!(
+            "Installing user canister: {user_canister} for user: {}",
+            self.user
+        );
         let user_canister_init_arg = UserCanisterInstallArgs::Init(UserCanisterInitArgs {
             owner: self.user,
             orchestrator: ic_cdk::api::canister_self(),
@@ -227,6 +255,7 @@ impl CreateUserStateMachine {
         request_id: String,
         user_canister: Principal,
     ) -> UserCanisterCreateState {
+        debug!("Checking install canister result for request ID: {request_id}");
         // send request to get the request status
         let response = match OrbitStationClient::from(self.orbit_station)
             .get_request_status(request_id.clone())
@@ -250,6 +279,7 @@ impl CreateUserStateMachine {
         };
 
         let status = response.request.status;
+        debug!("Request status for {request_id}: {:?}", status);
         match status {
             RequestStatus::Completed { .. } => UserCanisterCreateState::Ok { user_canister },
             RequestStatus::Failed { reason } => UserCanisterCreateState::Failed {
@@ -265,6 +295,7 @@ impl CreateUserStateMachine {
                 ),
             },
             RequestStatus::Scheduled { scheduled_at } => {
+                debug!("Install canister request is scheduled for {request_id} at {scheduled_at}");
                 // operation is scheduled; update state
                 UserCanisterCreateState::WaitForInstallCanisterSchedule {
                     request_id,
@@ -273,6 +304,7 @@ impl CreateUserStateMachine {
                 }
             }
             RequestStatus::Approved | RequestStatus::Created | RequestStatus::Processing { .. } => {
+                debug!("Install canister request is still in progress for {request_id}");
                 // operation is in progress; update state
                 UserCanisterCreateState::WaitForInstallCanisterResult {
                     request_id,
@@ -284,6 +316,10 @@ impl CreateUserStateMachine {
 
     /// Complete user canister creation by setting the user canister ID in storage.
     fn complete(&self, user_canister: Principal) {
+        debug!(
+            "User canister creation completed for user: {} with canister: {}",
+            self.user, user_canister
+        );
         UserCanisterStorage::set_user_canister(self.user, user_canister);
     }
 
@@ -314,12 +350,14 @@ impl CreateUserStateMachine {
     ///
     /// If the scheduled time is in the past, return [`DEFAULT_INTERVAL`].
     fn scheduled_at_time_diff(date: OffsetDateTime, scheduled_at: &TimestampRfc3339) -> Duration {
+        debug!("Calculating time difference for scheduled_at: {scheduled_at} at date: {date}");
         let scheduled_at = match OffsetDateTime::parse(scheduled_at, &Rfc3339) {
             Ok(scheduled_at) => scheduled_at,
             Err(_) => {
                 return DEFAULT_INTERVAL;
             }
         };
+        debug!("Scheduled at: {scheduled_at}, Current date: {date}");
 
         (scheduled_at.unix_timestamp() as u64)
             .checked_sub(date.unix_timestamp() as u64)

@@ -9,6 +9,7 @@ fetch_all_canisters: fetch_orbit_canisters fetch_cycles_minting_canisters
 fetch_orbit_canisters:
   echo "Fetching Orbit canisters..."
   curl --fail -L -o "{{WASM_DIR}}/orbit-station.wasm.gz" "https://github.com/dfinity/orbit/releases/download/%40orbit%2Fstation-v{{ORBIT_STATION_VERSION}}/station.wasm.gz"
+  curl --fail -L -o "{{WASM_DIR}}/orbit-station.did" "https://raw.githubusercontent.com/dfinity/orbit/refs/tags/%40orbit/station-v0.5.0/core/station/api/spec.did"
   curl --fail -L -o "{{WASM_DIR}}/orbit-upgrader.wasm.gz" "https://github.com/dfinity/orbit/releases/download/%40orbit%2Fupgrader-v{{ORBIT_UPGRADER_VERSION}}/upgrader.wasm.gz"
 
 fetch_cycles_minting_canisters:
