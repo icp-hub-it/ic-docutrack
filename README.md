@@ -79,7 +79,23 @@ To run the dapp locally, run the following in one terminal window:
 just dfx_deploy_local install
 ```
 
-This will eventually print the URL of the dapp, which you can open in your browser.
+This will eventually print the URL of the dapp, which you can open in your browser:
+
+```txt
+webserver-port: 8080
+frontend: uzt4z-lp777-77774-qaabq-cai
+marketing: u6s2n-gx777-77774-qaaba-cai
+orbit-station: umunu-kh777-77774-qaaca-cai
+orchestrator: uxrrr-q7777-77774-qaaaq-cai
+frontend url: http://uzt4z-lp777-77774-qaabq-cai.raw.localhost:8080
+marketing url: http://u6s2n-gx777-77774-qaaba-cai.raw.localhost:8080
+```
+
+To stop the DFX local replica, run:
+
+```sh
+just dfx_stop
+```
 
 ## Local frontend development
 
