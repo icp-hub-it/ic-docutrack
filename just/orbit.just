@@ -1,5 +1,9 @@
+NNS_GOVERNANCE_CANISTER:="rrkah-fqaaa-aaaaa-aaaaq-cai"
+NNS_INDEX_CANISTER:="r7inp-6aaaa-aaaaa-aaabq-cai"
+NNS_LEDGER_CANISTER:="ryjl3-tyaaa-aaaaa-aaaba-cai"
+
 [group('orbit')]
-deploy_orbit_local: deploy_cycles_management_canisters install_nns_ledger_canister install_nns_index_canister install_cycles_ledger_canister install_cycles_minting_canister
+deploy_orbit_local:
   #!/usr/bin/env bash
   set -ex
 
@@ -10,16 +14,16 @@ deploy_orbit_local: deploy_cycles_management_canisters install_nns_ledger_canist
 
   # create orbit station
   echo "Creating Orbit Station canister on local network"
-  dfx canister --network=local create --with-cycles=1000000000000000 orbit-station
+  dfx canister --network=local create --with-cycles=1_000_000_000_000_000 orbit-station
 
   just deploy_orbit_upgrader local
   orbit_upgrader="$(dfx canister --network=local id orbit-upgrader)"
 
   init_args="(
-    variant {
+    opt variant {
       Init = record {
         name = \"Orbit Station\";
-        fallback_controller = principal \"rrkah-fqaaa-aaaaa-aaaaq-cai\";
+        fallback_controller = opt principal \"{{NNS_GOVERNANCE_CANISTER}}\";
         upgrader = variant {
           Id = principal \"$orbit_upgrader\"
         };
@@ -33,7 +37,7 @@ deploy_orbit_local: deploy_cycles_management_canisters install_nns_ledger_canist
             identity = principal \"$orchestrator_principal\";
           }
         };
-        quorum = opt 1;
+        quorum = opt 1 : opt nat16;
       }
     }
   )"
@@ -62,109 +66,7 @@ deploy_orbit network:
   git checkout @orbit/station-v0.5.0
 
 [private]
-deploy_cycles_management_canisters:
-  #!/usr/bin/env bash
-  set -ex
-  echo "Deploying cycles management canisters on local network"
-
-[private]
-install_nns_ledger_canister:
-  #!/usr/bin/env bash
-  set -ex
-  echo "Installing NNS ledger canister on local network"
-
-  admin_principal="$(dfx identity get-principal)"
-  admin_account="$(just get_account_id $admin_principal)"
-
-  init_args="(
-    variant { 
-      Init = record {
-        minting_account = \"$admin_account\";
-        initial_values = vec {
-          record {
-            \"$admin_account\";
-            record {
-              e8s = 1_000_000_000_000 : nat64;
-            }
-          }
-        };
-        send_whitelist = vec { };
-        transfer_fee = opt record {
-          e8s = 10_000;
-        };
-        token_symbol = opt \"ICP\";
-        token_name = opt \"Internet Computer\";
-      }
-    }
-  )"
-
-  echo "Installing NNS ledger canister with init args: $init_args"
-  dfx canister --network=local create --with-cycles=1000000000000000 --specified-id="ryjl3-tyaaa-aaaaa-aaaba-cai" nns_ledger
-  dfx canister install --mode=reinstall --yes --wasm=./.artifact/icp-ledger.wasm.gz --network=local --argument="$init_args" nns_ledger
-
-[private]
-install_nns_index_canister:
-  #!/usr/bin/env bash
-  set -ex
-  echo "Installing NNS index canister on local network"
-
-  nns_ledger="$(dfx canister --network=local id nns_ledger)"
-
-  init_args="(
-    record {
-      ledger_id = principal \"$nns_ledger\";
-    }
-  )"
-
-  echo "Installing NNS index canister with init args: $init_args"
-  dfx canister --network=local create --with-cycles=1000000000000000 --specified-id="r7inp-6aaaa-aaaaa-aaabq-cai" nns_index
-  dfx canister install --mode=reinstall --yes --wasm=./.artifact/icp-index.wasm.gz --network=local --argument="$init_args" nns_index
-
-[private]
-install_cycles_ledger_canister:
-  #!/usr/bin/env bash
-  set -ex
-  echo "Installing cycles ledger canister on local network"
-
-  init_args="(
-    variant {
-      Init = record {
-        max_blocks_per_request = 1 : nat64;
-      }
-    }
-  )"
-
-  echo "Installing cycles ledger canister with init args: $init_args"
-  dfx canister --network=local create --with-cycles=1000000000000000 --specified-id="um5iw-rqaaa-aaaaq-qaaba-cai" cycles_ledger
-  dfx canister install --mode=reinstall --yes --wasm=./.artifact/cycles-ledger.wasm.gz --network=local --argument="$init_args" cycles_ledger
-
-[private]
-install_cycles_minting_canister:
-  #!/usr/bin/env bash
-  set -ex
-  echo "Installing cycles minting canister on local network"
-
-  nns_ledger="$(dfx canister --network=local id nns_ledger)"
-  nns_index="$(dfx canister --network=local id nns_index)"
-  cycles_ledger="$(dfx canister --network=local id cycles_ledger)"
-
-  init_args="(
-    opt record {
-      ledger_canister_id = opt principal \"$nns_ledger\";
-      governance_canister_id = opt principal \"rrkah-fqaaa-aaaaa-aaaaq-cai\";
-      cycles_ledger_canister_id = opt principal \"$cycles_ledger\";
-      last_purged_notification = opt 0;
-    }
-  )"
-
-  echo "Installing cycles minting canister with init args: $init_args"
-  dfx canister --network=local create --with-cycles=1000000000000000 --specified-id="rkp4c-7iaaa-aaaaa-aaaca-cai" cmc
-  dfx canister install --mode=reinstall --yes --wasm=./.artifact/cycles-minting-canister.wasm.gz --network=local --argument="$init_args" cmc
-
-  # Setup
-  
-[private]
-deploy_orbit_upgrader network cycles="1000000000000000":
+deploy_orbit_upgrader network cycles="5_000_000_000_000":
   #!/usr/bin/env bash
   set -ex
   

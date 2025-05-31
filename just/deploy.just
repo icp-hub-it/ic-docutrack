@@ -2,7 +2,7 @@
 [group('deploy')]
 dfx_start: dfx_prepare_env dfx_stop
   # start the local dfx replica
-  dfx start --background --replica --clean --host 127.0.0.1:8000 --artificial-delay 0
+  dfx start --background --clean
 
   # fabricate cycles
   wallet_principal=$(dfx identity get-wallet) && dfx ledger fabricate-cycles --t 1000000 --canister $wallet_principal
@@ -19,6 +19,8 @@ dfx_deploy_local install_mode="install":
 
   if [ "{{install_mode}}" = "install" ]; then
       just dfx_start
+      # Install NNS
+      dfx nns -q install
       echo "Creating canisters on local network"
       just create_canisters local 1000000000000000
       # install the orbit station canister

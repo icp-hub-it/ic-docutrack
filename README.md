@@ -11,7 +11,7 @@ Other document sharing apps require users to exchange public keys or other crypt
 
 You can try out DocuTrack on [https://wavpu-oiaaa-aaaam-aabuq-cai.icp0.io/](https://wavpu-oiaaa-aaaam-aabuq-cai.icp0.io/).
 
-The dapp is explained in more detail [here](./documentation.pdf).
+The dapp is explained in more detail [in the documentation](./documentation.pdf).
 
 ## Disclaimer: please read carefully
 
@@ -31,6 +31,7 @@ The best solution for the first three bullet points is to apply [vetKeys](https:
 - [Rust (1.85 or later)](https://rustup.rs/): to build the canisters
 - [Node.js](https://nodejs.org/en/) (v22.0.0 or later)
 - [DFX](https://internetcomputer.org/docs/building-apps/getting-started/install) (v0.23 or later)
+  - **NNS** extension is required to deploy the canisters, so make sure to install it with `dfx extension install nns`
 - [Just](https://just.systems/) to run scripts
 - [ic-wasm](https://github.com/dfinity/ic-wasm): to bundle the canisters
 - [candid-extractor](https://github.com/dfinity/candid-extractor): to extract the candid interface of the canisters
