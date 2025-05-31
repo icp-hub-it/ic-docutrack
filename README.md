@@ -76,25 +76,10 @@ just fmt_nightly
 To run the dapp locally, run the following in one terminal window:
 
 ```sh
-dfx start --clean
+just dfx_deploy_local install
 ```
 
-And in another terminal"
-
-```sh
-# Install needed frontend dependencies.
-npm install -g pnpm
-pnpm install
-
-# Deploy the canisters.
-dfx deploy
-dfx deps pull
-dfx deps deploy
-```
-
-In your browser you can now go to <canister_id>.localhost:8000 to access the frontend.
-
-If you want to contribute, see our [CONTRIBUTING](.github/CONTRIBUTING.md) document to get started.
+This will eventually print the URL of the dapp, which you can open in your browser.
 
 ## Local frontend development
 

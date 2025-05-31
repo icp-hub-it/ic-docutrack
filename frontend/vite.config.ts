@@ -30,6 +30,7 @@ export default defineConfig(({ mode }: UserConfig): UserConfig => {
     ...process.env,
     ...loadEnv(mode ?? "development", process.cwd()),
     ...readCanisterIds({ prefix: "VITE_" }),
+    VITE_INTERNET_IDENTITY_CANISTER_ID: "rdmx6-jaaaa-aaaaa-aaadq-cai",
     VITE_DFX_NETWORK: network,
     VITE_HOST: host,
     VITE_II_URL: iiUrl,
