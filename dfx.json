@@ -8,12 +8,10 @@
       "declarations": {
         "output": "frontend/src/frontend/declarations/user_canister",
         "node_compatibility": true
-      },
-      "init_arg": "(variant { Init = record { owner = principal \"ps5mw-jftib-ruqn2-tjiyb-yipxx-te3qn-6bfzn-rrm7l-rsy36-bahqj-tqe\"; orchestrator = principal \"uzt4z-lp777-77774-qaabq-cai\" } })"
+      }
     },
     "frontend": {
       "build": "pnpm --filter frontend run build",
-      "dependencies": ["user_canister", "orchestrator"],
       "source": ["frontend/build/"],
       "type": "assets",
       "declarations": {
@@ -22,7 +20,6 @@
     },
     "marketing": {
       "build": "pnpm --filter landing-page run build",
-      "dependencies": ["frontend"],
       "source": ["landing-page/dist/"],
       "type": "assets",
       "declarations": {
@@ -35,8 +32,7 @@
       "candid": "./.artifact/orchestrator.did",
       "declarations": {
         "output": "frontend/src/frontend/declarations/orchestrator"
-      },
-      "init_arg": "(variant { Init = record { orbit_station_admin = \"admin\"; orbit_station = principal \"hu33f-3yaaa-aaaad-aalma-cai\" } })"
+      }
     },
     "internet_identity": {
       "type": "pull",
