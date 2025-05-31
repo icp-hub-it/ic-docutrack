@@ -12,8 +12,9 @@
     },
     "frontend": {
       "build": "pnpm --filter frontend run build",
-      "dependencies": ["user_canister", "orchestrator"],
-      "source": ["frontend/build/"],
+      "source": [
+        "frontend/build/"
+      ],
       "type": "assets",
       "declarations": {
         "output": "./frontend/declarations/frontend"
@@ -21,8 +22,9 @@
     },
     "marketing": {
       "build": "pnpm --filter landing-page run build",
-      "dependencies": ["frontend"],
-      "source": ["landing-page/dist/"],
+      "source": [
+        "landing-page/dist/"
+      ],
       "type": "assets",
       "declarations": {
         "output": "./frontend/declarations/marketing"
@@ -36,13 +38,8 @@
         "output": "./frontend/declarations/orchestrator"
       }
     },
-    "internet_identity": {
-      "type": "pull",
-      "id": "rdmx6-jaaaa-aaaaa-aaadq-cai",
-      "declarations": {
-        "output": "./frontend/declarations/internet_identity"
-      }
-    }
+    "orbit-station": {},
+    "orbit-upgrader": {}
   },
   "defaults": {
     "build": {
@@ -51,8 +48,12 @@
   },
   "networks": {
     "local": {
-      "bind": "127.0.0.1:8000",
-      "type": "ephemeral"
+      "bind": "127.0.0.1:8080",
+      "type": "ephemeral",
+      "replica": {
+        "subnet_type": "system",
+        "port": 4943
+      }
     }
   },
   "version": 1

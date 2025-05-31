@@ -14,7 +14,6 @@ use crate::wasm::Canister;
 
 const CYCLES_MINTING_CANISTER_ID: &str = "rkp4c-7iaaa-aaaaa-aaaca-cai";
 const LEDGER_CANISTER_ID: &str = "ryjl3-tyaaa-aaaaa-aaaba-cai";
-const NNS_EXCHANGE_RATE_CANISTER: &str = "uf6dk-hyaaa-aaaaq-qaaaq-cai";
 const NNS_INDEX_CANISTER_ID: &str = "r7inp-6aaaa-aaaaa-aaabq-cai";
 const NNS_LEDGER_CANISTER_ID: &str = "ryjl3-tyaaa-aaaaa-aaaba-cai";
 
@@ -27,29 +26,16 @@ pub async fn setup_cycles_minting_canister(pic: &PocketIc) {
     let nns_cycles_ledger_canister_id =
         Principal::from_text("um5iw-rqaaa-aaaaq-qaaba-cai").unwrap();
     let nns_governance_canister_id = Principal::from_text("rrkah-fqaaa-aaaaa-aaaaq-cai").unwrap();
-    let nns_exchange_rate_canister_id = install_nns_exchange_rate_canister(pic).await;
 
     let cmc_canister_id = install_cycles_minting_canister(
         pic,
         nns_ledger_canister,
         nns_governance_canister_id,
-        nns_exchange_rate_canister_id,
         nns_cycles_ledger_canister_id,
     )
     .await;
 
     setup_cmc(pic, cmc_canister_id, nns_governance_canister_id).await;
-}
-
-async fn install_nns_exchange_rate_canister(pic: &PocketIc) -> Principal {
-    let principal = Principal::from_text(NNS_EXCHANGE_RATE_CANISTER).unwrap();
-
-    pic.create_canister_with_id(Some(admin()), None, principal)
-        .await
-        .expect("Failed to nns_exchange_rate canister");
-    pic.add_cycles(principal, DEFAULT_CYCLES).await;
-
-    principal
 }
 
 async fn install_nns_index_canister(pic: &PocketIc) -> Principal {
@@ -119,7 +105,6 @@ async fn install_cycles_minting_canister(
     pic: &PocketIc,
     nns_ledger_canister_id: Principal,
     nns_governance_canister_id: Principal,
-    nns_exchange_rate_canister_id: Principal,
     nns_cycles_ledger_canister_id: Principal,
 ) -> Principal {
     let wasm_bytes = PocketIcTestEnv::load_wasm(Canister::CyclesMinting);
@@ -135,9 +120,7 @@ async fn install_cycles_minting_canister(
         ledger_canister_id: Some(nns_ledger_canister_id),
         governance_canister_id: Some(nns_governance_canister_id),
         minting_account_id: None,
-        exchange_rate_canister: Some(cmc::ExchangeRateCanister::Set(
-            nns_exchange_rate_canister_id,
-        )),
+        exchange_rate_canister: None,
         cycles_ledger_canister_id: Some(nns_cycles_ledger_canister_id),
         last_purged_notification: Some(0),
     });
