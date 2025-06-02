@@ -16,6 +16,12 @@ export interface ExternalFileMetadata extends PublicFileMetadata {
   user_canister_id: Principal;
 }
 
+export function isPublicFileMetadata(
+  file: ExternalFileMetadata | PublicFileMetadata
+): file is PublicFileMetadata {
+  return (file as PublicFileMetadata).file_id !== undefined;
+}
+
 export type UploadedFile = {
   path: string;
   access: string;
@@ -23,6 +29,7 @@ export type UploadedFile = {
   uploadedAtShort: string;
   file_id: bigint;
   metadata: PublicFileMetadataCAN | ExternalFileMetadata;
+  user_canister_id?: string;
   external?: boolean; // Indicates if the file is external
 };
 
@@ -179,6 +186,7 @@ export class FilesService {
           uploadedAtShort: "Unknown",
           file_id: file.file_id,
           external: true,
+          user_canister_id: user_canister_id.toText(),
           metadata: {
             file_id: file.file_id,
             file_name: file.file_name,

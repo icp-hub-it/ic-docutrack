@@ -69,7 +69,6 @@
         error: "Unable to initialize due to a system error.",
       };
     } else {
-      // pending or uninitialized: wait for authStore to update
       state = { type: "initializing" };
       const unsubscribe = authStore.subscribe((authState) => {
         if (authState.state === "authenticated") {
@@ -122,7 +121,6 @@
 
     const fileId = BigInt(getFileId());
     const fileCanisterId = getFileCanisterId();
-
     try {
       const file = await decryptService.decryptFile({
         fileId,

@@ -151,14 +151,14 @@ export class AuthService {
     maxRetries: number = 5,
     retryDelayMs: number = 2000
   ): Promise<AuthStateAuthenticated> {
-    console.log("Trying to retrieve user canister...");
+    // console.log("Trying to retrieve user canister...");
     let retries = 0;
     while (retries < maxRetries) {
       try {
         const response = await actor_orchestrator.user_canister();
         if ("Ok" in response) {
           const userCanisterId = response.Ok.toText();
-          console.log("User canister ID retrieved:", userCanisterId);
+          // console.log("User canister ID retrieved:", userCanisterId);
           const actor_user = createActorUser(userCanisterId, {
             agentOptions: {
               host: this.host,
@@ -175,7 +175,7 @@ export class AuthService {
               console.log("Setting public key for user canister");
               await actor_user.set_public_key(localPublicKey);
             } else {
-              console.log("Public key already set for user canister");
+              // console.log("Public key already set for user canister");
             }
           } catch (error) {
             console.error("Failed to get or set public key:", error);
@@ -314,15 +314,15 @@ export class AuthService {
     );
 
     if (await authClient.isAuthenticated()) {
-      console.log(
-        "User is authenticated",
-        authClient.getIdentity().getPrincipal().toText()
-      );
+      // console.log(
+      //   "User is authenticated",
+      //   authClient.getIdentity().getPrincipal().toText()
+      // );
       const authState = await this.tryRetrieveUserCanister(
         actor_orchestrator,
         authClient
       );
-      console.log(authState);
+      // console.log(authState);
       authStore.set(authState);
     } else {
       authStore.setLoggedout(actor_orchestrator, authClient);

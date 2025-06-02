@@ -42,8 +42,12 @@
     }
   });
 
-  function goToDetails(file_id: bigint) {
-    goto(`/details?fileId=${file_id}`);
+  function goToDetails(file_id: bigint, user_canister: string = "") {
+    if (user_canister) {
+      goto(`/details?fileId=${file_id}&fileCanisterId=${user_canister}`);
+    } else {
+      goto(`/details?fileId=${file_id}`);
+    }
   }
 
   function openShareModal(
@@ -92,9 +96,10 @@
         </thead>
         <tbody class="">
           {#each $filesStore.files as file}
+            <!-- {console.log("File data:", file)} -->
             <tr
               class="hover:drop-shadow-xl cursor-pointer text-text-100"
-              on:click={() => goToDetails(file.file_id)}
+              on:click={() => goToDetails(file.file_id, file.user_canister_id)}
             >
               <td
                 class="pl-4 bg-background-100 rounded-tl-xl rounded-bl-xl body-1"
@@ -133,7 +138,9 @@
       {#each $filesStore.files as file}
         <a
           class="bg-white rounded-xl py-3 px-4 flex flex-col"
-          href="/details?fileId={file.file_id}"
+          href="/details?fileId={file.file_id}${file.external
+            ? `&fileCanisterId=${file.user_canister_id}`
+            : ''}"
         >
           <div class="flex justify-between items-center mb-3">
             <span class="text-text-100 title-2">

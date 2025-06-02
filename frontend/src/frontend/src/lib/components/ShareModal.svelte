@@ -13,17 +13,17 @@
   import ComboBox from "./ComboBox.svelte";
   import { flatten } from "$lib/shared/flatten";
   import { toArrayBuffer } from "$lib/buffer";
-  import { authStore } from "$lib/services/auth";
+  // import { authStore } from "$lib/services/auth";
 
   export let auth: AuthStateAuthenticated;
 
   export let isOpen = false;
   export let fileData: PublicFileMetadata | ExternalFileMetadata;
 
-  let loadingState: "loading" | "error" | "ready" = "loading";
+  // let loadingState: "loading" | "error" | "ready" = "loading";
   let error: string | null = null;
 
-  function isPublicFileMetadata(
+  export function isPublicFileMetadata(
     file: PublicFileMetadata | ExternalFileMetadata
   ): file is PublicFileMetadata {
     return (file as PublicFileMetadata).file_id !== undefined;
@@ -38,7 +38,7 @@
   let users: PublicUser[] = [];
   let oldSharedWith: PublicUser[] = [];
   let newSharedWith: PublicUser[] = [];
-  let initError: string = "";
+  // let initError: string = "";
 
   function reset() {
     expirationDate = null;

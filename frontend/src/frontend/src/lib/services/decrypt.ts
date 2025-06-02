@@ -66,7 +66,6 @@ export class DecryptService {
 
     // Determine if the file is owned or external
     const isExternalFile = fileCanisterId && fileCanisterId !== userCanisterId;
-
     // Initialize the correct actor for downloading
     let actorUser: ActorTypeUserCanister = this.actorUserCanister;
     if (isExternalFile) {
@@ -122,11 +121,12 @@ export class DecryptService {
         [] as ExternalFileMetadata[]
       );
 
-      maybeFile = external_public_file_metadata.find(
-        (file) =>
+      maybeFile = external_public_file_metadata.find((file) => {
+        return (
           file.file_id == BigInt(fileId) &&
-          file.user_canister_id === Principal.fromText(fileCanisterId)
-      );
+          file.user_canister_id.toText() === fileCanisterId
+        );
+      });
 
       if (!maybeFile) {
         throw new Error("Error: File not found");
@@ -141,10 +141,7 @@ export class DecryptService {
     }));
 
     // Download the file using the correct actor
-    let downloadedFile = await actorUser.download_file(
-      BigInt(fileId),
-      0n
-    );
+    let downloadedFile = await actorUser.download_file(BigInt(fileId), 0n);
 
     if (this.aborted) return "aborted";
 
