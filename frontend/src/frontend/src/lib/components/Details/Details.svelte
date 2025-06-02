@@ -1,10 +1,12 @@
 <script lang="ts">
   import { page } from "$app/stores";
+  import { goto } from "$app/navigation";
   import FilePreview from "$lib/components/FilePreview.svelte";
   import ShareModal from "$lib/components/ShareModal.svelte";
   import BackIcon from "$lib/components/icons/BackIcon.svelte";
   import DownloadIcon from "$lib/components/icons/DownloadIcon.svelte";
   import ShareIcon from "$lib/components/icons/ShareIcon.svelte";
+  import DeleteIcon from "$lib/components/icons/DeleteIcon.svelte";
   import type { AuthStateAuthenticated } from "$lib/services/auth";
   import { DecryptService } from "$lib/services/decrypt";
   import { ObjectUrlManager } from "$lib/services/objectUrls";
@@ -108,6 +110,34 @@
     }
   }
 
+  async function removeFile() {
+    if (!auth.filesService || state.type !== "loaded") {
+      state = {
+        type: "error",
+        error: "Files service not initialized or file not loaded",
+      };
+      return;
+    }
+    if (
+      !confirm(
+        `Are you sure you want to delete "${state.name || "Unnamed file"}"?`
+      )
+    ) {
+      return;
+    }
+    try {
+      await auth.filesService.remove_file(BigInt(getFileId()));
+      goto("/");
+    } catch (e) {
+      state = {
+        type: "error",
+        error: `Failed to remove file: ${
+          e instanceof Error ? e.message : String(e)
+        }`,
+      };
+    }
+  }
+
   async function initialize() {
     if (!decryptService) {
       state = {
@@ -201,6 +231,11 @@
       <button class="btn btn-accent md:w-64" on:click={openShareDialog}>
         <ShareIcon /> Share
       </button>
+      {#if !getFileCanisterId()}
+        <button class="btn btn-accent md:w-64" on:click={removeFile}>
+          <DeleteIcon /> Delete
+        </button>
+      {/if}
     </div>
     <FilePreview
       file={{

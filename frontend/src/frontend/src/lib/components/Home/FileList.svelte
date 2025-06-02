@@ -10,6 +10,7 @@
   import PlaceholderLogo from "../icons/PlaceholderLogo.svelte";
   import ShareModal from "../ShareModal.svelte";
   import type { PublicFileMetadata } from "../../../../declarations/user_canister/user_canister.did";
+  import DeleteIcon from "../icons/DeleteIcon.svelte";
 
   export let auth: AuthStateAuthenticated;
   let isOpenRequestModal = false;
@@ -55,6 +56,21 @@
   ) {
     shareFileData = file;
     isOpenShareModal = true;
+  }
+
+  async function removeFile(file_id: bigint) {
+    if (!auth.filesService) {
+      filesStore.setError("Files service not initialized");
+      return;
+    }
+    if (!confirm("Are you sure you want to delete this file?")) {
+      return;
+    }
+    try {
+      await auth.filesService.remove_file(file_id);
+    } catch (e) {
+      console.error("Failed to remove file:", e);
+    }
   }
 </script>
 
@@ -123,6 +139,13 @@
                   >
                     <ShareIcon />
                   </button>
+                  <button
+                    on:click|preventDefault|stopPropagation={() =>
+                      removeFile(file.file_id)}
+                    class="btn btn-icon btn-danger"
+                  >
+                    <DeleteIcon />
+                  </button>
                 </td>
               {:else}
                 <td
@@ -151,13 +174,22 @@
               {/if}
             </span>
             <span>
-              <button
-                on:click|preventDefault|stopPropagation={() =>
-                  openShareModal(file.metadata)}
-                class="btn btn-icon"
-              >
-                <ShareIcon />
-              </button>
+              {#if !file.external}
+                <button
+                  on:click|preventDefault|stopPropagation={() =>
+                    openShareModal(file.metadata)}
+                  class="btn btn-icon"
+                >
+                  <ShareIcon />
+                </button>
+                <button
+                  on:click|preventDefault|stopPropagation={() =>
+                    removeFile(file.file_id)}
+                  class="btn btn-icon btn-danger"
+                >
+                  <DeleteIcon />
+                </button>
+              {/if}
             </span>
           </div>
           <div class="flex flex-col gap-2">

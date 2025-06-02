@@ -198,4 +198,23 @@ export class FilesService {
     }
     return uploadedFiles;
   }
+
+  async remove_file(file_id: bigint): Promise<void> {
+    try {
+      const deleteResp = await this.actorUserCanister.delete_file(file_id);
+      if (enumIs(deleteResp, "FileNotFound")) {
+        throw new Error("File not found");
+      } else if (enumIs(deleteResp, "FailedToRevokeShare")) {
+        throw new Error(deleteResp.FailedToRevokeShare);
+      } else if (enumIs(deleteResp, "Ok")) {
+        // Reload the file list to reflect the deletion
+        await this.reload();
+      }
+    } catch (e: unknown) {
+      filesStore.setError(
+        `Failed to remove file: ${e instanceof Error ? e.message : String(e)}`
+      );
+      throw e;
+    }
+  }
 }
