@@ -4,13 +4,11 @@ import type {
 } from "$lib/shared/actor";
 import { formatUploadDate, formatUploadDateShort } from "$lib/shared/dates";
 import { enumIs } from "$lib/shared/enums";
-import { flatten } from "$lib/shared/flatten";
 import { unreachable } from "$lib/shared/unreachable";
 import type { Principal } from "@dfinity/principal";
 import { get, writable } from "svelte/store";
 import type { PublicFileMetadata } from "../../../declarations/orchestrator/orchestrator.did";
 import type { PublicFileMetadata as PublicFileMetadataCAN } from "../../../declarations/user_canister/user_canister.did";
-//FIXME: expect same type from both user_canister and orchestrator
 
 export interface ExternalFileMetadata extends PublicFileMetadata {
   file_id: bigint;
@@ -25,6 +23,7 @@ export type UploadedFile = {
   uploadedAtShort: string;
   file_id: bigint;
   metadata: PublicFileMetadataCAN | ExternalFileMetadata;
+  external?: boolean; // Indicates if the file is external
 };
 
 export type FilesState =
@@ -114,12 +113,8 @@ export class FilesService {
 
   private async loadFiles(): Promise<UploadedFile[]> {
     // Fetch oowned files
-    const files: PublicFileMetadataCAN[] = flatten(
-      await Promise.all([
-        // this.actorOrchestrator.shared_files(),
-        this.actorUserCanister.get_requests(),
-      ])
-    );
+    const files: PublicFileMetadataCAN[] =
+      await this.actorUserCanister.get_requests();
 
     const uploadedFiles: UploadedFile[] = [];
 
@@ -151,6 +146,9 @@ export class FilesService {
         });
       }
     }
+
+    // Fetch shared files
+    // Note: This will add external files with external metadata
     const resp = await this.actorOrchestrator.shared_files();
     let res_unwrapped: Array<[Principal, Array<PublicFileMetadata>]> = [];
     if (enumIs(resp, "AnonymousUser") || enumIs(resp, "NoSuchUser"))
@@ -180,6 +178,7 @@ export class FilesService {
           uploadedAt: "Unknown",
           uploadedAtShort: "Unknown",
           file_id: file.file_id,
+          external: true,
           metadata: {
             file_id: file.file_id,
             file_name: file.file_name,

@@ -107,17 +107,23 @@
               </td>
               <td class="bg-background-100 body-1">{file.access}</td>
               <td class="bg-background-100 body-1">{file.uploadedAt}</td>
-              <td
-                class="pr-4 bg-background-100 rounded-tr-xl rounded-br-xl body-1 w-32 text-right h-[52px]"
-              >
-                <button
-                  on:click|preventDefault|stopPropagation={() =>
-                    openShareModal(file.metadata)}
-                  class="btn btn-icon"
+              {#if !file.external}
+                <td
+                  class="pr-4 bg-background-100 rounded-tr-xl rounded-br-xl body-1 w-32 text-right h-[52px]"
                 >
-                  <ShareIcon />
-                </button>
-              </td>
+                  <button
+                    on:click|preventDefault|stopPropagation={() =>
+                      openShareModal(file.metadata)}
+                    class="btn btn-icon"
+                  >
+                    <ShareIcon />
+                  </button>
+                </td>
+              {:else}
+                <td
+                  class="pr-4 bg-background-100 rounded-tr-xl rounded-br-xl body-1 w-32 text-right h-[52px]"
+                />
+              {/if}
             </tr>
           {/each}
         </tbody>
