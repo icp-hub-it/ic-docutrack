@@ -1,34 +1,87 @@
 <script lang="ts">
   import RequestModal from "../RequestModal.svelte";
   import type { AuthStateAuthenticated } from "$lib/services/auth";
+  import { authStore } from "$lib/services/auth";
   import { onMount } from "svelte";
-  import { filesStore } from "$lib/services/files";
+  import { filesStore, type ExternalFileMetadata } from "$lib/services/files";
   import { unreachable } from "$lib/shared/unreachable";
   import { goto } from "$app/navigation";
   import ShareIcon from "../icons/ShareIcon.svelte";
   import PlaceholderLogo from "../icons/PlaceholderLogo.svelte";
   import ShareModal from "../ShareModal.svelte";
-  import type { file_metadata } from "../../../../../declarations/backend/backend.did";
+  import type { PublicFileMetadata } from "../../../../declarations/user_canister/user_canister.did";
+  import DeleteIcon from "../icons/DeleteIcon.svelte";
 
   export let auth: AuthStateAuthenticated;
   let isOpenRequestModal = false;
   let isOpenShareModal = false;
-  let shareFileData: file_metadata | undefined = undefined;
+  let shareFileData: PublicFileMetadata | ExternalFileMetadata | null;
+  let loadingState: "loading" | "error" | "ready" = "loading";
+
   onMount(() => {
-    auth.filesService.reload();
+    if (auth.canisterRetrievalState === "retrieved" && auth.filesService) {
+      auth.filesService.reload();
+      loadingState = "ready";
+    } else if (auth.canisterRetrievalState === "failed") {
+      loadingState = "error";
+    } else {
+      // pending or uninitialized: wait for authStore to update
+      const unsubscribe = authStore.subscribe((state) => {
+        if (state.state === "authenticated") {
+          if (
+            state.canisterRetrievalState === "retrieved" &&
+            state.filesService
+          ) {
+            state.filesService.reload();
+            loadingState = "ready";
+          } else if (state.canisterRetrievalState === "failed") {
+            loadingState = "error";
+          }
+        }
+      });
+      return () => unsubscribe();
+    }
   });
 
-  function goToDetails(file_id: bigint) {
-    goto(`/details?fileId=${file_id}`);
+  function goToDetails(file_id: bigint, user_canister: string = "") {
+    if (user_canister) {
+      goto(`/details?fileId=${file_id}&fileCanisterId=${user_canister}`);
+    } else {
+      goto(`/details?fileId=${file_id}`);
+    }
   }
 
-  function openShareModal(file: file_metadata) {
+  function openShareModal(
+    file: PublicFileMetadata | ExternalFileMetadata | null
+  ) {
     shareFileData = file;
     isOpenShareModal = true;
   }
+
+  async function removeFile(file_id: bigint) {
+    if (!auth.filesService) {
+      filesStore.setError("Files service not initialized");
+      return;
+    }
+    if (!confirm("Are you sure you want to delete this file?")) {
+      return;
+    }
+    try {
+      await auth.filesService.remove_file(file_id);
+    } catch (e) {
+      console.error("Failed to remove file:", e);
+    }
+  }
 </script>
 
-{#if $filesStore.state === "idle" || $filesStore.state === "loading"}
+{#if loadingState === "loading"}
+  <h1 class="title-1">Initializing...</h1>
+{:else if loadingState === "error"}
+  <div class="">
+    <h1 class="title-1">My Files</h1>
+    <p>Error: Unable to load files due to initialization failure.</p>
+  </div>
+{:else if $filesStore.state === "idle" || $filesStore.state === "loading"}
   <h1 class="title-1">Loading...</h1>
 {:else if $filesStore.state === "error"}
   <div class="">
@@ -59,32 +112,46 @@
         </thead>
         <tbody class="">
           {#each $filesStore.files as file}
+            <!-- {console.log("File data:", file)} -->
             <tr
               class="hover:drop-shadow-xl cursor-pointer text-text-100"
-              on:click={() => goToDetails(file.file_id)}
+              on:click={() => goToDetails(file.file_id, file.user_canister_id)}
             >
               <td
                 class="pl-4 bg-background-100 rounded-tl-xl rounded-bl-xl body-1"
               >
-                {#if file.name}
-                  {file.name}
+                {#if file.path}
+                  {file.path}
                 {:else}
                   <span class="opacity-50">Unnamed file</span>
                 {/if}
               </td>
               <td class="bg-background-100 body-1">{file.access}</td>
               <td class="bg-background-100 body-1">{file.uploadedAt}</td>
-              <td
-                class="pr-4 bg-background-100 rounded-tr-xl rounded-br-xl body-1 w-32 text-right h-[52px]"
-              >
-                <button
-                  on:click|preventDefault|stopPropagation={() =>
-                    openShareModal(file.metadata)}
-                  class="btn btn-icon"
+              {#if !file.external}
+                <td
+                  class="pr-4 bg-background-100 rounded-tr-xl rounded-br-xl body-1 w-32 text-right h-[52px]"
                 >
-                  <ShareIcon />
-                </button>
-              </td>
+                  <button
+                    on:click|preventDefault|stopPropagation={() =>
+                      openShareModal(file.metadata)}
+                    class="btn btn-icon"
+                  >
+                    <ShareIcon />
+                  </button>
+                  <button
+                    on:click|preventDefault|stopPropagation={() =>
+                      removeFile(file.file_id)}
+                    class="btn btn-icon btn-danger"
+                  >
+                    <DeleteIcon />
+                  </button>
+                </td>
+              {:else}
+                <td
+                  class="pr-4 bg-background-100 rounded-tr-xl rounded-br-xl body-1 w-32 text-right h-[52px]"
+                />
+              {/if}
             </tr>
           {/each}
         </tbody>
@@ -94,24 +161,35 @@
       {#each $filesStore.files as file}
         <a
           class="bg-white rounded-xl py-3 px-4 flex flex-col"
-          href="/details?fileId={file.file_id}"
+          href="/details?fileId={file.file_id}${file.external
+            ? `&fileCanisterId=${file.user_canister_id}`
+            : ''}"
         >
           <div class="flex justify-between items-center mb-3">
             <span class="text-text-100 title-2">
-              {#if file.name}
-                {file.name}
+              {#if file.path}
+                {file.path}
               {:else}
                 <span class="opacity-50">Unnamed file</span>
               {/if}
             </span>
             <span>
-              <button
-                on:click|preventDefault|stopPropagation={() =>
-                  openShareModal(file.metadata)}
-                class="btn btn-icon"
-              >
-                <ShareIcon />
-              </button>
+              {#if !file.external}
+                <button
+                  on:click|preventDefault|stopPropagation={() =>
+                    openShareModal(file.metadata)}
+                  class="btn btn-icon"
+                >
+                  <ShareIcon />
+                </button>
+                <button
+                  on:click|preventDefault|stopPropagation={() =>
+                    removeFile(file.file_id)}
+                  class="btn btn-icon btn-danger"
+                >
+                  <DeleteIcon />
+                </button>
+              {/if}
             </span>
           </div>
           <div class="flex flex-col gap-2">
@@ -159,6 +237,6 @@
     {auth}
     bind:isOpen={isOpenShareModal}
     bind:fileData={shareFileData}
-    on:shared={() => auth.filesService.reload()}
+    on:shared={() => auth.filesService?.reload()}
   />
 {/if}

@@ -1,7 +1,7 @@
 import { default as crypto } from "./crypto";
 
 /**
- * A file that is backed by the docutrack backend service.
+ * A file that is backed by the docutrack user canister service.
  */
 class File {
   /**
@@ -64,7 +64,7 @@ class File {
   }
 
   /**
-   * @returns {Promise<CryptoKey>} the file's key. A key is generated if it doesn't exist.
+   * @returns {Promise<ArrayBuffer>} the file's key. A key is generated if it doesn't exist.
    */
   async _getFileKey() {
     if (this.documentKey == null) {

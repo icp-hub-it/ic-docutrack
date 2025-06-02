@@ -11,3 +11,19 @@ export function arrayBufferToBase64(buffer) {
   }
   return btoa(binary);
 }
+
+
+/**
+ * converts SharedArrayBuffer to ArrayBuffer  
+ * @param {ArrayBufferLike} bufferLike
+ * @returns {ArrayBuffer}
+ */
+export function toArrayBuffer(bufferLike) {
+  return bufferLike instanceof ArrayBuffer
+    ? bufferLike
+    : bufferLike instanceof SharedArrayBuffer
+      ? new Uint8Array(bufferLike).slice().buffer
+      : (() => {
+        throw new Error("Unsupported buffer type");
+      })();
+}

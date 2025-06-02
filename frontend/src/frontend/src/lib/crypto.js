@@ -2,13 +2,13 @@ const { subtle } = globalThis.crypto;
 import { default as keyStorage } from "./keyStorage";
 
 /**
- * @type {CryptoKey || null}
+ * @type {(CryptoKey|null)}
  * Public key associated with logged in device. Used to decrypt the symmetric secretKey,
  *  which is stored by the dapp encrypted with the the publicKey
  */
 let publicKey = null;
 /**
- * @type {CryptoKey || null}
+ * @type {(CryptoKey|null)}
  * private key associated with logged in device. Used to decrypt the symmetric secretKey,
  *  which is stored by the dapp encrypted with the the publicKey
  */
@@ -68,6 +68,7 @@ async function encryptForUser(plaintext, publicKey) {
     plaintext
   );
 }
+
 
 /**
  * @param {ArrayBuffer} ciphertext
@@ -152,7 +153,7 @@ async function decryptFile(encryptedFile, rawKey) {
     true,
     ["decrypt"]
   );
-  if (encryptedFile.length < 13) {
+  if (encryptedFile.byteLength < 13) {
     throw new Error("wrong encoding, too short to contain iv");
   }
   const iv_decoded = new Uint8Array(encryptedFile.slice(0, 12));

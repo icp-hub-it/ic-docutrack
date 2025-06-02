@@ -1,10 +1,11 @@
+import { toArrayBuffer } from "$lib/buffer";
 import crypto from "$lib/crypto";
 import FileTools from "$lib/file";
-import type { ActorType } from "$lib/shared/actor";
+import type { ActorTypeUserCanister } from "$lib/shared/actor";
 import { enumIs } from "$lib/shared/enums";
 import pLimit from "p-limit";
 import { writable } from "svelte/store";
-import type { get_alias_info_response } from "../../../../declarations/backend/backend.did";
+import type { Result as GetAliasInfoResponse } from "../../../declarations/user_canister/user_canister.did";
 
 export const CHUNK_SIZE = 2_000_000;
 
@@ -13,17 +14,17 @@ export const uploadInProgress = writable(false);
 export type UploadType =
   | {
       type: "request";
-      fileInfo: Extract<get_alias_info_response, { Ok: any }>["Ok"];
+      fileInfo: Extract<GetAliasInfoResponse, { Ok: any }>["Ok"];
     }
   | {
       type: "self";
-      fileName: string;
+      filePath: string;
     };
 
 export class UploadService {
   aborted = false;
 
-  constructor(private actor: ActorType) {}
+  constructor(private actor: ActorTypeUserCanister) {}
 
   async uploadFile({
     uploadType,
@@ -46,16 +47,17 @@ export class UploadService {
   }) {
     const userPublicKey =
       uploadType.type === "request"
-        ? (uploadType.fileInfo.user.public_key as Uint8Array).buffer
-        : new Uint8Array(await crypto.getLocalUserPublicKey());
+        ? toArrayBuffer((uploadType.fileInfo.public_key as Uint8Array).buffer)
+        : await crypto.getLocalUserPublicKey();
 
-    const fileName =
+    console.log("User public key:", userPublicKey);
+    const filePath =
       uploadType.type === "request"
-        ? uploadType.fileInfo.file_name
-        : uploadType.fileName;
+        ? uploadType.fileInfo.file_path + uploadType.fileInfo.file_name
+        : uploadType.filePath;
 
     const fileBytes = await file.arrayBuffer();
-    let fileToEncrypt = FileTools.fromUnencrypted(fileName, fileBytes);
+    let fileToEncrypt = FileTools.fromUnencrypted(filePath, fileBytes);
     const encryptedFileKey = await fileToEncrypt.getEncryptedFileKey(
       userPublicKey
     );
@@ -95,13 +97,20 @@ export class UploadService {
           return;
         }
       } else {
-        fileId = await this.actor.upload_file_atomic({
+        const response = await this.actor.upload_file_atomic({
           content: firstChunk,
           owner_key: new Uint8Array(encryptedFileKey),
-          name: fileName,
+          path: filePath,
           file_type: dataType,
           num_chunks: BigInt(numChunks),
         });
+        console.log("calling canister upload_file_atomic");
+        if (enumIs(response, "FileAlreadyExists")) {
+          onError("File already exists. Please choose a different file name.");
+          return;
+        } else if (enumIs(response, "Ok")) {
+          fileId = response.Ok;
+        }
       }
 
       onChunkUploaded(0, firstChunk.length);

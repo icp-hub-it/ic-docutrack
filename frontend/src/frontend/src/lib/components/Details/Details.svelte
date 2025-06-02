@@ -1,32 +1,38 @@
 <script lang="ts">
   import { page } from "$app/stores";
+  import { goto } from "$app/navigation";
   import FilePreview from "$lib/components/FilePreview.svelte";
   import ShareModal from "$lib/components/ShareModal.svelte";
   import BackIcon from "$lib/components/icons/BackIcon.svelte";
   import DownloadIcon from "$lib/components/icons/DownloadIcon.svelte";
   import ShareIcon from "$lib/components/icons/ShareIcon.svelte";
+  import DeleteIcon from "$lib/components/icons/DeleteIcon.svelte";
   import type { AuthStateAuthenticated } from "$lib/services/auth";
   import { DecryptService } from "$lib/services/decrypt";
   import { ObjectUrlManager } from "$lib/services/objectUrls";
+  import { authStore } from "$lib/services/auth";
   import { unreachable } from "$lib/shared/unreachable";
   import { onDestroy, onMount } from "svelte";
-  import type { file_metadata } from "../../../../../declarations/backend/backend.did";
+  import type { PublicFileMetadata } from "../../../../declarations/user_canister/user_canister.did";
   import ErrorMessage from "../ErrorMessage.svelte";
   import DecryptProgress from "./DecryptProgress.svelte";
 
   export let auth: AuthStateAuthenticated;
 
-  const decryptService: DecryptService = new DecryptService(auth.actor);
+  let decryptService: DecryptService | null = null;
   const objectUrls = new ObjectUrlManager();
 
   function getFileId() {
     return parseInt($page.url.searchParams.get("fileId") || "");
   }
-
+  function getFileCanisterId() {
+    return $page.url.searchParams.get("fileCanisterId") || "";
+  }
   type State =
     | {
         type: "uninitialized";
       }
+    | { type: "initializing" }
     | {
         type: "loading";
       }
@@ -37,7 +43,7 @@
         uploadDate: string;
         downloadUrl: string;
         isOpenShareModal: boolean;
-        originalMetadata: file_metadata;
+        originalMetadata: PublicFileMetadata;
       }
     | {
         type: "error";
@@ -49,7 +55,45 @@
   };
 
   onMount(async () => {
-    initialize();
+    if (
+      auth.canisterRetrievalState === "retrieved" &&
+      auth.actor_user &&
+      auth.actor_orchestrator
+    ) {
+      decryptService = new DecryptService(
+        auth.actor_user,
+        auth.actor_orchestrator
+      );
+      initialize();
+    } else if (auth.canisterRetrievalState === "failed") {
+      state = {
+        type: "error",
+        error: "Unable to initialize due to a system error.",
+      };
+    } else {
+      state = { type: "initializing" };
+      const unsubscribe = authStore.subscribe((authState) => {
+        if (authState.state === "authenticated") {
+          if (
+            authState.canisterRetrievalState === "retrieved" &&
+            authState.actor_user &&
+            authState.actor_orchestrator
+          ) {
+            decryptService = new DecryptService(
+              authState.actor_user,
+              authState.actor_orchestrator
+            );
+            initialize();
+          } else if (authState.canisterRetrievalState === "failed") {
+            state = {
+              type: "error",
+              error: "Unable to initialize due to a system error.",
+            };
+          }
+        }
+      });
+      return () => unsubscribe();
+    }
   });
 
   onDestroy(() => {
@@ -66,14 +110,51 @@
     }
   }
 
+  async function removeFile() {
+    if (!auth.filesService || state.type !== "loaded") {
+      state = {
+        type: "error",
+        error: "Files service not initialized or file not loaded",
+      };
+      return;
+    }
+    if (
+      !confirm(
+        `Are you sure you want to delete "${state.name || "Unnamed file"}"?`
+      )
+    ) {
+      return;
+    }
+    try {
+      await auth.filesService.remove_file(BigInt(getFileId()));
+      goto("/");
+    } catch (e) {
+      state = {
+        type: "error",
+        error: `Failed to remove file: ${
+          e instanceof Error ? e.message : String(e)
+        }`,
+      };
+    }
+  }
+
   async function initialize() {
+    if (!decryptService) {
+      state = {
+        type: "error",
+        error: "System not ready. Please try again later.",
+      };
+      return;
+    }
     decryptService.reset();
+    state = { type: "loading" };
 
     const fileId = BigInt(getFileId());
-
+    const fileCanisterId = getFileCanisterId();
     try {
       const file = await decryptService.decryptFile({
         fileId,
+        fileCanisterId,
       });
 
       if (file === "aborted") {
@@ -90,7 +171,7 @@
         type: "loaded",
         downloadUrl: objectUrls.createObjectURLFromArrayBuffer(
           file.contents,
-          file.dataType,
+          file.dataType
         ),
         dataType: file.dataType,
         name: file.name,
@@ -114,10 +195,18 @@
   <a href="/" class="btn btn-ghost">
     <BackIcon /> Back to files
   </a>
-  {#if state.type === "loading" || state.type === "uninitialized"}
+  {#if state.type === "uninitialized" || state.type === "initializing"}
+    <div class="title-1 mb-2 mt-3 text-text-200">Initializing...</div>
+  {:else if state.type === "loading"}
     <div class="title-1 mb-2 mt-3 text-text-200">Loading...</div>
 
-    <DecryptProgress progress={$decryptService} />
+    <DecryptProgress
+      progress={$decryptService || {
+        step: "initializing",
+        totalChunks: 0,
+        currentChunk: 0,
+      }}
+    />
   {:else if state.type === "error"}
     <ErrorMessage class="mt-6">{state.error}</ErrorMessage>
   {:else if state.type === "loaded"}
@@ -139,9 +228,14 @@
         Download</a
       >
 
-      <button class="btn btn-accent md:w-64" on:click={openShareDialog}>
-        <ShareIcon /> Share
-      </button>
+      {#if !getFileCanisterId()}
+        <button class="btn btn-accent md:w-64" on:click={openShareDialog}>
+          <ShareIcon /> Share
+        </button>
+        <button class="btn btn-accent md:w-64" on:click={removeFile}>
+          <DeleteIcon /> Delete
+        </button>
+      {/if}
     </div>
     <FilePreview
       file={{

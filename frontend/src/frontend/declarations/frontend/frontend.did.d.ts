@@ -1,6 +1,9 @@
 import type { Principal } from '@dfinity/principal';
 import type { ActorMethod } from '@dfinity/agent';
+import type { IDL } from '@dfinity/candid';
 
+export type AssetCanisterArgs = { 'Upgrade' : UpgradeArgs } |
+  { 'Init' : InitArgs };
 export type BatchId = bigint;
 export type BatchOperationKind = {
     'SetAssetProperties' : SetAssetPropertiesArguments
@@ -62,6 +65,7 @@ export interface HttpResponse {
   'streaming_strategy' : [] | [StreamingStrategy],
   'status_code' : number,
 }
+export interface InitArgs { 'set_permissions' : [] | [SetPermissions] }
 export type Key = string;
 export interface ListPermitted { 'permission' : Permission }
 export type Permission = { 'Prepare' : null } |
@@ -84,6 +88,11 @@ export interface SetAssetPropertiesArguments {
   'allow_raw_access' : [] | [[] | [boolean]],
   'max_age' : [] | [[] | [bigint]],
 }
+export interface SetPermissions {
+  'prepare' : Array<Principal>,
+  'commit' : Array<Principal>,
+  'manage_permissions' : Array<Principal>,
+}
 export interface StreamingCallbackHttpResponse {
   'token' : [] | [StreamingCallbackToken],
   'body' : Uint8Array | number[],
@@ -105,6 +114,7 @@ export interface UnsetAssetContentArguments {
   'key' : Key,
   'content_encoding' : string,
 }
+export interface UpgradeArgs { 'set_permissions' : [] | [SetPermissions] }
 export type ValidationResult = { 'Ok' : string } |
   { 'Err' : string };
 export interface _SERVICE {
@@ -130,6 +140,10 @@ export interface _SERVICE {
   'create_chunk' : ActorMethod<
     [{ 'content' : Uint8Array | number[], 'batch_id' : BatchId }],
     { 'chunk_id' : ChunkId }
+  >,
+  'create_chunks' : ActorMethod<
+    [{ 'content' : Array<Uint8Array | number[]>, 'batch_id' : BatchId }],
+    { 'chunk_ids' : Array<ChunkId> }
   >,
   'deauthorize' : ActorMethod<[Principal], undefined>,
   'delete_asset' : ActorMethod<[DeleteAssetArguments], undefined>,
@@ -226,3 +240,5 @@ export interface _SERVICE {
   >,
   'validate_take_ownership' : ActorMethod<[], ValidationResult>,
 }
+export declare const idlFactory: IDL.InterfaceFactory;
+export declare const init: (args: { IDL: typeof IDL }) => IDL.Type[];

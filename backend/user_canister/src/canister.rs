@@ -77,9 +77,6 @@ impl Canister {
     }
 
     /// Get active requests for the caller
-    ///
-    // FIXME: maybe rename this function or see in what context is used
-    // FIXME: maybe more suitable name is get_owned_files ??
     pub fn get_requests(caller: Principal) -> Vec<PublicFileMetadata> {
         if caller != Config::get_owner() {
             trap("Only the owner can get requests for a file");

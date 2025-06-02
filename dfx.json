@@ -6,28 +6,24 @@
       "package": "user_canister",
       "candid": "./.artifact/user_canister.did",
       "declarations": {
-        "output": "./frontend/declarations/user_canister",
+        "output": "frontend/src/frontend/declarations/user_canister",
         "node_compatibility": true
       }
     },
     "frontend": {
       "build": "pnpm --filter frontend run build",
-      "source": [
-        "frontend/build/"
-      ],
+      "source": ["frontend/build/"],
       "type": "assets",
       "declarations": {
-        "output": "./frontend/declarations/frontend"
+        "output": "./frontend/src/frontend/declarations/frontend"
       }
     },
     "marketing": {
       "build": "pnpm --filter landing-page run build",
-      "source": [
-        "landing-page/dist/"
-      ],
+      "source": ["landing-page/dist/"],
       "type": "assets",
       "declarations": {
-        "output": "./frontend/declarations/marketing"
+        "output": "./frontend/src/frontend/declarations/marketing"
       }
     },
     "orchestrator": {
@@ -35,7 +31,7 @@
       "package": "orchestrator",
       "candid": "./.artifact/orchestrator.did",
       "declarations": {
-        "output": "./frontend/declarations/orchestrator"
+        "output": "./frontend/src/frontend/declarations/orchestrator"
       }
     },
     "orbit-station": {},
