@@ -106,24 +106,6 @@ export class UserService {
     try {
       userStore.setUnregistered({ state: "registering" });
 
-      // review this.  to ensure public key is persisted in the canister  elsewhere
-      if (this.actorUser) {
-        try {
-          await this.actorUser.set_public_key(
-            new Uint8Array(await crypto.getLocalUserPublicKey())
-          );
-        } catch (error) {
-          userStore.setUnregistered({
-            state: "error",
-            errorMessage:
-              error instanceof Error
-                ? error.message
-                : "Something wrong while setting public key",
-          });
-          return;
-        }
-      }
-
       const response = await this.actorOrchestrator.set_user(
         username,
         new Uint8Array(await crypto.getLocalUserPublicKey())
@@ -139,13 +121,27 @@ export class UserService {
       //////
       // Retrieve user canister ID after registration
       let retries = 0;
-      const maxRetries = 5;
+      const maxRetries = 20; // Maximum number of retries
       const retryDelayMs = 2000;
       while (retries < maxRetries) {
         const orchestratorResponse =
           await this.actorOrchestrator.user_canister();
+        console.log("Orchestrator response:", orchestratorResponse);
         if ("Ok" in orchestratorResponse) {
-          userStore.register(username, orchestratorResponse.Ok.toText());
+          const userCanisterId = orchestratorResponse.Ok.toText();
+          userStore.register(username, userCanisterId);
+          // // Update authStore with new canister and services
+          // const authClient = get(authStore).authClient;
+          // const authService = new AuthService(
+          //   import.meta.env.VITE_ORCHESTRATOR_CANISTER_ID,
+          //   import.meta.env.VITE_HOST,
+          //   import.meta.env.VITE_II_URL
+          // );
+          // const authState = await authService.tryRetrieveUserCanister(
+          //   this.actorOrchestrator,
+          //   authClient
+          // );
+          // authStore.set(authState);
           return;
         } else if ("CreationPending" in orchestratorResponse) {
           retries++;
@@ -158,7 +154,19 @@ export class UserService {
           const retryResponse =
             await this.actorOrchestrator.retry_user_canister_creation();
           if ("Created" in retryResponse) {
-            userStore.register(username, retryResponse.Created.toText());
+            const userCanisterId = retryResponse.Created.toText();
+            userStore.register(username, userCanisterId);
+            // const authClient = get(authStore).authClient;
+            // const authService = new AuthService(
+            //   import.meta.env.VITE_ORCHESTRATOR_CANISTER_ID,
+            //   import.meta.env.VITE_HOST,
+            //   import.meta.env.VITE_II_URL
+            // );
+            // const authState = await authService.tryRetrieveUserCanister(
+            //   this.actorOrchestrator,
+            //   authClient
+            // );
+            // authStore.set(authState);
             return;
           } else if (
             "Ok" in retryResponse ||

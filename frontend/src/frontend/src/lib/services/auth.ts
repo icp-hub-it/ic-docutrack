@@ -1,3 +1,4 @@
+import { default as crypto } from "$lib/crypto";
 import { unreachable } from "$lib/shared/unreachable";
 import { AuthClient } from "@dfinity/auth-client";
 import { derived, get, writable } from "svelte/store";
@@ -150,6 +151,7 @@ export class AuthService {
     maxRetries: number = 5,
     retryDelayMs: number = 2000
   ): Promise<AuthStateAuthenticated> {
+    console.log("Trying to retrieve user canister...");
     let retries = 0;
     while (retries < maxRetries) {
       try {
@@ -163,6 +165,21 @@ export class AuthService {
               identity: authClient.getIdentity(),
             },
           });
+
+          try {
+            const currentPublicKey = await actor_user.public_key();
+            const localPublicKey = new Uint8Array(
+              await crypto.getLocalUserPublicKey()
+            );
+            if (!currentPublicKey || currentPublicKey.length === 0) {
+              console.log("Setting public key for user canister");
+              await actor_user.set_public_key(localPublicKey);
+            } else {
+              console.log("Public key already set for user canister");
+            }
+          } catch (error) {
+            console.error("Failed to get or set public key:", error);
+          }
           const { userService, filesService, requestsService, uploadService } =
             createServices(actor_user, actor_orchestrator);
           return {
@@ -181,10 +198,20 @@ export class AuthService {
           retries++;
           await delay(retryDelayMs);
           continue;
-        } else if (
-          "CreationFailed" in response ||
-          "Uninitialized" in response
-        ) {
+        } else if ("Uninitialized" in response) {
+          // For "Uninitialized", create UserService without actor_user
+          const userService = new UserService(actor_orchestrator);
+          userService.init(); // Initialize UserService to check user status
+          return {
+            state: "authenticated",
+            actor_orchestrator,
+            authClient,
+            userService,
+            canisterRetrievalState: "uninitialized",
+          };
+        } else if ("CreationFailed" in response) {
+          console.warn("User canister creation failed, retrying...");
+
           const retryResponse =
             await actor_orchestrator.retry_user_canister_creation();
           if ("Created" in retryResponse) {
@@ -195,6 +222,20 @@ export class AuthService {
                 identity: authClient.getIdentity(),
               },
             });
+            try {
+              const currentPublicKey = await actor_user.public_key();
+              const localPublicKey = new Uint8Array(
+                await crypto.getLocalUserPublicKey()
+              );
+              if (!currentPublicKey || currentPublicKey.length === 0) {
+                console.log("Setting public key for user canister (retry)");
+                await actor_user.set_public_key(localPublicKey);
+              } else {
+                console.log("Public key already set for user canister (retry)");
+              }
+            } catch (error) {
+              console.error("Failed to get or set public key:", error);
+            }
             const {
               userService,
               filesService,
@@ -228,11 +269,12 @@ export class AuthService {
               authClient,
             } as any; // Type cast to satisfy return type
           } else if ("UserNotFound" in retryResponse) {
+            // createServices(null, actor_orchestrator); // Ensure services are created
             return {
               state: "authenticated",
               actor_orchestrator,
               authClient,
-              canisterRetrievalState: "failed",
+              canisterRetrievalState: "uninitialized",
             };
           } else {
             unreachable(retryResponse);
@@ -280,6 +322,7 @@ export class AuthService {
         actor_orchestrator,
         authClient
       );
+      console.log(authState);
       authStore.set(authState);
     } else {
       authStore.setLoggedout(actor_orchestrator, authClient);

@@ -3,7 +3,8 @@
   import { authStore } from "$lib/services/auth";
   import { userStore } from "$lib/services/user";
   import { unreachable } from "$lib/shared/unreachable";
-  import { onMount } from "svelte";
+  import { onMount, onDestroy } from "svelte";
+  import { writable } from "svelte/store";
   import ErrorMessage from "./ErrorMessage.svelte";
   import Modal from "./Modal.svelte";
 
@@ -11,9 +12,50 @@
   export let authenticatedStore: AuthStateAuthenticated;
   let usernameValue: string = "";
   let loadingState: "loading" | "error" | "ready" = "loading";
+
+  const messages = [
+    "Verifing username...",
+    "Scheduling canister creation...",
+    "Creating canister...",
+    "Waiting for canister to be created...",
+    "Installing software...",
+    "Registering canister in index...",
+    "Please wait...",
+  ];
+  let messageIndex = 0;
+  const currentMessage = writable(messages[messageIndex]);
+  let intervalId: NodeJS.Timeout | null = null;
+
+  function startMessageRotation() {
+    if (intervalId) return;
+    intervalId = setInterval(() => {
+      messageIndex = (messageIndex + 1) % messages.length;
+      currentMessage.set(messages[messageIndex]);
+      // Stop rotation at "Please wait..." (last message)
+      if (messageIndex === messages.length - 1 && intervalId) {
+        clearInterval(intervalId);
+        intervalId = null;
+      }
+    }, 3000);
+  }
+
+  function stopMessageRotation() {
+    if (intervalId) {
+      clearInterval(intervalId);
+      intervalId = null;
+    }
+    messageIndex = 0;
+    currentMessage.set(messages[0]);
+  }
+
   onMount(() => {
     if (
       authenticatedStore.canisterRetrievalState === "retrieved" &&
+      authenticatedStore.userService
+    ) {
+      loadingState = "ready";
+    } else if (
+      authenticatedStore.canisterRetrievalState === "uninitialized" &&
       authenticatedStore.userService
     ) {
       loadingState = "ready";
@@ -35,6 +77,26 @@
       });
       return () => unsubscribe();
     }
+
+    const unsubscribeUserStore = userStore.subscribe((store) => {
+      if (
+        store.state === "unregistered" &&
+        store.registrationState.state === "registering"
+      ) {
+        startMessageRotation();
+      } else {
+        stopMessageRotation();
+      }
+    });
+
+    return () => {
+      unsubscribeUserStore();
+      stopMessageRotation();
+    };
+  });
+
+  onDestroy(() => {
+    stopMessageRotation();
   });
 
   function register() {
@@ -61,19 +123,32 @@
         </p>
         <div class="mb-4">
           <label for="username" class="input-label">Username</label>
-          <input
-            type="text"
-            required
-            class="input"
-            bind:value={usernameValue}
-            placeholder="Username"
-          />
+          {#if $userStore.state === "unregistered"}
+            {#if $userStore.registrationState.state === "registering"}
+              <input
+                disabled
+                type="text"
+                required
+                class="input"
+                bind:value={usernameValue}
+                placeholder="Username"
+              />
+            {:else}
+              <input
+                type="text"
+                required
+                class="input"
+                bind:value={usernameValue}
+                placeholder="Username"
+              />
+            {/if}
+          {/if}
         </div>
         <div class="mt-10">
           {#if $userStore.state === "unregistered"}
             {#if $userStore.registrationState.state === "registering"}
               <button type="button" class="btn btn-full btn-accent" disabled
-                >Loading...</button
+                >{$currentMessage}</button
               >
             {:else if $userStore.registrationState.state === "error"}
               <ErrorMessage class="mb-4">

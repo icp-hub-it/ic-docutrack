@@ -15,7 +15,7 @@
       "source": ["frontend/build/"],
       "type": "assets",
       "declarations": {
-        "output": "frontend/src/frontend/declarations/frontend"
+        "output": "./frontend/src/frontend/declarations/frontend"
       }
     },
     "marketing": {
@@ -23,7 +23,7 @@
       "source": ["landing-page/dist/"],
       "type": "assets",
       "declarations": {
-        "output": "frontend/src/frontend/declarations/marketing"
+        "output": "./frontend/src/frontend/declarations/marketing"
       }
     },
     "orchestrator": {
@@ -31,7 +31,7 @@
       "package": "orchestrator",
       "candid": "./.artifact/orchestrator.did",
       "declarations": {
-        "output": "frontend/src/frontend/declarations/orchestrator"
+        "output": "./frontend/src/frontend/declarations/orchestrator"
       }
     },
     "orbit-station": {},
