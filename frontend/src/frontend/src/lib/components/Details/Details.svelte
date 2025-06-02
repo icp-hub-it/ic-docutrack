@@ -228,10 +228,10 @@
         Download</a
       >
 
-      <button class="btn btn-accent md:w-64" on:click={openShareDialog}>
-        <ShareIcon /> Share
-      </button>
       {#if !getFileCanisterId()}
+        <button class="btn btn-accent md:w-64" on:click={openShareDialog}>
+          <ShareIcon /> Share
+        </button>
         <button class="btn btn-accent md:w-64" on:click={removeFile}>
           <DeleteIcon /> Delete
         </button>
