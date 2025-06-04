@@ -11,7 +11,7 @@ Other document sharing apps require users to exchange public keys or other crypt
 
 You can try out DocuTrack on [https://wavpu-oiaaa-aaaam-aabuq-cai.icp0.io/](https://wavpu-oiaaa-aaaam-aabuq-cai.icp0.io/).
 
-The dapp is explained in more detail [in the documentation](./documentation.pdf).
+The dapp is explained in more detail [in the documentation](./docs/README.md).
 
 ## Disclaimer: please read carefully
 

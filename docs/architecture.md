@@ -2,7 +2,38 @@
 
 ## Architecture
 
-![Docutrack Architecture diagram](./diagrams/arch.drawio.png)
+```mermaid
+block-beta
+    columns 4
+
+    space
+    User (["User"])
+    space:8
+    UserCanister
+    
+    space:1
+    Frontend
+    space:7
+    
+
+    OrbitStation
+    space:12
+    OrganizationCanister
+    
+    space:2
+    space:3
+    Orchestrator
+
+    OrganizationCanister -- "1 : n" --> User
+    User -- "1 : 1" --> UserCanister
+    OrbitStation -- "Deploys" --> UserCanister
+    OrbitStation -- "Deploys" --> OrganizationCanister
+    Orchestrator -- "Request deploys to" --> OrbitStation
+    User -- "Interacts with" --> Frontend
+    UserCanister -- "Index shared files" --> Orchestrator
+    Frontend -- "Sends requests" --> Orchestrator
+    Frontend -- "Sends requests" --> UserCanister
+```
 
 The Docutrack architecture consists of the following components:
 
