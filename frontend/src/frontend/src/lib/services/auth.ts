@@ -87,6 +87,20 @@ function createAuthStore() {
         authClient,
       });
     },
+    getAuthClient: () => {
+      const store = get(authStore);
+      if (store.state === "uninitialized") {
+        throw new Error(
+          "AuthClient is not available. User must be authenticated."
+        );
+      } else if (
+        store.state === "unauthenticated" ||
+        store.state === "authenticated"
+      ) {
+        return store.authClient;
+      }
+      unreachable(store);
+    },
   };
 }
 

@@ -16,8 +16,11 @@
   const messages = [
     "Verifing username...",
     "Scheduling canister creation...",
+    "Checking request status...",
     "Creating canister...",
     "Waiting for canister to be created...",
+    "Canister created successfully!",
+    "Setting up canister...",
     "Installing software...",
     "Registering canister in index...",
     "Please wait...",
