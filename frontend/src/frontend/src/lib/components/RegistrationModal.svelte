@@ -1,8 +1,11 @@
 <script lang="ts">
   import type { AuthStateAuthenticated } from "$lib/services/auth";
   import { authStore } from "$lib/services/auth";
+  import { authStore } from "$lib/services/auth";
   import { userStore } from "$lib/services/user";
   import { unreachable } from "$lib/shared/unreachable";
+  import { onMount, onDestroy } from "svelte";
+  import { writable } from "svelte/store";
   import { onMount, onDestroy } from "svelte";
   import { writable } from "svelte/store";
   import ErrorMessage from "./ErrorMessage.svelte";
@@ -103,6 +106,7 @@
   });
 
   function register() {
+    if ($userStore.state === "unregistered" && authenticatedStore.userService) {
     if ($userStore.state === "unregistered" && authenticatedStore.userService) {
       authenticatedStore.userService.register(usernameValue);
     }

@@ -6,7 +6,6 @@ import type {
 import { enumIs } from "$lib/shared/enums";
 import { unreachable } from "$lib/shared/unreachable";
 import { writable } from "svelte/store";
-import { AuthService, authStore } from "./auth";
 
 type UserState =
   | {
