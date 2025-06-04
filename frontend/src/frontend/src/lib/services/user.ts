@@ -6,6 +6,7 @@ import type {
 import { enumIs } from "$lib/shared/enums";
 import { unreachable } from "$lib/shared/unreachable";
 import { writable } from "svelte/store";
+import { AuthService, authStore } from "./auth";
 
 type UserState =
   | {
@@ -121,7 +122,7 @@ export class UserService {
       //////
       // Retrieve user canister ID after registration
       let retries = 0;
-      const maxRetries = 20; // Maximum number of retries
+      const maxRetries = 30; // Maximum number of retries
       const retryDelayMs = 2000;
       while (retries < maxRetries) {
         const orchestratorResponse =
@@ -131,17 +132,16 @@ export class UserService {
           const userCanisterId = orchestratorResponse.Ok.toText();
           userStore.register(username, userCanisterId);
           // // Update authStore with new canister and services
-          // const authClient = get(authStore).authClient;
-          // const authService = new AuthService(
-          //   import.meta.env.VITE_ORCHESTRATOR_CANISTER_ID,
-          //   import.meta.env.VITE_HOST,
-          //   import.meta.env.VITE_II_URL
-          // );
-          // const authState = await authService.tryRetrieveUserCanister(
-          //   this.actorOrchestrator,
-          //   authClient
-          // );
-          // authStore.set(authState);
+          const authService = new AuthService(
+            import.meta.env.VITE_ORCHESTRATOR_CANISTER_ID,
+            import.meta.env.VITE_HOST,
+            import.meta.env.VITE_II_URL
+          );
+          const authState = await authService.tryRetrieveUserCanister(
+            this.actorOrchestrator,
+            authStore.getAuthClient()
+          );
+          authStore.set(authState);
           return;
         } else if ("CreationPending" in orchestratorResponse) {
           retries++;
@@ -156,17 +156,18 @@ export class UserService {
           if ("Created" in retryResponse) {
             const userCanisterId = retryResponse.Created.toText();
             userStore.register(username, userCanisterId);
-            // const authClient = get(authStore).authClient;
-            // const authService = new AuthService(
-            //   import.meta.env.VITE_ORCHESTRATOR_CANISTER_ID,
-            //   import.meta.env.VITE_HOST,
-            //   import.meta.env.VITE_II_URL
-            // );
-            // const authState = await authService.tryRetrieveUserCanister(
-            //   this.actorOrchestrator,
-            //   authClient
-            // );
-            // authStore.set(authState);
+
+            const authService = new AuthService(
+              import.meta.env.VITE_ORCHESTRATOR_CANISTER_ID,
+              import.meta.env.VITE_HOST,
+              import.meta.env.VITE_II_URL
+            );
+            const authState = await authService.tryRetrieveUserCanister(
+              this.actorOrchestrator,
+              authStore.getAuthClient()
+            );
+            authStore.set(authState);
+
             return;
           } else if (
             "Ok" in retryResponse ||
