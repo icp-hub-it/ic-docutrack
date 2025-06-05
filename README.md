@@ -1,6 +1,8 @@
 # ic-docutrack
 
-DocuTrack is a proof-of-concept dapp for sharing and managing documents. You can upload documents and authorize people to access them with a few clicks. Access to shared documents can expire or be explicitly revoked. In addition, you can ask other people to upload documents for you by simply sharing a link (no login required). Documents are transmitted and stored in encrypted form. The dapp can be used with any standard web browser, no plugins or extensions are needed and no passwords need to be remembered.
+### First Milestone
+
+Extending DocuTrack proof-of-concept dapp for sharing and managing documents. You can upload documents and authorize people to access them with a few clicks. Access to shared documents can expire or be explicitly revoked. In addition, you can ask other people to upload documents for you by simply sharing a link (no login required). Documents are transmitted and stored in encrypted form. The dapp can be used with any standard web browser, no plugins or extensions are needed and no passwords need to be remembered.
 
 Such a dapp can only be realized on the Internet Computer (IC). It is the only blockchain network that can serve web content directly. Furthermore, its programming model enables such complex applications with privacy-preserving identity management fully on-chain. Last but not least, the IC provides low latency, efficiency and affordable storage facilities.
 
@@ -9,7 +11,7 @@ In more detail, DocuTrack demonstrates how a user Alice who created an account w
 This feature makes it very easy and secure for service providers (e.g., a client advisor or wealth manager) to request documents of any type (e.g., house deeds, passport pictures or log files) from clients or other third parties.
 Other document sharing apps require users to exchange public keys or other cryptographic material with which people typically struggle a lot.
 
-You can try out DocuTrack on [https://wavpu-oiaaa-aaaam-aabuq-cai.icp0.io/](https://wavpu-oiaaa-aaaam-aabuq-cai.icp0.io/).
+You can try out DocuTrack on [https://l7rii-2yaaa-aaaao-a4liq-cai.icp0.io/](https://l7rii-2yaaa-aaaao-a4liq-cai.icp0.io/).
 
 The dapp is explained in more detail [in the documentation](./docs/README.md).
 
@@ -23,6 +25,8 @@ This is a proof of concept dapp that demonstrates the potential of building conf
 - Lack of key update: Given that the key used to encrypted the files is never refreshed, the privacy of the data is no longer guaranteed if an attacker learns this key (for instance, by corrupting the local storage of one of the users).
 
 The best solution for the first three bullet points is to apply [vetKeys](https://internetcomputer.org/blog/features/vetkey-primer/) to ensure in a clean and robust way that the same key pair can be extracted for each principal, regardless of the machine and browser used to access the dapp. Until this feature is available, key management could be implemented with WebAuthn extensions. However, these approaches are probably rather brittle, due to lacking widespread support in browsers and HW. For the last point, key revocation and/or key rotation should be used.
+
+### Next Iterations will address this disclaimer points
 
 ## Development
 
