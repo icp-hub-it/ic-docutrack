@@ -121,7 +121,7 @@
                 class="pl-4 bg-background-100 rounded-tl-xl rounded-bl-xl body-1"
               >
                 {#if file.path}
-                  {file.path}
+                  {file.path.slice(1)}
                 {:else}
                   <span class="opacity-50">Unnamed file</span>
                 {/if}
