@@ -54,7 +54,7 @@ export class UploadService {
     const filePath =
       uploadType.type === "request"
         ? uploadType.fileInfo.file_path + uploadType.fileInfo.file_name
-        : uploadType.filePath;
+        : "/" + uploadType.filePath;
 
     const fileBytes = await file.arrayBuffer();
     let fileToEncrypt = FileTools.fromUnencrypted(filePath, fileBytes);

@@ -66,7 +66,7 @@
     // Do not request new url when there is already one
     if (data.requestName && !data.requestLink) {
       requestName = data.requestName;
-      const alias = await auth.actor_user.request_file(data.requestName);
+      const alias = await auth.actor_user.request_file("/" + data.requestName);
       if (enumIs(alias, "FileAlreadyExists")) {
         console.error("Error requesting file:", alias.FileAlreadyExists);
         error = `File already exists: ${alias.FileAlreadyExists}`;

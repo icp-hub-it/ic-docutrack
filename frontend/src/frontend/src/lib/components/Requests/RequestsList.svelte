@@ -92,7 +92,7 @@
               <tr class="text-text-100">
                 <td
                   class="pl-4 bg-background-100 rounded-tl-xl rounded-bl-xl body-1 h-[52px]"
-                  >{request.path}</td
+                  >{request.path.slice(1)}</td
                 >
                 <td class="bg-background-100 body-1">{request.access}</td>
                 <td class="bg-background-100 body-1">{request.formattedDate}</td
