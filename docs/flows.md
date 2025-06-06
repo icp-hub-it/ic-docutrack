@@ -4,7 +4,7 @@
 
 ```mermaid
 sequenceDiagram
-    participant U as User
+    actor U as User
     participant O as Orchestrator
     participant UC as User Canister
     participant OS as Orbit Station
@@ -27,8 +27,8 @@ sequenceDiagram
 
 ```mermaid
 sequenceDiagram
-    participant A as Alice
-    participant B as Bob
+    actor A as Alice
+    actor B as Bob
     participant UC as User Canister
     A->>UC: request_file
     UC->>A: Returns Request ID
@@ -41,7 +41,7 @@ sequenceDiagram
 
 ```mermaid
 sequenceDiagram
-    participant A as Alice
+    actor A as Alice
     participant UC as User Canister
     A->>UC: download_file (id, 0)
     UC->>A: Return chunk[0]
@@ -55,8 +55,8 @@ sequenceDiagram
 
 ```mermaid
 sequenceDiagram
-    participant A as Alice
-    participant B as Bob
+    actor A as Alice
+    actor B as Bob
     participant O as Orchestrator
     participant UC as User Canister
     A->>UC: share_file (id, Bob, sk)
@@ -72,8 +72,8 @@ sequenceDiagram
 
 ```mermaid
 sequenceDiagram
-    participant A as Alice
-    participant B as Bob
+    actor A as Alice
+    actor B as Bob
     participant O as Orchestrator
     participant UC as User Canister
     A->>UC: revoke_share (id, Bob)
@@ -88,7 +88,7 @@ sequenceDiagram
 
 ```mermaid
 sequenceDiagram
-    participant A as Alice
+    actor A as Alice
     participant O as Orchestrator
     participant UC as User Canister
     A->>UC: delete_file (id)
