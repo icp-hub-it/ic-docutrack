@@ -4,7 +4,7 @@
 
 ```mermaid
 sequenceDiagram
-    actor U as User
+    actor U as Alice
     participant O as Orchestrator
     participant UC as Alice's User Canister
     participant OS as Orbit Station
