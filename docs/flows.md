@@ -6,7 +6,7 @@
 sequenceDiagram
     actor U as User
     participant O as Orchestrator
-    participant UC as User Canister
+    participant UC as Alice's User Canister
     participant OS as Orbit Station
     U->>O: set_user
     O->>O: Register User, Start deploy worker
@@ -29,7 +29,7 @@ sequenceDiagram
 sequenceDiagram
     actor A as Alice
     actor B as Bob
-    participant UC as User Canister
+    participant UC as Alice's User Canister
     A->>UC: request_file
     UC->>A: Returns Request ID
     A->>B: Send request ID to Bob to upload file
@@ -42,7 +42,7 @@ sequenceDiagram
 ```mermaid
 sequenceDiagram
     actor A as Alice
-    participant UC as User Canister
+    participant UC as Alice's User Canister
     A->>UC: download_file (id, 0)
     UC->>A: Return chunk[0]
     A->>A: Read num_chunks
@@ -58,7 +58,7 @@ sequenceDiagram
     actor A as Alice
     actor B as Bob
     participant O as Orchestrator
-    participant UC as User Canister
+    participant UC as Alice's User Canister
     A->>UC: share_file (id, Bob, sk)
     UC->>O: Index share file id with user
     O->>UC: OK
@@ -73,9 +73,8 @@ sequenceDiagram
 ```mermaid
 sequenceDiagram
     actor A as Alice
-    actor B as Bob
     participant O as Orchestrator
-    participant UC as User Canister
+    participant UC as Alice's User Canister
     A->>UC: revoke_share (id, Bob)
     UC->>O: Remove shared file from index
     O->>UC: OK
@@ -90,7 +89,7 @@ sequenceDiagram
 sequenceDiagram
     actor A as Alice
     participant O as Orchestrator
-    participant UC as User Canister
+    participant UC as Alice's User Canister
     A->>UC: delete_file (id)
     UC->>O: Remove shared file from index
     O->>UC: OK
