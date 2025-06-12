@@ -94,7 +94,7 @@ sequenceDiagram
     O->>UC: OK
     UC->>UC: Store shared status
     UC->>A: OK
-    B->>UC: Download file
+    B->>UC: Access file
 
 ```
 
