@@ -37,6 +37,8 @@ sequenceDiagram
 
 ```
 
+### Upload a document for another user
+
 Whoever has the request ID can upload the file chunks.
 
 ```mermaid
