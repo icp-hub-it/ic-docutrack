@@ -4,35 +4,28 @@
 
 ```mermaid
 block-beta
-    columns 4
+    columns 5
 
-    space
+    space:2
     User (["User"])
-    space:8
+    space:7
     UserCanister
     
-    space:1
+    space:3
     Frontend
-    space:7
+    space:15
     
-
     OrbitStation
-    space:12
-    OrganizationCanister
-    
-    space:2
     space:3
     Orchestrator
 
-    OrganizationCanister -- "1 : n" --> User
-    User -- "1 : 1" --> UserCanister
+    User -- "Has one" --> UserCanister
+    Orchestrator -- "Request Deploys" --> OrbitStation
     OrbitStation -- "Deploys" --> UserCanister
-    OrbitStation -- "Deploys" --> OrganizationCanister
-    Orchestrator -- "Request deploys to" --> OrbitStation
     User -- "Interacts with" --> Frontend
+    Frontend -- "Forward Requests" --> Orchestrator
+    Frontend -- "Forward Requests" --> UserCanister
     UserCanister -- "Index shared files" --> Orchestrator
-    Frontend -- "Sends requests" --> Orchestrator
-    Frontend -- "Sends requests" --> UserCanister
 ```
 
 The Docutrack architecture consists of the following components:
