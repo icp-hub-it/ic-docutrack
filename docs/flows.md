@@ -10,12 +10,12 @@ sequenceDiagram
     participant OS as Orbit Station
     U->>O: set_user
     O->>O: Register User, Start deploy worker
-    O->>OS: Create User Canister
+    O->>OS: Request Create User Canister
     OS->>O: Return request ID
     OS->>UC: Create User Canister
     O->>OS: Check Canister create status
     OS->>O: Return Canister Principal
-    O->>OS: Install User Canister
+    O->>OS: Request Install User Canister
     OS->>O: Return request ID
     OS->>UC: Install User Canister
     O->>OS: Check Install canister status
