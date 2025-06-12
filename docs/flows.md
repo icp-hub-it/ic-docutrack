@@ -31,8 +31,7 @@ sequenceDiagram
 sequenceDiagram
     actor A as Alice
     participant UC as Alice's User Canister
-    A->>UC: request_file
-    UC->>A: Returns Request ID
+    A->>UC: upload_file_atomic
     A->>UC: Upload file chunks
 
 ```
