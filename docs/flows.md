@@ -73,6 +73,7 @@ sequenceDiagram
     actor A as Alice
     participant UC as Bob's User Canister
     A->>UC: download_file (id, 0)
+    UC->>UC: Check if Alice has access
     UC->>A: Return (chunk[0], num_chunks)
     A->>A: Read num_chunks
     A->>UC: download_file(id, 1..n)
