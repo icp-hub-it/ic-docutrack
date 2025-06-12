@@ -30,6 +30,18 @@ sequenceDiagram
 ```mermaid
 sequenceDiagram
     actor A as Alice
+    participant UC as Alice's User Canister
+    A->>UC: request_file
+    UC->>A: Returns Request ID
+    A->>UC: Upload file chunks
+
+```
+
+Whoever has the request ID can upload the file chunks.
+
+```mermaid
+sequenceDiagram
+    actor A as Alice
     actor B as Bob
     participant UC as Alice's User Canister
     A->>UC: request_file
