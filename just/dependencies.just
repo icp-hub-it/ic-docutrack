@@ -12,6 +12,7 @@ fetch_orbit_canisters:
   curl --fail -L -o "{{WASM_DIR}}/orbit-station.did" "https://raw.githubusercontent.com/dfinity/orbit/refs/tags/%40orbit/station-v0.5.0/core/station/api/spec.did"
   curl --fail -L -o "{{WASM_DIR}}/orbit-upgrader.wasm.gz" "https://github.com/dfinity/orbit/releases/download/%40orbit%2Fupgrader-v{{ORBIT_UPGRADER_VERSION}}/upgrader.wasm.gz"
 
+[group('dependencies')]
 fetch_cycles_minting_canisters:
   echo "Fetching cycles minting canisters..."
   curl --fail -L -o "{{WASM_DIR}}/cycles-minting-canister.did" "https://raw.githubusercontent.com/dfinity/ic/ee52ab3056cf5f39b09b08de70bdd20485c8b2dc/rs/nns/cmc/cmc.did"

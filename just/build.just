@@ -28,4 +28,5 @@ build_canister canister_name wasm_name:
   cargo build --target wasm32-unknown-unknown --release --package "{{canister_name}}"
   ic-wasm "target/wasm32-unknown-unknown/release/{{canister_name}}.wasm" -o "{{WASM_DIR}}/{{wasm_name}}.wasm" shrink
   candid-extractor "{{WASM_DIR}}/{{wasm_name}}.wasm" > "{{WASM_DIR}}/{{wasm_name}}.did"
+  cp "{{WASM_DIR}}/{{wasm_name}}.did" ./candid/{{wasm_name}}.did
   gzip -k "{{WASM_DIR}}/{{wasm_name}}.wasm" --force
