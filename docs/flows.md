@@ -94,6 +94,8 @@ sequenceDiagram
     O->>UC: OK
     UC->>UC: Store shared status
     UC->>A: OK
+    B->>O: shared_files
+    O->>B: Return shared files
     B->>UC: Access file
 
 ```
