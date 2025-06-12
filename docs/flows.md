@@ -11,12 +11,12 @@ sequenceDiagram
     U->>O: set_user
     O->>O: Register User, Start deploy worker
     O->>OS: Request Create User Canister
-    OS->>O: Return request ID
+    OS->>O: Return Create request ID
     OS->>UC: Create User Canister
     O->>OS: Check Canister create status
     OS->>O: Return Canister Principal
     O->>OS: Request Install User Canister
-    OS->>O: Return request ID
+    OS->>O: Return Install request ID
     OS->>UC: Install User Canister
     O->>OS: Check Install canister status
     OS->>O: Return OK
