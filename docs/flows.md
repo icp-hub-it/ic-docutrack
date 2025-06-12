@@ -36,7 +36,7 @@ sequenceDiagram
 
 ```
 
-### Upload a document for another user
+## Request a document upload
 
 Whoever has the request ID can upload the file chunks.
 
