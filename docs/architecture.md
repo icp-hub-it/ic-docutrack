@@ -36,6 +36,7 @@ The Docutrack architecture consists of the following components:
   - Deploy the user or organization canister
   - Index a shared document (only callable from the user or organization canister)
   - Remove a shared document from the index (only callable from the user or organization canister)
+
 - **User Canister**: The user canister is the main canister for a user. It serves as a storage for the user's documents and provides the following functionality:
   - Upload a Document
   - Create a document and then upload it chunk by chunk
@@ -46,8 +47,11 @@ The Docutrack architecture consists of the following components:
   - Explore the file tree of the storage
   - Download a document
   - Delete a document
+
 - **Organization Canister**: The organization canister is similar to the user canister, but it is used for organizations. It provides the same functionality as the user canister, but it is used for organizations instead of users.
+
 - **Orbit station**: The orbit station canister is implemented by the DFINITY Foundation and is used to securely and reliably deploy the user canisters and handle automatically the canister upgrades and the cycles management.
+
 - **Frontend**: The frontend is a web application that provides the user interface for the dapp. It is implemented using React and communicates with the canisters using the Internet Computer's HTTP API.
 
 ## User Registration
