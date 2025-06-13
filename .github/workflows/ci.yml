@@ -58,6 +58,10 @@ jobs:
         run: |
           just build_all_canisters
 
+      - name: Candid is up to date
+        run: |
+          just check_candid_is_up_to_date
+
       - name: check rust code style
         run: |
           just check_code
@@ -66,4 +70,3 @@ jobs:
         run: |
           just fetch_all_canisters
           just test_all
-

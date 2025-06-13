@@ -1,4 +1,5 @@
 import "./just/build.just"
+import "./just/ci.just"
 import "./just/code_check.just"
 import "./just/dependencies.just"
 import "./just/deploy.just"

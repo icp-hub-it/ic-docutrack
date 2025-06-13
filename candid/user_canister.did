@@ -1,0 +1,96 @@
+type AliasInfo = record {
+  public_key : blob;
+  file_name : text;
+  file_path : text;
+  file_id : nat64;
+};
+type DeleteFileResponse = variant {
+  Ok;
+  FailedToRevokeShare : text;
+  FileNotFound;
+};
+type FileData = record {
+  contents : blob;
+  owner_key : blob;
+  file_type : text;
+  num_chunks : nat64;
+};
+type FileDownloadResponse = variant {
+  found_file : FileData;
+  permission_error;
+  not_uploaded_file;
+  not_found_file;
+};
+type FileSharingResponse = variant {
+  ok;
+  permission_error;
+  pending_error;
+  file_not_found;
+};
+type FileStatus = variant {
+  partially_uploaded;
+  pending : record { alias : text; requested_at : nat64 };
+  uploaded : record { document_key : blob; uploaded_at : nat64 };
+};
+type GetAliasInfoError = variant { not_found };
+type PublicFileMetadata = record {
+  file_status : FileStatus;
+  file_name : text;
+  file_path : text;
+  shared_with : vec principal;
+  file_id : nat64;
+};
+type RequestFileResponse = variant { Ok : text; FileAlreadyExists };
+type Result = variant { Ok : AliasInfo; Err : GetAliasInfoError };
+type Result_1 = variant { Ok; Err : UploadFileError };
+type UploadFileAtomicRequest = record {
+  content : blob;
+  owner_key : blob;
+  path : text;
+  file_type : text;
+  num_chunks : nat64;
+};
+type UploadFileAtomicResponse = variant { Ok : nat64; FileAlreadyExists };
+type UploadFileContinueRequest = record {
+  contents : blob;
+  chunk_id : nat64;
+  file_id : nat64;
+};
+type UploadFileContinueResponse = variant {
+  ok;
+  file_not_found;
+  file_already_uploaded;
+  chunk_already_uploaded;
+  chunk_out_of_bounds;
+};
+type UploadFileError = variant { not_requested; already_uploaded };
+type UploadFileRequest = record {
+  owner_key : blob;
+  file_type : text;
+  num_chunks : nat64;
+  file_content : blob;
+  file_id : nat64;
+};
+type UserCanisterInitArgs = record {
+  owner : principal;
+  orchestrator : principal;
+};
+type UserCanisterInstallArgs = variant { Upgrade; Init : UserCanisterInitArgs };
+service : (UserCanisterInstallArgs) -> {
+  delete_file : (nat64) -> (DeleteFileResponse);
+  download_file : (nat64, nat64) -> (FileDownloadResponse) query;
+  get_alias_info : (text) -> (Result) query;
+  get_requests : () -> (vec PublicFileMetadata) query;
+  get_shared_files : (principal) -> (vec PublicFileMetadata) query;
+  public_key : () -> (blob) query;
+  request_file : (text) -> (RequestFileResponse);
+  revoke_share : (principal, nat64) -> ();
+  set_public_key : (blob) -> ();
+  share_file : (principal, nat64, blob) -> (FileSharingResponse);
+  share_file_with_users : (vec principal, nat64, vec blob) -> ();
+  upload_file : (UploadFileRequest) -> (Result_1);
+  upload_file_atomic : (UploadFileAtomicRequest) -> (UploadFileAtomicResponse);
+  upload_file_continue : (UploadFileContinueRequest) -> (
+      UploadFileContinueResponse,
+    );
+}
